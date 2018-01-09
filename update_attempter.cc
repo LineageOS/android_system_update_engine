@@ -31,6 +31,7 @@
 #include <base/rand_util.h>
 #include <base/strings/string_util.h>
 #include <base/strings/stringprintf.h>
+#include <cutils/properties.h>
 #include <brillo/bind_lambda.h>
 #include <brillo/data_encoding.h>
 #include <brillo/errors/error_codes.h>
@@ -1035,9 +1036,11 @@ void UpdateAttempter::ActionCompleted(ActionProcessor* processor,
     UpdateLastCheckedTime();
     new_version_ = plan.version;
     new_payload_size_ = 0;
+    bool fastInstall = property_get_bool("sys.fast_ab_installation", 0);
     for (const auto& payload : plan.payloads)
       new_payload_size_ += payload.size;
-    cpu_limiter_.StartLimiter();
+    if (!fastInstall)
+      cpu_limiter_.StartLimiter();
     SetStatusAndNotify(UpdateStatus::UPDATE_AVAILABLE);
   } else if (type == DownloadAction::StaticType()) {
     SetStatusAndNotify(UpdateStatus::FINALIZING);
