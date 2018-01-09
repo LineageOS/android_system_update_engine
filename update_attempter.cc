@@ -1037,7 +1037,6 @@ void UpdateAttempter::ActionCompleted(ActionProcessor* processor,
     new_payload_size_ = 0;
     for (const auto& payload : plan.payloads)
       new_payload_size_ += payload.size;
-    cpu_limiter_.StartLimiter();
     SetStatusAndNotify(UpdateStatus::UPDATE_AVAILABLE);
   } else if (type == DownloadAction::StaticType()) {
     SetStatusAndNotify(UpdateStatus::FINALIZING);
