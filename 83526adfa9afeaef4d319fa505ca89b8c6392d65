@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "74cd226a_c363d457",
+        "filename": "update_engine.rc",
+        "patchSetId": 1
+      },
+      "lineNbr": 5,
+      "author": {
+        "id": 3671
+      },
+      "writtenOn": "2018-01-11T22:18:03Z",
+      "side": 1,
+      "message": "I wonder about this. Maybe it\u0027s better to move it to the foreground when we begin an install. It doesn\u0027t need to run there 24/7.",
+      "range": {
+        "startLine": 5,
+        "startChar": 0,
+        "endLine": 5,
+        "endChar": 41
+      },
+      "revId": "83526adfa9afeaef4d319fa505ca89b8c6392d65",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
