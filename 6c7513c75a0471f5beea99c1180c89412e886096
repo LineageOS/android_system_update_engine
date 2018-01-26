@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "e3fbca0d_eb246105",
+        "filename": "payload_consumer/postinstall_runner_action.cc",
+        "patchSetId": 1
+      },
+      "lineNbr": 149,
+      "author": {
+        "id": 3671
+      },
+      "writtenOn": "2018-01-26T15:57:23Z",
+      "side": 1,
+      "message": "This will completely fucking destroy any chance of using verity. This needs an opt-out in my opinion.",
+      "range": {
+        "startLine": 148,
+        "startChar": 0,
+        "endLine": 149,
+        "endChar": 64
+      },
+      "revId": "6c7513c75a0471f5beea99c1180c89412e886096",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
