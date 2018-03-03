@@ -24,6 +24,9 @@
 #include <unistd.h>
 
 #include <cmath>
+#ifdef __ANDROID__
+#include <fstream>
+#endif
 
 #include <base/files/file_path.h>
 #include <base/files/file_util.h>
@@ -143,14 +146,30 @@ void PostinstallRunnerAction::PerformPartitionPostinstall() {
   }
 
 #ifdef __ANDROID__
-  // Run backuptool script
-  LOG(INFO) << "Running backuptool scripts";
-  utils::MountFilesystem(mountable_device, fs_mount_dir_, MS_NOATIME | MS_NODEV | MS_NODIRATIME,
-                         partition.filesystem_type, "seclabel");
+  // https://ext4.wiki.kernel.org/index.php/Ext4_Disk_Layout
+  // Super block starts from block 0, offset 0x400
+  //   0x2C: len32 Mount time
+  //   0x30: len32 Write time
+  //   0x34: len16 Number of mounts since the last fsck
+  //   0x38: len16 Magic signature 0xEF53
 
-  int ret = system("/postinstall/system/bin/backuptool_postinstall.sh");
-  if (ret == -1 || WEXITSTATUS(ret) != 0) {
-    LOG(ERROR) << "Backuptool postinstall step failed. ret=" << ret;
+  char mount_count;
+  std::fstream file(mountable_device, std::ios::in|std::ios::binary|std::ios::ate);
+
+  file.seekp(0x400 + 0x34);
+  file.get(mount_count);
+  file.close();
+
+  if (int(mount_count) > 0) {
+    // Run backuptool script
+    LOG(INFO) << "Running backuptool scripts";
+    utils::MountFilesystem(mountable_device, fs_mount_dir_, MS_NOATIME | MS_NODEV | MS_NODIRATIME,
+                           partition.filesystem_type, "seclabel");
+
+    int ret = system("/postinstall/system/bin/backuptool_postinstall.sh");
+    if (ret == -1 || WEXITSTATUS(ret) != 0) {
+      LOG(ERROR) << "Backuptool postinstall step failed. ret=" << ret;
+    }
   }
 
   utils::UnmountFilesystem(fs_mount_dir_);
