@@ -24,6 +24,9 @@
 #include <unistd.h>
 
 #include <cmath>
+#ifdef __ANDROID__
+#include <fstream>
+#endif
 
 #include <base/files/file_path.h>
 #include <base/files/file_util.h>
@@ -143,15 +146,48 @@ void PostinstallRunnerAction::PerformPartitionPostinstall() {
   }
 
 #ifdef __ANDROID__
-  // Mount the target partition R/W
-  LOG(INFO) << "Running backuptool scripts";
-  utils::MountFilesystem(mountable_device, fs_mount_dir_, MS_NOATIME | MS_NODEV | MS_NODIRATIME,
-                         partition.filesystem_type, "seclabel");
+  // Check the currently installed /system partition to see if it's ever
+  // been mounted R/W. If it has, we'll run backuptool scripts for it
+  // since we can safely assume something on the partition has been
+  // changed and we won't be breaking verity (since it's already been
+  // broken). If it hasn't ever been mounted R/W, we can assume that
+  // the rom that the user is upgrading to will have everything they
+  // need and no addon.d scripts will need to be run to retain stuff
+  // after the upgrade.
+  //
+  // Use the following disk layout info to make the determination
+  // https://ext4.wiki.kernel.org/index.php/Ext4_Disk_Layout
+  // Super block starts from block 0, offset 0x400
+  //   0x2C: len32 Mount time
+  //   0x30: len32 Write time
+  //   0x34: len16 Number of mounts since the last fsck
+  //   0x38: len16 Magic signature 0xEF53
 
-  // Run backuptool script
-  int ret = system("/postinstall/system/bin/backuptool_postinstall.sh");
-  if (ret == -1 || WEXITSTATUS(ret) != 0) {
-    LOG(ERROR) << "Backuptool postinstall step failed. ret=" << ret;
+  const string current_device =
+      utils::MakePartitionNameForMount(partition.source_path);
+  char mount_count;
+
+  std::fstream file(current_device, std::ios::in|std::ios::binary|std::ios::ate);
+
+  file.seekp(0x400 + 0x34);
+  file.get(mount_count);
+  file.close();
+
+  LOG(INFO) << current_device << " has been mounted R/W " << int(mount_count) << " times.";
+
+  if (int(mount_count) > 0) {
+    // Mount the target partition R/W
+    LOG(INFO) << "Running backuptool scripts";
+    utils::MountFilesystem(mountable_device, fs_mount_dir_, MS_NOATIME | MS_NODEV | MS_NODIRATIME,
+                           partition.filesystem_type, "seclabel");
+
+    // Run backuptool script
+    int ret = system("/postinstall/system/bin/backuptool_postinstall.sh");
+    if (ret == -1 || WEXITSTATUS(ret) != 0) {
+      LOG(ERROR) << "Backuptool postinstall step failed. ret=" << ret;
+    }
+  } else {
+    LOG(INFO) << "Skipping backuptool scripts";
   }
 
   utils::UnmountFilesystem(fs_mount_dir_);
