@@ -30,6 +30,7 @@
 #include <base/logging.h>
 #include <base/strings/string_split.h>
 #include <base/strings/string_util.h>
+#include <cutils/properties.h>
 
 #include "update_engine/common/action_processor.h"
 #include "update_engine/common/boot_control_interface.h"
@@ -168,7 +169,10 @@ void PostinstallRunnerAction::PerformPartitionPostinstall() {
 
   LOG(INFO) << current_device << " has been mounted R/W " << mount_count << " times.";
 
-  if (mount_count > 0) {
+  bool forceSkipBackuptool = property_get_bool("sys.force.skip_backuptool", 0) == 1;
+  bool forceBackuptool = property_get_bool("sys.force.backuptool", 0) == 1;
+
+  if ((mount_count > 0 && !forceSkipBackuptool) || forceBackuptool) {
     // Mount the target partition R/W
     LOG(INFO) << "Running backuptool scripts";
     utils::MountFilesystem(mountable_device, fs_mount_dir_, MS_NOATIME | MS_NODEV | MS_NODIRATIME,
