@@ -169,6 +169,7 @@ int UpdateEngineClientAndroid::OnInit() {
               false,
               "Wait for previous update to merge. "
               "Only available after rebooting to new slot.");
+  DEFINE_bool(perf_mode, false, "Enable perf mode.");
   // Boilerplate init commands.
   base::CommandLine::Init(argc_, argv_);
   brillo::FlagHelper::Init(argc_, argv_, "Android Update Engine Client");
@@ -290,6 +291,10 @@ int UpdateEngineClientAndroid::OnInit() {
       return ExitWhenIdle(status);
     }
     keep_running = true;
+  }
+
+  if (FLAGS_perf_mode) {
+    return ExitWhenIdle(service_->setPerformanceMode(true));
   }
 
   if (FLAGS_update) {

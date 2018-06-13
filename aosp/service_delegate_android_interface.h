@@ -129,6 +129,8 @@ class ServiceDelegateAndroidInterface {
       std::unique_ptr<CleanupSuccessfulUpdateCallbackInterface> callback,
       brillo::ErrorPtr* error) = 0;
 
+  virtual bool SetPerformanceMode(bool enable, brillo::ErrorPtr* error) = 0;
+
  protected:
   ServiceDelegateAndroidInterface() = default;
 };
