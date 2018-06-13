@@ -100,6 +100,8 @@ class UpdateAttempterAndroid
                                    brillo::ErrorPtr* error) override;
   bool resetShouldSwitchSlotOnReboot(brillo::ErrorPtr* error) override;
 
+  bool SetPerformanceMode(bool enable, brillo::ErrorPtr* error) override;
+
   // ActionProcessorDelegate methods:
   void ProcessingDone(const ActionProcessor* processor,
                       ErrorCode code) override;
@@ -281,6 +283,8 @@ class UpdateAttempterAndroid
 
   // The path to the zip file with X509 certificates.
   std::string update_certificates_path_{constants::kUpdateCertificatesPath};
+
+  bool performance_mode_ = false;
 
   DISALLOW_COPY_AND_ASSIGN(UpdateAttempterAndroid);
 };
