@@ -208,6 +208,7 @@ cc_defaults {
         "libfec",
         "liblz4",
         "libziparchive",
+        "libprocessgroup",
     ],
 }
 

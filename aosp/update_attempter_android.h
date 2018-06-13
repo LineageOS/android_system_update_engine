@@ -100,6 +100,8 @@ class UpdateAttempterAndroid
                                    Error* error) override;
   bool resetShouldSwitchSlotOnReboot(Error* error) override;
 
+  bool SetPerformanceMode(bool enable, Error* error) override;
+
   // ActionProcessorDelegate methods:
   void ProcessingDone(const ActionProcessor* processor,
                       ErrorCode code) override;
@@ -290,6 +292,8 @@ class UpdateAttempterAndroid
 
   metrics_utils::PersistedValue<int64_t> metric_bytes_downloaded_;
   metrics_utils::PersistedValue<int64_t> metric_total_bytes_downloaded_;
+
+  bool performance_mode_ = false;
 
   DISALLOW_COPY_AND_ASSIGN(UpdateAttempterAndroid);
 };
