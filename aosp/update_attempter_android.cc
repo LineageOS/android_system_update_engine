@@ -30,6 +30,7 @@
 #include <brillo/message_loops/message_loop.h>
 #include <brillo/strings/string_utils.h>
 #include <log/log_safetynet.h>
+#include <processgroup/processgroup.h>
 
 #include "update_engine/aosp/cleanup_previous_update_action.h"
 #include "update_engine/common/constants.h"
@@ -144,6 +145,7 @@ UpdateAttempterAndroid::UpdateAttempterAndroid(
   metrics_reporter_ = metrics::CreateMetricsReporter(
       boot_control_->GetDynamicPartitionControl(), &install_plan_);
   network_selector_ = network::CreateNetworkSelector();
+  SetTaskProfiles(0, {"ServiceCapacityLow", "LowIoPriority", "HighEnergySaving"});
 }
 
 UpdateAttempterAndroid::~UpdateAttempterAndroid() {
@@ -538,6 +540,23 @@ bool UpdateAttempterAndroid::VerifyPayloadApplicable(
     }
     fd->Close();
   }
+  return true;
+}
+
+bool UpdateAttempterAndroid::SetPerformanceMode(bool enable,
+                                                brillo::ErrorPtr* error) {
+  LOG(INFO) << (enable ? "Enabling" : "Disabling") << " performance mode.";
+
+  if (performance_mode_ == enable)
+    return true;
+  bool ret;
+  if (enable)
+    ret = SetTaskProfiles(0, {"ProcessCapacityMax", "HighIoPriority", "MaxPerformance"});
+  else
+    ret = SetTaskProfiles(0, {"ServiceCapacityLow", "LowIoPriority", "HighEnergySaving"});
+  if (!ret)
+    return LogAndSetError(error, FROM_HERE, "Could not change profiles");
+  performance_mode_ = enable;
   return true;
 }
 
