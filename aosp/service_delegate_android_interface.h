@@ -130,6 +130,8 @@ class ServiceDelegateAndroidInterface {
       std::unique_ptr<CleanupSuccessfulUpdateCallbackInterface> callback,
       Error* error) = 0;
 
+  virtual bool SetPerformanceMode(bool enable, Error* error) = 0;
+
  protected:
   ServiceDelegateAndroidInterface() = default;
 };

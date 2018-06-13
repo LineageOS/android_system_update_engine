@@ -254,4 +254,11 @@ Status BinderUpdateEngineAndroidService::cleanupSuccessfulUpdate(
   return Status::ok();
 }
 
+Status BinderUpdateEngineAndroidService::setPerformanceMode(bool enable) {
+  Error error;
+  if (!service_delegate_->SetPerformanceMode(enable, &error))
+    return ErrorPtrToStatus(error);
+  return Status::ok();
+}
+
 }  // namespace chromeos_update_engine
