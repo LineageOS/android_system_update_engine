@@ -22,6 +22,30 @@
       "revId": "3aa179d82ba96d32033f039e6507e73e8136539e",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "65fc4237_82a1e12e",
+        "filename": "update_engine.rc",
+        "patchSetId": 3
+      },
+      "lineNbr": 5,
+      "author": {
+        "id": 13897
+      },
+      "writtenOn": "2018-06-13T22:02:21Z",
+      "side": 0,
+      "message": "This is the only line that makes a difference here, CPULimiter only affects ChromiumOS as of https://github.com/LineageOS/android_system_update_engine/commit/56db75ded7891f863463def26c938b6eee1b1b6f.\n\nI thought about a way to handle this and probably the easiest way is having update-engine write its PID to /dev/cpuset/background/tasks when the user enables a preference for faster installations and back to system-background when disabled.\n\nNow I\u0027m wondering: is it worth it? How much faster is the installation when update-engine is not in system-background?",
+      "parentUuid": "d69b8a9a_05f187d0",
+      "range": {
+        "startLine": 5,
+        "startChar": 4,
+        "endLine": 5,
+        "endChar": 48
+      },
+      "revId": "3aa179d82ba96d32033f039e6507e73e8136539e",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
     }
   ]
 }
