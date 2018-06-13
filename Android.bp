@@ -189,6 +189,7 @@ cc_defaults {
         "libcrypto",
         "libfec",
         "libziparchive",
+        "libprocessgroup",
     ],
 }
 
