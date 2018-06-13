@@ -1,0 +1,50 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "661ad795_52e645aa",
+        "filename": "update_attempter.cc",
+        "patchSetId": 3
+      },
+      "lineNbr": 1039,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2018-06-13T03:01:49Z",
+      "side": 1,
+      "message": "Should this go in a constructor instead?",
+      "range": {
+        "startLine": 1039,
+        "startChar": 4,
+        "endLine": 1039,
+        "endChar": 72
+      },
+      "revId": "08c52790286d7684c6d0d3a424b86405b010011a",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "2b75d8ee_a4a70ada",
+        "filename": "update_attempter.cc",
+        "patchSetId": 3
+      },
+      "lineNbr": 1043,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2018-06-13T03:01:49Z",
+      "side": 1,
+      "message": "nit: IT looks like the convention is to use braces all the time?",
+      "range": {
+        "startLine": 1042,
+        "startChar": 4,
+        "endLine": 1043,
+        "endChar": 34
+      },
+      "revId": "08c52790286d7684c6d0d3a424b86405b010011a",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
