@@ -69,6 +69,30 @@
       "revId": "08c52790286d7684c6d0d3a424b86405b010011a",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "e4d19e72_a5888ed5",
+        "filename": "update_attempter.cc",
+        "patchSetId": 3
+      },
+      "lineNbr": 1043,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2018-06-14T03:35:13Z",
+      "side": 1,
+      "message": "weird. if that\u0027s the general convention elsewhere, this is probably fine.",
+      "parentUuid": "bdb8f7aa_1b1c4590",
+      "range": {
+        "startLine": 1042,
+        "startChar": 4,
+        "endLine": 1043,
+        "endChar": 34
+      },
+      "revId": "08c52790286d7684c6d0d3a424b86405b010011a",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
     }
   ]
 }

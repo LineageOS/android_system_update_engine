@@ -46,6 +46,30 @@
       "revId": "3aa179d82ba96d32033f039e6507e73e8136539e",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "4b1b2305_8e10ef48",
+        "filename": "update_engine.rc",
+        "patchSetId": 3
+      },
+      "lineNbr": 5,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2018-06-14T03:35:13Z",
+      "side": 0,
+      "message": "Huh, is our update_engine behind AOSP\u0027s?\n\nI think the difference here is going to be device-specific, since the CPUs allocated to various cpusets is defined by the device init scripting.",
+      "parentUuid": "65fc4237_82a1e12e",
+      "range": {
+        "startLine": 5,
+        "startChar": 4,
+        "endLine": 5,
+        "endChar": 48
+      },
+      "revId": "3aa179d82ba96d32033f039e6507e73e8136539e",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
     }
   ]
 }
