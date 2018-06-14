@@ -93,6 +93,30 @@
       "revId": "08c52790286d7684c6d0d3a424b86405b010011a",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "40ab4220_78df6aba",
+        "filename": "update_attempter.cc",
+        "patchSetId": 3
+      },
+      "lineNbr": 1043,
+      "author": {
+        "id": 13897
+      },
+      "writtenOn": "2018-06-14T13:50:57Z",
+      "side": 1,
+      "message": "Now that I look better, it\u0027s just inconsistent here, I only noticed more lines without braces. But that seems to be what\u0027s written in Google\u0027s cpp coding style guide: \"do as you prefer\".",
+      "parentUuid": "e4d19e72_a5888ed5",
+      "range": {
+        "startLine": 1042,
+        "startChar": 4,
+        "endLine": 1043,
+        "endChar": 34
+      },
+      "revId": "08c52790286d7684c6d0d3a424b86405b010011a",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
     }
   ]
 }
