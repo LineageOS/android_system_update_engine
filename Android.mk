@@ -159,6 +159,9 @@ LOCAL_SHARED_LIBRARIES := \
     $(ue_libpayload_consumer_exported_shared_libraries) \
     $(ue_update_metadata_protos_exported_shared_libraries)
 LOCAL_SRC_FILES := $(ue_libpayload_consumer_src_files)
+ifeq ($(TARGET_HAS_NO_TIMESTAMP_CHECK),true)
+LOCAL_CFLAGS += -DNO_TIMESTAMP_CHECK
+endif
 include $(BUILD_HOST_STATIC_LIBRARY)
 endif  # HOST_OS == linux
 
@@ -183,6 +186,9 @@ LOCAL_SHARED_LIBRARIES := \
     $(ue_libpayload_consumer_exported_shared_libraries:-host=) \
     $(ue_update_metadata_protos_exported_shared_libraries)
 LOCAL_SRC_FILES := $(ue_libpayload_consumer_src_files)
+ifeq ($(TARGET_HAS_NO_TIMESTAMP_CHECK),true)
+LOCAL_CFLAGS += -DNO_TIMESTAMP_CHECK
+endif
 include $(BUILD_STATIC_LIBRARY)
 
 # libupdate_engine_boot_control (type: static_library)
