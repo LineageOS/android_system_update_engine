@@ -491,6 +491,13 @@ DeltaPerformer::MetadataParseResult DeltaPerformer::ParsePayloadMetadata(
            kDeltaManifestSizeSize);
     manifest_size_ = be64toh(manifest_size_);  // switch big endian to host
 
+    metadata_size_ = manifest_offset + manifest_size_;
+    if (metadata_size_ < manifest_size_) {
+      // Overflow detected.
+      *error = ErrorCode::kDownloadInvalidMetadataSize;
+      return kMetadataParseError;
+    }
+
     if (GetMajorVersion() == kBrilloMajorPayloadVersion) {
       // Parse the metadata signature size.
       static_assert(sizeof(metadata_signature_size_) ==
@@ -505,13 +512,18 @@ DeltaPerformer::MetadataParseResult DeltaPerformer::ParsePayloadMetadata(
              &payload[metadata_signature_size_offset],
              kDeltaMetadataSignatureSizeSize);
       metadata_signature_size_ = be32toh(metadata_signature_size_);
+
+      if (metadata_size_ + metadata_signature_size_ < metadata_size_) {
+        // Overflow detected.
+        *error = ErrorCode::kDownloadInvalidMetadataSize;
+        return kMetadataParseError;
+      }
     }
 
     // If the metadata size is present in install plan, check for it immediately
     // even before waiting for that many number of bytes to be downloaded in the
     // payload. This will prevent any attack which relies on us downloading data
     // beyond the expected metadata size.
-    metadata_size_ = manifest_offset + manifest_size_;
     if (install_plan_->hash_checks_mandatory) {
       if (install_plan_->metadata_size != metadata_size_) {
         LOG(ERROR) << "Mandatory metadata size in Omaha response ("
