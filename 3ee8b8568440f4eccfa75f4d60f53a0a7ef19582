@@ -1,0 +1,38 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "eaba22b9_9a97f8c7",
+        "filename": "payload_consumer/delta_performer.cc",
+        "patchSetId": 1
+      },
+      "lineNbr": 498,
+      "author": {
+        "id": 16963
+      },
+      "writtenOn": "2018-12-08T22:19:05Z",
+      "side": 1,
+      "message": "shouldn\u0027t this be:\n\n    return kMetadataParseError;\n\nfor cm-14.1?\n\nI\u0027m getting a compile error:\n\nsystem/update_engine/payload_consumer/delta_performer.cc:519:37: error: no member named \u0027kError\u0027 in \u0027chromeos_update_engine::DeltaPerformer::MetadataParseResult\u0027\n        return MetadataParseResult::kError;",
+      "revId": "3ee8b8568440f4eccfa75f4d60f53a0a7ef19582",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "f4eb9602_e42036c9",
+        "filename": "payload_consumer/delta_performer.cc",
+        "patchSetId": 1
+      },
+      "lineNbr": 519,
+      "author": {
+        "id": 16963
+      },
+      "writtenOn": "2018-12-08T22:19:05Z",
+      "side": 1,
+      "message": "return kMetadataParseError;",
+      "revId": "3ee8b8568440f4eccfa75f4d60f53a0a7ef19582",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": true
+    }
+  ]
+}
