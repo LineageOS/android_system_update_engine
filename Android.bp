@@ -195,6 +195,7 @@ cc_defaults {
         "liblz4",
         "libziparchive",
         "libprocessgroup",
+        "libselinux",
     ],
 }
 
