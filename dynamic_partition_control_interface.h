@@ -26,17 +26,29 @@
 #include <libdm/dm.h>
 #include <liblp/builder.h>
 
+#include "update_engine/common/boot_control_interface.h"
+
 namespace chromeos_update_engine {
+
+struct FeatureFlag {
+  enum class Value { NONE = 0, RETROFIT, LAUNCH };
+  constexpr explicit FeatureFlag(Value value) : value_(value) {}
+  constexpr bool IsEnabled() const { return value_ != Value::NONE; }
+  constexpr bool IsRetrofit() const { return value_ == Value::RETROFIT; }
+
+ private:
+  Value value_;
+};
 
 class DynamicPartitionControlInterface {
  public:
   virtual ~DynamicPartitionControlInterface() = default;
 
-  // Return true iff dynamic partitions is enabled on this device.
-  virtual bool IsDynamicPartitionsEnabled() = 0;
-
-  // Return true iff dynamic partitions is retrofitted on this device.
-  virtual bool IsDynamicPartitionsRetrofit() = 0;
+  // Return the feature flags of dynamic partitions on this device.
+  // Return RETROFIT iff dynamic partitions is retrofitted on this device,
+  //        LAUNCH iff this device is launched with dynamic partitions,
+  //        NONE iff dynamic partitions is disabled on this device.
+  virtual FeatureFlag GetDynamicPartitionsFeatureFlag() = 0;
 
   // Map logical partition on device-mapper.
   // |super_device| is the device path of the physical partition ("super").
@@ -51,13 +63,6 @@ class DynamicPartitionControlInterface {
       uint32_t slot,
       bool force_writable,
       std::string* path) = 0;
-
-  // Unmap logical partition on device mapper. This is the reverse operation
-  // of MapPartitionOnDeviceMapper.
-  // If |wait| is set, wait until the device is unmapped.
-  // Returns true if unmapped successfully.
-  virtual bool UnmapPartitionOnDeviceMapper(
-      const std::string& target_partition_name) = 0;
 
   // Do necessary cleanups before destroying the object.
   virtual void Cleanup() = 0;
@@ -77,20 +82,23 @@ class DynamicPartitionControlInterface {
                                      std::string* path) = 0;
 
   // Retrieve metadata from |super_device| at slot |source_slot|.
-  // On retrofit devices, if |target_slot| != kInvalidSlot, the returned
-  // metadata automatically includes block devices at |target_slot|.
   virtual std::unique_ptr<android::fs_mgr::MetadataBuilder> LoadMetadataBuilder(
-      const std::string& super_device,
-      uint32_t source_slot,
-      uint32_t target_slot) = 0;
+      const std::string& super_device, uint32_t source_slot) = 0;
 
-  // Write metadata |builder| to |super_device| at slot |target_slot|.
-  virtual bool StoreMetadata(const std::string& super_device,
-                             android::fs_mgr::MetadataBuilder* builder,
-                             uint32_t target_slot) = 0;
+  // Prepare all partitions for an update specified in |partition_metadata|.
+  // This is needed before calling MapPartitionOnDeviceMapper(), otherwise the
+  // device would be mapped in an inconsistent way.
+  virtual bool PreparePartitionsForUpdate(
+      uint32_t source_slot,
+      uint32_t target_slot,
+      const BootControlInterface::PartitionMetadata& partition_metadata) = 0;
 
   // Return a possible location for devices listed by name.
   virtual bool GetDeviceDir(std::string* path) = 0;
+
+  // Return the name of the super partition (which stores super partition
+  // metadata) for a given slot.
+  virtual std::string GetSuperPartitionName(uint32_t slot) = 0;
 };
 
 }  // namespace chromeos_update_engine
