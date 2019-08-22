@@ -81,10 +81,43 @@ die() {
   exit 1
 }
 
+if which -s greadlink > /dev/null; then
+  READLINK=greadlink
+else
+  READLINK=readlink
+fi
+
+if which -s ghead > /dev/null; then
+  HEAD=ghead
+else
+  HEAD=head
+fi
+
+if which -s gmktemp > /dev/null; then
+  MKTEMP=gmktemp
+else
+  MKTEMP=mktemp
+fi
+
+if which -s gstat > /dev/null; then
+  STAT=gstat
+else
+  STAT=stat
+fi
+
+if which -s cgpt > /dev/null; then
+  CGPT=cgpt
+else
+  cgpt() {
+    return 1
+  }
+  CGPT=cgpt
+fi
+
 # Loads shflags. We first look at the default install location; then look for
 # crosutils (chroot); finally check our own directory (au-generator zipfile).
 load_shflags() {
-  local my_dir="$(dirname "$(readlink -f "$0")")"
+  local my_dir="$(dirname "$(${READLINK} -f "$0")")"
   local path
   for path in /usr/share/misc {/usr/lib/crosutils,"${my_dir}"}/lib/shflags; do
     if [[ -r "${path}/shflags" ]]; then
@@ -282,7 +315,7 @@ truncate_file() {
 # Prints the name of the newly created file.
 create_tempfile() {
   local pattern="${1:-tempfile.XXXXXX}"
-  mktemp --tmpdir="${FLAGS_work_dir}" "${pattern}"
+  ${MKTEMP} --tmpdir="${FLAGS_work_dir}" "${pattern}"
 }
 
 cleanup() {
@@ -324,7 +357,7 @@ extract_image() {
 
   # Brillo images are zip files. We detect the 4-byte magic header of the zip
   # file.
-  local magic=$(head --bytes=4 "${image}" | hexdump -e '1/1 "%.2x"')
+  local magic=$(${HEAD} --bytes=4 "${image}" | hexdump -e '1/1 "%.2x"')
   if [[ "${magic}" == "504b0304" ]]; then
     echo "Detected .zip file, extracting Brillo image."
     extract_image_brillo "$@"
@@ -334,7 +367,7 @@ extract_image() {
   # Chrome OS images are GPT partitioned disks. We should have the cgpt binary
   # bundled here and we will use it to extract the partitions, so the GPT
   # headers must be valid.
-  if cgpt show -q -n "${image}" >/dev/null; then
+  if ${CGPT} show -q -n "${image}" >/dev/null; then
     echo "Detected GPT image, extracting Chrome OS image."
     extract_image_cros "$@"
     return
@@ -458,7 +491,7 @@ Disabling deltas for this source version."
 
     # If the partition is stored as an Android sparse image file, we need to
     # convert them to a raw image for the update.
-    local magic=$(head --bytes=4 "${part_file}" | hexdump -e '1/1 "%.2x"')
+    local magic=$(${HEAD} --bytes=4 "${part_file}" | hexdump -e '1/1 "%.2x"')
     if [[ "${magic}" == "3aff26ed" ]]; then
       temp_raw=$(create_tempfile "${part}.raw.XXXXXX")
       CLEANUP_FILES+=("${temp_raw}")
@@ -480,7 +513,7 @@ Disabling deltas for this source version."
     # we pad the data with zeros if needed, but for source images we truncate
     # down the data since the last block of the old image could be padded on
     # disk with unknown data.
-    filesize=$(stat -c%s "${part_file}")
+    filesize=$(${STAT} -c%s "${part_file}")
     if [[ $(( filesize % 4096 )) -ne 0 ]]; then
       if [[ "${partitions_array}" == "SRC_PARTITIONS" ]]; then
         echo "Rounding DOWN partition ${part}.img to a multiple of 4 KiB."
@@ -690,7 +723,7 @@ cmd_verify() {
     echo "Creating temporary target partition ${tmp_part} for ${part}"
     CLEANUP_FILES+=("${tmp_part}")
     TMP_PARTITIONS[${part}]=${tmp_part}
-    local FILESIZE=$(stat -c%s "${DST_PARTITIONS[${part}]}")
+    local FILESIZE=$(${STAT} -c%s "${DST_PARTITIONS[${part}]}")
     echo "Truncating ${TMP_PARTITIONS[${part}]} to ${FILESIZE}"
     truncate_file "${TMP_PARTITIONS[${part}]}" "${FILESIZE}"
   done

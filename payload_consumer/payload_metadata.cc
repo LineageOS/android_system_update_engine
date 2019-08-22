@@ -16,7 +16,11 @@
 
 #include "update_engine/payload_consumer/payload_metadata.h"
 
+#ifdef __APPLE__
+#include <machine/endian.h>
+#else
 #include <endian.h>
+#endif
 
 #include <brillo/data_encoding.h>
 

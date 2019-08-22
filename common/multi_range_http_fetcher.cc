@@ -180,7 +180,11 @@ void MultiRangeHttpFetcher::Reset() {
 }
 
 std::string MultiRangeHttpFetcher::Range::ToString() const {
+#ifdef __APPLE__
+  std::string range_str = base::StringPrintf("%lld+", offset());
+#else
   std::string range_str = base::StringPrintf("%jd+", offset());
+#endif
   if (HasLength())
     range_str += std::to_string(length());
   else

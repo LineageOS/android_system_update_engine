@@ -20,7 +20,11 @@
 
 #include <dirent.h>
 #include <elf.h>
+#ifdef __APPLE__
+#include <machine/endian.h>
+#else
 #include <endian.h>
+#endif
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -69,11 +73,13 @@ namespace chromeos_update_engine {
 
 namespace {
 
+#ifdef __linux__
 // The following constants control how UnmountFilesystem should retry if
 // umount() fails with an errno EBUSY, i.e. retry 5 times over the course of
 // one second.
 const int kUnmountMaxNumOfRetries = 5;
 const int kUnmountRetryIntervalInMicroseconds = 200 * 1000;  // 200 ms
+#endif
 
 // Number of bytes to read from a file to attempt to detect its contents. Used
 // in GetFileFormat.
@@ -401,6 +407,7 @@ bool ReadFileChunk(const string& path, off_t offset, off_t size,
   return ReadFileChunkAndAppend(path, offset, size, out_p);
 }
 
+#ifdef __linux__
 off_t BlockDevSize(int fd) {
   uint64_t dev_size;
   int rc = ioctl(fd, BLKGETSIZE64, &dev_size);
@@ -410,6 +417,9 @@ off_t BlockDevSize(int fd) {
   }
   return dev_size;
 }
+#else
+off_t BlockDevSize(int fd) { return 0; }
+#endif
 
 off_t FileSize(int fd) {
   struct stat stbuf;
@@ -559,7 +569,8 @@ string MakePartitionNameForMount(const string& part_name) {
 string ErrnoNumberAsString(int err) {
   char buf[100];
   buf[0] = '\0';
-  return strerror_r(err, buf, sizeof(buf));
+  strerror_r(err, buf, sizeof(buf));
+  return buf;
 }
 
 bool FileExists(const char* path) {
@@ -630,6 +641,7 @@ bool MakeTempFile(const string& base_filename_template,
   return true;
 }
 
+#ifdef __linux__
 bool SetBlockDeviceReadOnly(const string& device, bool read_only) {
   int fd = HANDLE_EINTR(open(device.c_str(), O_RDONLY | O_CLOEXEC));
   if (fd < 0) {
@@ -653,7 +665,13 @@ bool SetBlockDeviceReadOnly(const string& device, bool read_only) {
   }
   return true;
 }
+#else
+bool SetBlockDeviceReadOnly(const string& device, bool read_only) {
+  return true;
+}
+#endif
 
+#ifdef __linux__
 bool MountFilesystem(const string& device,
                      const string& mountpoint,
                      unsigned long mountflags,  // NOLINT(runtime/int)
@@ -679,7 +697,17 @@ bool MountFilesystem(const string& device,
   }
   return false;
 }
+#else
+bool MountFilesystem(const string& device,
+                     const string& mountpoint,
+                     unsigned long mountflags,  // NOLINT(runtime/int)
+                     const string& type,
+                     const string& fs_mount_options) {
+  return true;
+}
+#endif
 
+#ifdef __linux__
 bool UnmountFilesystem(const string& mountpoint) {
   int num_retries = 1;
   for (;; ++num_retries) {
@@ -701,6 +729,11 @@ bool UnmountFilesystem(const string& mountpoint) {
   }
   return true;
 }
+#else
+bool UnmountFilesystem(const string& mountpoint) {
+  return true;
+}
+#endif
 
 bool IsMountpoint(const std::string& mountpoint) {
   struct stat stdir, stparent;

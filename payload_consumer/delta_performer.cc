@@ -17,7 +17,9 @@
 #include "update_engine/payload_consumer/delta_performer.h"
 
 #include <errno.h>
+#ifdef __linux__
 #include <linux/fs.h>
+#endif
 
 #include <algorithm>
 #include <cstring>
@@ -141,6 +143,7 @@ FileDescriptorPtr OpenFile(const char* path,
   return fd;
 }
 
+#ifdef __linux__
 // Discard the tail of the block device referenced by |fd|, from the offset
 // |data_size| until the end of the block device. Returns whether the data was
 // discarded.
@@ -172,6 +175,11 @@ bool DiscardPartitionTail(const FileDescriptorPtr& fd, uint64_t data_size) {
   }
   return false;
 }
+#else
+bool DiscardPartitionTail(const FileDescriptorPtr& fd, uint64_t data_size) {
+  return true;
+}
+#endif
 
 }  // namespace
 

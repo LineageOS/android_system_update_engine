@@ -17,7 +17,9 @@
 #include "update_engine/payload_consumer/file_descriptor.h"
 
 #include <fcntl.h>
+#ifdef __linux__
 #include <linux/fs.h>
+#endif
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
