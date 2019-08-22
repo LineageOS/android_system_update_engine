@@ -16,7 +16,11 @@
 
 #include "update_engine/payload_generator/delta_diff_utils.h"
 
+#ifdef __APPLE__
+#include <machine/endian.h>
+#else
 #include <endian.h>
+#endif
 #if defined(__clang__)
 // TODO(*): Remove these pragmas when b/35721782 is fixed.
 #pragma clang diagnostic push

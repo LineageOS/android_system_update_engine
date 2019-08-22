@@ -141,8 +141,10 @@ class Subprocess {
   // record structure for all active asynchronous subprocesses.
   std::map<pid_t, std::unique_ptr<SubprocessRecord>> subprocess_records_;
 
+#ifdef __linux__
   // Used to watch for child processes.
   brillo::ProcessReaper process_reaper_;
+#endif
 
   DISALLOW_COPY_AND_ASSIGN(Subprocess);
 };

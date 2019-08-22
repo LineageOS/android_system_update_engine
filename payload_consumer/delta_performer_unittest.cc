@@ -16,7 +16,11 @@
 
 #include "update_engine/payload_consumer/delta_performer.h"
 
+#ifdef __APPLE__
+#include <machine/endian.h>
+#else
 #include <endian.h>
+#endif
 #include <inttypes.h>
 
 #include <string>
