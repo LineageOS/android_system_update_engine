@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "3b0a6d95_74a9e3ad",
+        "filename": "payload_consumer/postinstall_runner_action.cc",
+        "patchSetId": 1
+      },
+      "lineNbr": 169,
+      "author": {
+        "id": 10067
+      },
+      "writtenOn": "2019-09-13T20:18:51Z",
+      "side": 1,
+      "message": "source_path is empty due to partition.source_size \u003e 0 check introduced by google.",
+      "range": {
+        "startLine": 169,
+        "startChar": 65,
+        "endLine": 169,
+        "endChar": 86
+      },
+      "revId": "9abd04b800a6ca188cc089f60ff96861d0ffb7fc",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": true
+    }
+  ]
+}
