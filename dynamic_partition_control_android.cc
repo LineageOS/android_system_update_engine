@@ -16,6 +16,8 @@
 
 #include "update_engine/dynamic_partition_control_android.h"
 
+#include <chrono>  // NOLINT(build/c++11) - using libsnapshot / liblp API
+#include <map>
 #include <memory>
 #include <set>
 #include <string>
@@ -29,6 +31,7 @@
 #include <bootloader_message/bootloader_message.h>
 #include <fs_mgr.h>
 #include <fs_mgr_dm_linear.h>
+#include <libsnapshot/snapshot.h>
 
 #include "update_engine/common/boot_control_interface.h"
 #include "update_engine/common/utils.h"
@@ -48,14 +51,23 @@ using android::fs_mgr::SlotSuffixForSlotNumber;
 
 namespace chromeos_update_engine {
 
-using PartitionMetadata = BootControlInterface::PartitionMetadata;
-
 constexpr char kUseDynamicPartitions[] = "ro.boot.dynamic_partitions";
 constexpr char kRetrfoitDynamicPartitions[] =
     "ro.boot.dynamic_partitions_retrofit";
 constexpr char kVirtualAbEnabled[] = "ro.virtual_ab.enabled";
 constexpr char kVirtualAbRetrofit[] = "ro.virtual_ab.retrofit";
-constexpr uint64_t kMapTimeoutMillis = 1000;
+// Map timeout for dynamic partitions.
+constexpr std::chrono::milliseconds kMapTimeout{1000};
+// Map timeout for dynamic partitions with snapshots. Since several devices
+// needs to be mapped, this timeout is longer than |kMapTimeout|.
+constexpr std::chrono::milliseconds kMapSnapshotTimeout{5000};
+
+DynamicPartitionControlAndroid::DynamicPartitionControlAndroid() {
+  if (GetVirtualAbFeatureFlag().IsEnabled()) {
+    snapshot_ = android::snapshot::SnapshotManager::New();
+    CHECK(snapshot_ != nullptr) << "Cannot initialize SnapshotManager.";
+  }
+}
 
 DynamicPartitionControlAndroid::~DynamicPartitionControlAndroid() {
   CleanupInternal(false /* wait */);
@@ -98,10 +110,20 @@ bool DynamicPartitionControlAndroid::MapPartitionInternal(
       .metadata_slot = slot,
       .partition_name = target_partition_name,
       .force_writable = force_writable,
-      .timeout_ms = std::chrono::milliseconds(kMapTimeoutMillis),
   };
+  bool success = false;
+  if (GetVirtualAbFeatureFlag().IsEnabled() && force_writable) {
+    // Only target partitions are mapped with force_writable. On Virtual
+    // A/B devices, target partitions may overlap with source partitions, so
+    // they must be mapped with snapshot.
+    params.timeout_ms = kMapSnapshotTimeout;
+    success = snapshot_->MapUpdateSnapshot(params, path);
+  } else {
+    params.timeout_ms = kMapTimeout;
+    success = CreateLogicalPartition(params, path);
+  }
 
-  if (!CreateLogicalPartition(params, path)) {
+  if (!success) {
     LOG(ERROR) << "Cannot map " << target_partition_name << " in "
                << super_device << " on device mapper.";
     return false;
@@ -162,7 +184,19 @@ bool DynamicPartitionControlAndroid::UnmapPartitionOnDeviceMapper(
     const std::string& target_partition_name) {
   if (DeviceMapper::Instance().GetState(target_partition_name) !=
       DmDeviceState::INVALID) {
-    if (!DestroyLogicalPartition(target_partition_name)) {
+    // Partitions at target slot on non-Virtual A/B devices are mapped as
+    // dm-linear. Also, on Virtual A/B devices, system_other may be mapped for
+    // preopt apps as dm-linear.
+    // Call DestroyLogicalPartition to handle these cases.
+    bool success = DestroyLogicalPartition(target_partition_name);
+
+    // On a Virtual A/B device, |target_partition_name| may be a leftover from
+    // a paused update. Clean up any underlying devices.
+    if (GetVirtualAbFeatureFlag().IsEnabled()) {
+      success &= snapshot_->UnmapUpdateSnapshot(target_partition_name);
+    }
+
+    if (!success) {
       LOG(ERROR) << "Cannot unmap " << target_partition_name
                  << " from device mapper.";
       return false;
@@ -309,14 +343,28 @@ bool DynamicPartitionControlAndroid::GetDeviceDir(std::string* out) {
 bool DynamicPartitionControlAndroid::PreparePartitionsForUpdate(
     uint32_t source_slot,
     uint32_t target_slot,
-    const PartitionMetadata& partition_metadata) {
+    const DeltaArchiveManifest& manifest) {
+  // TODO(elsk): Also call PrepareDynamicPartitionsForUpdate when applying
+  // downgrade packages on retrofit Virtual A/B devices and when applying
+  // secondary OTA. b/138258570
+  if (GetVirtualAbFeatureFlag().IsEnabled()) {
+    return PrepareSnapshotPartitionsForUpdate(
+        source_slot, target_slot, manifest);
+  }
+  return PrepareDynamicPartitionsForUpdate(source_slot, target_slot, manifest);
+}
+
+bool DynamicPartitionControlAndroid::PrepareDynamicPartitionsForUpdate(
+    uint32_t source_slot,
+    uint32_t target_slot,
+    const DeltaArchiveManifest& manifest) {
   const std::string target_suffix = SlotSuffixForSlotNumber(target_slot);
 
   // Unmap all the target dynamic partitions because they would become
   // inconsistent with the new metadata.
-  for (const auto& group : partition_metadata.groups) {
-    for (const auto& partition : group.partitions) {
-      if (!UnmapPartitionOnDeviceMapper(partition.name + target_suffix)) {
+  for (const auto& group : manifest.dynamic_partition_metadata().groups()) {
+    for (const auto& partition_name : group.partition_names()) {
+      if (!UnmapPartitionOnDeviceMapper(partition_name + target_suffix)) {
         return false;
       }
     }
@@ -337,14 +385,28 @@ bool DynamicPartitionControlAndroid::PreparePartitionsForUpdate(
     return false;
   }
 
-  if (!UpdatePartitionMetadata(
-          builder.get(), target_slot, partition_metadata)) {
+  if (!UpdatePartitionMetadata(builder.get(), target_slot, manifest)) {
     return false;
   }
 
   auto target_device =
       device_dir.Append(GetSuperPartitionName(target_slot)).value();
   return StoreMetadata(target_device, builder.get(), target_slot);
+}
+
+bool DynamicPartitionControlAndroid::PrepareSnapshotPartitionsForUpdate(
+    uint32_t source_slot,
+    uint32_t target_slot,
+    const DeltaArchiveManifest& manifest) {
+  if (!snapshot_->BeginUpdate()) {
+    LOG(ERROR) << "Cannot begin new update.";
+    return false;
+  }
+  if (!snapshot_->CreateUpdateSnapshots(manifest)) {
+    LOG(ERROR) << "Cannot create update snapshots.";
+    return false;
+  }
+  return true;
 }
 
 std::string DynamicPartitionControlAndroid::GetSuperPartitionName(
@@ -355,13 +417,13 @@ std::string DynamicPartitionControlAndroid::GetSuperPartitionName(
 bool DynamicPartitionControlAndroid::UpdatePartitionMetadata(
     MetadataBuilder* builder,
     uint32_t target_slot,
-    const PartitionMetadata& partition_metadata) {
+    const DeltaArchiveManifest& manifest) {
   const std::string target_suffix = SlotSuffixForSlotNumber(target_slot);
   DeleteGroupsWithSuffix(builder, target_suffix);
 
   uint64_t total_size = 0;
-  for (const auto& group : partition_metadata.groups) {
-    total_size += group.size;
+  for (const auto& group : manifest.dynamic_partition_metadata().groups()) {
+    total_size += group.size();
   }
 
   std::string expr;
@@ -378,18 +440,36 @@ bool DynamicPartitionControlAndroid::UpdatePartitionMetadata(
     return false;
   }
 
-  for (const auto& group : partition_metadata.groups) {
-    auto group_name_suffix = group.name + target_suffix;
-    if (!builder->AddGroup(group_name_suffix, group.size)) {
+  // name of partition(e.g. "system") -> size in bytes
+  std::map<std::string, uint64_t> partition_sizes;
+  for (const auto& partition : manifest.partitions()) {
+    partition_sizes.emplace(partition.partition_name(),
+                            partition.new_partition_info().size());
+  }
+
+  for (const auto& group : manifest.dynamic_partition_metadata().groups()) {
+    auto group_name_suffix = group.name() + target_suffix;
+    if (!builder->AddGroup(group_name_suffix, group.size())) {
       LOG(ERROR) << "Cannot add group " << group_name_suffix << " with size "
-                 << group.size;
+                 << group.size();
       return false;
     }
     LOG(INFO) << "Added group " << group_name_suffix << " with size "
-              << group.size;
+              << group.size();
 
-    for (const auto& partition : group.partitions) {
-      auto partition_name_suffix = partition.name + target_suffix;
+    for (const auto& partition_name : group.partition_names()) {
+      auto partition_sizes_it = partition_sizes.find(partition_name);
+      if (partition_sizes_it == partition_sizes.end()) {
+        // TODO(tbao): Support auto-filling partition info for framework-only
+        // OTA.
+        LOG(ERROR) << "dynamic_partition_metadata contains partition "
+                   << partition_name << " but it is not part of the manifest. "
+                   << "This is not supported.";
+        return false;
+      }
+      uint64_t partition_size = partition_sizes_it->second;
+
+      auto partition_name_suffix = partition_name + target_suffix;
       Partition* p = builder->AddPartition(
           partition_name_suffix, group_name_suffix, LP_PARTITION_ATTR_READONLY);
       if (!p) {
@@ -397,17 +477,24 @@ bool DynamicPartitionControlAndroid::UpdatePartitionMetadata(
                    << " to group " << group_name_suffix;
         return false;
       }
-      if (!builder->ResizePartition(p, partition.size)) {
+      if (!builder->ResizePartition(p, partition_size)) {
         LOG(ERROR) << "Cannot resize partition " << partition_name_suffix
-                   << " to size " << partition.size << ". Not enough space?";
+                   << " to size " << partition_size << ". Not enough space?";
         return false;
       }
       LOG(INFO) << "Added partition " << partition_name_suffix << " to group "
-                << group_name_suffix << " with size " << partition.size;
+                << group_name_suffix << " with size " << partition_size;
     }
   }
 
   return true;
+}
+
+bool DynamicPartitionControlAndroid::FinishUpdate() {
+  if (!GetVirtualAbFeatureFlag().IsEnabled())
+    return true;
+  LOG(INFO) << "Snapshot writes are done.";
+  return snapshot_->FinishedSnapshotWrites();
 }
 
 }  // namespace chromeos_update_engine

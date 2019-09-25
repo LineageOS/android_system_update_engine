@@ -27,6 +27,7 @@
 #include <liblp/builder.h>
 
 #include "update_engine/common/boot_control_interface.h"
+#include "update_engine/update_metadata.pb.h"
 
 namespace chromeos_update_engine {
 
@@ -88,13 +89,13 @@ class DynamicPartitionControlInterface {
   virtual std::unique_ptr<android::fs_mgr::MetadataBuilder> LoadMetadataBuilder(
       const std::string& super_device, uint32_t source_slot) = 0;
 
-  // Prepare all partitions for an update specified in |partition_metadata|.
+  // Prepare all partitions for an update specified in |manifest|.
   // This is needed before calling MapPartitionOnDeviceMapper(), otherwise the
   // device would be mapped in an inconsistent way.
   virtual bool PreparePartitionsForUpdate(
       uint32_t source_slot,
       uint32_t target_slot,
-      const BootControlInterface::PartitionMetadata& partition_metadata) = 0;
+      const DeltaArchiveManifest& manifest) = 0;
 
   // Return a possible location for devices listed by name.
   virtual bool GetDeviceDir(std::string* path) = 0;
@@ -102,6 +103,8 @@ class DynamicPartitionControlInterface {
   // Return the name of the super partition (which stores super partition
   // metadata) for a given slot.
   virtual std::string GetSuperPartitionName(uint32_t slot) = 0;
+
+  virtual bool FinishUpdate() = 0;
 };
 
 }  // namespace chromeos_update_engine
