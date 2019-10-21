@@ -204,6 +204,7 @@ cc_defaults {
         "liblp",
         "libutils",
         "android.hardware.boot@1.0",
+        "android.hardware.boot@1.1",
     ],
     target: {
         recovery: {
@@ -307,7 +308,7 @@ cc_binary {
     static_libs: ["libupdate_engine_android"],
     required: [
         "cacerts_google",
-        "update_engine_payload_key",
+        "otacerts",
     ],
 
     srcs: ["main.cc"],
@@ -381,7 +382,7 @@ cc_binary {
     },
 
     required: [
-        "update_engine_payload_key.recovery",
+        "otacerts.recovery",
     ],
 }
 
