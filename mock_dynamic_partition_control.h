@@ -22,8 +22,8 @@
 #include <gmock/gmock.h>
 
 #include "update_engine/common/boot_control_interface.h"
+#include "update_engine/common/dynamic_partition_control_interface.h"
 #include "update_engine/dynamic_partition_control_android.h"
-#include "update_engine/dynamic_partition_control_interface.h"
 
 namespace chromeos_update_engine {
 
@@ -36,17 +36,9 @@ class MockDynamicPartitionControl : public DynamicPartitionControlInterface {
                     bool,
                     std::string*));
   MOCK_METHOD0(Cleanup, void());
-  MOCK_METHOD1(DeviceExists, bool(const std::string&));
-  MOCK_METHOD1(GetState, ::android::dm::DmDeviceState(const std::string&));
-  MOCK_METHOD2(GetDmDevicePathByName, bool(const std::string&, std::string*));
-  MOCK_METHOD2(LoadMetadataBuilder,
-               std::unique_ptr<::android::fs_mgr::MetadataBuilder>(
-                   const std::string&, uint32_t));
-  MOCK_METHOD1(GetDeviceDir, bool(std::string*));
   MOCK_METHOD0(GetDynamicPartitionsFeatureFlag, FeatureFlag());
   MOCK_METHOD4(PreparePartitionsForUpdate,
                bool(uint32_t, uint32_t, const DeltaArchiveManifest&, bool));
-  MOCK_METHOD1(GetSuperPartitionName, std::string(uint32_t));
   MOCK_METHOD0(GetVirtualAbFeatureFlag, FeatureFlag());
   MOCK_METHOD0(FinishUpdate, bool());
 };

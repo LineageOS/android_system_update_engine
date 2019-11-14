@@ -150,6 +150,7 @@ cc_library_static {
         "common/clock.cc",
         "common/constants.cc",
         "common/cpu_limiter.cc",
+        "common/dynamic_partition_control_stub.cc",
         "common/error_code_utils.cc",
         "common/file_fetcher.cc",
         "common/hash_calculator.cc",
@@ -678,7 +679,6 @@ cc_test {
     test_suites: ["device-tests"],
 
     srcs: [
-        "boot_control_android_unittest.cc",
         "certificate_checker_unittest.cc",
         "common/action_pipe_unittest.cc",
         "common/action_processor_unittest.cc",
