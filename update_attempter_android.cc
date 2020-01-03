@@ -901,4 +901,20 @@ BootControlInterface::Slot UpdateAttempterAndroid::GetTargetSlot() const {
   return GetCurrentSlot() == 0 ? 1 : 0;
 }
 
+uint64_t UpdateAttempterAndroid::AllocateSpaceForPayload(
+    const std::string& metadata_filename,
+    const vector<string>& key_value_pair_headers,
+    brillo::ErrorPtr* error) {
+  // TODO(elsk): implement b/138808058
+  LogAndSetError(error, FROM_HERE, "Not implemented.");
+  return 0;
+}
+
+int32_t UpdateAttempterAndroid::CleanupSuccessfulUpdate(
+    brillo::ErrorPtr* error) {
+  // TODO(elsk): implement b/138808328
+  LogAndSetError(error, FROM_HERE, "Not implemented.");
+  return static_cast<int32_t>(ErrorCode::kError);
+}
+
 }  // namespace chromeos_update_engine

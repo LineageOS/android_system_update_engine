@@ -45,4 +45,25 @@ interface IUpdateEngine {
   void resetStatus();
   /** @hide */
   boolean verifyPayloadApplicable(in String metadataFilename);
+  /**
+   * Allocate space on userdata partition.
+   *
+   * @return 0 indicates allocation is successful.
+   *   Non-zero indicates space is insufficient. The returned value is the
+   *   total required space (in bytes) on userdata partition.
+   *
+   * @throws ServiceSpecificException for other errors.
+   *
+   * @hide
+   */
+  long allocateSpaceForPayload(in String metadataFilename,
+                               in String[] headerKeyValuePairs);
+  /** @hide
+   *
+   * Wait for merge to finish, and clean up necessary files.
+   *
+   * @return SUCCESS if successful. ERROR if transient errors (e.g. merged but
+   * needs reboot). DEVICE_CORRUPTED for permanent errors.
+   */
+  int cleanupSuccessfulUpdate();
 }
