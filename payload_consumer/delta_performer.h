@@ -143,9 +143,14 @@ class DeltaPerformer : public FileWriter {
 
   // Resets the persistent update progress state to indicate that an update
   // can't be resumed. Performs a quick update-in-progress reset if |quick| is
-  // true, otherwise resets all progress-related update state. Returns true on
-  // success, false otherwise.
-  static bool ResetUpdateProgress(PrefsInterface* prefs, bool quick);
+  // true, otherwise resets all progress-related update state.
+  // If |skip_dynamic_partititon_metadata_updated| is true, do not reset
+  // dynamic-partition-metadata-updated.
+  // Returns true on success, false otherwise.
+  static bool ResetUpdateProgress(
+      PrefsInterface* prefs,
+      bool quick,
+      bool skip_dynamic_partititon_metadata_updated = false);
 
   // Attempts to parse the update metadata starting from the beginning of
   // |payload|. On success, returns kMetadataParseSuccess. Returns
@@ -178,6 +183,24 @@ class DeltaPerformer : public FileWriter {
                                  const InstallOperation& operation,
                                  const FileDescriptorPtr source_fd,
                                  ErrorCode* error);
+
+  // Initialize partitions and allocate required space for an update with the
+  // given |manifest|. |update_check_response_hash| is used to check if the
+  // previous call to this function corresponds to the same payload.
+  // - Same payload: not make any persistent modifications (not write to disk)
+  // - Different payload: make persistent modifications (write to disk)
+  // In both cases, in-memory flags are updated. This function must be called
+  // on the payload at least once (to update in-memory flags) before writing
+  // (applying) the payload.
+  // If error due to insufficient space, |required_size| is set to the required
+  // size on the device to apply the payload.
+  static bool PreparePartitionsForUpdate(
+      PrefsInterface* prefs,
+      BootControlInterface* boot_control,
+      BootControlInterface::Slot target_slot,
+      const DeltaArchiveManifest& manifest,
+      const std::string& update_check_response_hash,
+      uint64_t* required_size);
 
  private:
   friend class DeltaPerformerTest;
@@ -289,7 +312,8 @@ class DeltaPerformer : public FileWriter {
 
   // After install_plan_ is filled with partition names and sizes, initialize
   // metadata of partitions and map necessary devices before opening devices.
-  bool PreparePartitionsForUpdate();
+  // Also see comment for the static PreparePartitionsForUpdate().
+  bool PreparePartitionsForUpdate(uint64_t* required_size);
 
   // Update Engine preference store.
   PrefsInterface* prefs_;
