@@ -16,6 +16,7 @@
 
 #include <stdint.h>
 
+#include <memory>
 #include <string>
 
 #include <base/logging.h>
@@ -52,8 +53,12 @@ bool DynamicPartitionControlStub::FinishUpdate() {
   return true;
 }
 
-ErrorCode DynamicPartitionControlStub::CleanupSuccessfulUpdate() {
-  return ErrorCode::kError;
+std::unique_ptr<AbstractAction>
+DynamicPartitionControlStub::GetCleanupPreviousUpdateAction(
+    BootControlInterface* boot_control,
+    PrefsInterface* prefs,
+    CleanupPreviousUpdateActionDelegateInterface* delegate) {
+  return std::make_unique<NoOpAction>();
 }
 
 }  // namespace chromeos_update_engine

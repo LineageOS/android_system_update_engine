@@ -19,6 +19,7 @@
 
 #include <stdint.h>
 
+#include <memory>
 #include <string>
 
 #include "update_engine/common/dynamic_partition_control_interface.h"
@@ -39,7 +40,10 @@ class DynamicPartitionControlStub : public DynamicPartitionControlInterface {
                                   uint64_t* required_size) override;
 
   bool FinishUpdate() override;
-  ErrorCode CleanupSuccessfulUpdate() override;
+  std::unique_ptr<AbstractAction> GetCleanupPreviousUpdateAction(
+      BootControlInterface* boot_control,
+      PrefsInterface* prefs,
+      CleanupPreviousUpdateActionDelegateInterface* delegate) override;
 };
 
 }  // namespace chromeos_update_engine
