@@ -47,7 +47,8 @@ class UpdateAttempterAndroid
     : public ServiceDelegateAndroidInterface,
       public ActionProcessorDelegate,
       public DownloadActionDelegate,
-      public PostinstallRunnerAction::DelegateInterface {
+      public PostinstallRunnerAction::DelegateInterface,
+      public CleanupPreviousUpdateActionDelegateInterface {
  public:
   using UpdateStatus = update_engine::UpdateStatus;
 
@@ -81,7 +82,9 @@ class UpdateAttempterAndroid
       const std::string& metadata_filename,
       const std::vector<std::string>& key_value_pair_headers,
       brillo::ErrorPtr* error) override;
-  int32_t CleanupSuccessfulUpdate(brillo::ErrorPtr* error) override;
+  void CleanupSuccessfulUpdate(
+      std::unique_ptr<CleanupSuccessfulUpdateCallbackInterface> callback,
+      brillo::ErrorPtr* error) override;
 
   // ActionProcessorDelegate methods:
   void ProcessingDone(const ActionProcessor* processor,
@@ -100,6 +103,9 @@ class UpdateAttempterAndroid
 
   // PostinstallRunnerAction::DelegateInterface
   void ProgressUpdate(double progress) override;
+
+  // CleanupPreviousUpdateActionDelegateInterface
+  void OnCleanupProgressUpdate(double progress) override;
 
  private:
   friend class UpdateAttempterAndroidTest;
@@ -177,6 +183,16 @@ class UpdateAttempterAndroid
                                          DeltaArchiveManifest* manifest,
                                          brillo::ErrorPtr* error);
 
+  // Enqueue and run a CleanupPreviousUpdateAction.
+  void ScheduleCleanupPreviousUpdate();
+
+  // Notify and clear |cleanup_previous_update_callbacks_|.
+  void NotifyCleanupPreviousUpdateCallbacksAndClear();
+
+  // Remove |callback| from |cleanup_previous_update_callbacks_|.
+  void RemoveCleanupPreviousUpdateCallback(
+      CleanupSuccessfulUpdateCallbackInterface* callback);
+
   DaemonStateInterface* daemon_state_;
 
   // DaemonStateAndroid pointers.
@@ -213,6 +229,12 @@ class UpdateAttempterAndroid
   std::unique_ptr<MetricsReporterInterface> metrics_reporter_;
 
   ::android::base::unique_fd payload_fd_;
+
+  std::vector<std::unique_ptr<CleanupSuccessfulUpdateCallbackInterface>>
+      cleanup_previous_update_callbacks_;
+  // Result of previous CleanupPreviousUpdateAction. Nullopt If
+  // CleanupPreviousUpdateAction has not been executed.
+  std::optional<ErrorCode> cleanup_previous_update_code_{std::nullopt};
 
   DISALLOW_COPY_AND_ASSIGN(UpdateAttempterAndroid);
 };
