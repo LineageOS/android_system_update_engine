@@ -63,6 +63,11 @@ cc_defaults {
     ldflags: ["-Wl,--gc-sections"],
 
     product_variables: {
+        lineage: {
+            target_uses_prebuilt_dynamic_partitions: {
+                cflags: ["-DTARGET_USES_PREBUILT_DYNAMIC_PARTITIONS"],
+            },
+        },
         pdk: {
             enabled: false,
         },
@@ -191,13 +196,6 @@ cc_library_static {
         "payload_consumer/xz_extent_writer.cc",
         "payload_consumer/fec_file_descriptor.cc",
     ],
-    product_variables: {
-        lineage: {
-            target_uses_prebuilt_dynamic_partitions: {
-                cflags: ["-DTARGET_USES_PREBUILT_DYNAMIC_PARTITIONS"],
-            },
-        },
-    },
 }
 
 // libupdate_engine_boot_control (type: static_library)
@@ -521,13 +519,6 @@ cc_library_static {
         "payload_generator/topological_sort.cc",
         "payload_generator/xz_android.cc",
     ],
-    product_variables: {
-        lineage: {
-            target_uses_prebuilt_dynamic_partitions: {
-                cflags: ["-DTARGET_USES_PREBUILT_DYNAMIC_PARTITIONS"],
-            },
-        },
-    },
 }
 
 // delta_generator (type: executable)
