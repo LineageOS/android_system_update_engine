@@ -592,6 +592,8 @@ void UpdateAttempterAndroid::ActionCompleted(ActionProcessor* processor,
     SetStatusAndNotify(UpdateStatus::CLEANUP_PREVIOUS_UPDATE);
   }
   if (type == DownloadAction::StaticType()) {
+    auto download_action = static_cast<DownloadAction*>(action);
+    install_plan_ = *download_action->install_plan();
     SetStatusAndNotify(UpdateStatus::VERIFYING);
   } else if (type == FilesystemVerifierAction::StaticType()) {
     SetStatusAndNotify(UpdateStatus::FINALIZING);
@@ -736,8 +738,8 @@ void UpdateAttempterAndroid::BuildUpdateActions(HttpFetcher* fetcher) {
                                        true /* interactive */);
   download_action->set_delegate(this);
   download_action->set_base_offset(base_offset_);
-  auto filesystem_verifier_action =
-      std::make_unique<FilesystemVerifierAction>();
+  auto filesystem_verifier_action = std::make_unique<FilesystemVerifierAction>(
+      boot_control_->GetDynamicPartitionControl());
   auto postinstall_runner_action =
       std::make_unique<PostinstallRunnerAction>(boot_control_, hardware_);
   filesystem_verifier_action->set_delegate(this);
