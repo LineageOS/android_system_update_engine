@@ -380,6 +380,9 @@ def main():
   help_cmd = ['shell', 'su', '0', 'update_engine_client', '--help']
   use_omaha = 'omaha' in dut.adb_output(help_cmd)
 
+  # Always enable performance mode, as we want the update to finish fast
+  cmds.append(['shell', 'su', '0', 'update_engine_client', '--perf_mode=true'])
+
   if args.file:
     # Update via pushing a file to /data.
     device_ota_file = os.path.join(OTA_PACKAGE_PATH, 'debug.zip')
