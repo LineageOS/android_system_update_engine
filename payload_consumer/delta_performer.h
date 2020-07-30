@@ -106,8 +106,8 @@ class DeltaPerformer : public UpdatePerformer {
   // or -errno on error.
   int CloseCurrentPartition();
 
-  // Returns |true| only if the manifest has been processed and it's valid.
-  bool IsManifestValid() override;
+  // Returns |true| only if the update can be shared.
+  bool CanShare() override;
 
   // Verifies the downloaded payload against the signed hash included in the
   // payload, against the update check hash and size using the public key and

@@ -248,7 +248,8 @@ bool ApplyPayload(const string& payload_file,
                                        &fake_hardware,
                                        nullptr,
                                        new FileFetcher(),
-                                       true /* interactive */);
+                                       true /* interactive */,
+                                       UT_DELTA);
   auto filesystem_verifier_action =
       std::make_unique<FilesystemVerifierAction>();
 

@@ -192,6 +192,38 @@ cc_library_static {
         "payload_consumer/xz_extent_writer.cc",
         "payload_consumer/fec_file_descriptor.cc",
     ],
+
+    target: {
+        android: {
+            srcs: [
+                "payload_consumer/edify_performer.cc",
+            ],
+            shared_libs: [
+                "libziparchive",
+            ],
+            static_libs: [
+                "libedify",
+                "libfsupdater",
+            ],
+        },
+        recovery: {
+            cflags: [
+                "-DWITHOUT_EDIFY",
+            ],
+            exclude_srcs: [
+                "payload_consumer/edify_performer.cc",
+            ],
+            exclude_static_libs: [
+                "libedify",
+                "libfsupdater",
+            ],
+        },
+        host: {
+            cflags: [
+                "-DWITHOUT_EDIFY",
+            ],
+        },
+    },
 }
 
 // libupdate_engine_boot_control (type: static_library)
@@ -302,7 +334,16 @@ cc_binary {
         "libupdate_engine_android_exports",
     ],
 
-    static_libs: ["libupdate_engine_android"],
+    shared_libs: [
+        "libziparchive",
+    ],
+    static_libs: [
+        "libupdate_engine_android",
+        "libfsupdater",
+        "libedify",
+        "libapplypatch",
+    ],
+
     required: ["cacerts_google"],
 
     srcs: ["main.cc"],

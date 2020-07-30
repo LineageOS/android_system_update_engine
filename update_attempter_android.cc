@@ -146,6 +146,8 @@ bool UpdateAttempterAndroid::ApplyPayload(
   }
   DCHECK(status_ == UpdateStatus::IDLE);
 
+  UpdateType update_type = UT_DELTA;
+
   std::map<string, string> headers;
   for (const string& key_value_pair : key_value_pair_headers) {
     string key;
@@ -154,6 +156,16 @@ bool UpdateAttempterAndroid::ApplyPayload(
             key_value_pair, "=", &key, &value, false)) {
       return LogAndSetError(
           error, FROM_HERE, "Passed invalid header: " + key_value_pair);
+    }
+    if (key == "update_type") {
+      if (value == "delta") {
+      }
+      else if (value == "edify") {
+        update_type = UT_EDIFY;
+      }
+      else {
+        return LogAndSetError(error, FROM_HERE, "Passed unknown update type: " + value);
+      }
     }
     if (!headers.emplace(key, value).second)
       return LogAndSetError(error, FROM_HERE, "Passed repeated key: " + key);
@@ -279,7 +291,7 @@ bool UpdateAttempterAndroid::ApplyPayload(
   if (!headers[kPayloadPropertyUserAgent].empty())
     fetcher->SetHeader("User-Agent", headers[kPayloadPropertyUserAgent]);
 
-  BuildUpdateActions(fetcher);
+  BuildUpdateActions(fetcher, update_type);
 
   SetStatusAndNotify(UpdateStatus::UPDATE_AVAILABLE);
 
@@ -633,7 +645,7 @@ void UpdateAttempterAndroid::SetStatusAndNotify(UpdateStatus status) {
   last_notify_time_ = TimeTicks::Now();
 }
 
-void UpdateAttempterAndroid::BuildUpdateActions(HttpFetcher* fetcher) {
+void UpdateAttempterAndroid::BuildUpdateActions(HttpFetcher* fetcher, UpdateType update_type) {
   CHECK(!processor_->IsRunning());
   processor_->set_delegate(this);
 
@@ -648,7 +660,7 @@ void UpdateAttempterAndroid::BuildUpdateActions(HttpFetcher* fetcher) {
                                        nullptr,  // system_state, not used.
                                        fetcher,  // passes ownership
                                        true /* interactive */,
-                                       UT_DELTA);
+                                       update_type);
   download_action->set_delegate(this);
   download_action->set_base_offset(base_offset_);
   auto filesystem_verifier_action =

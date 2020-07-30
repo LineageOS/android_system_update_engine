@@ -352,7 +352,7 @@ bool DownloadAction::ReceivedBytes(HttpFetcher* fetcher,
 
   // Call p2p_manager_->FileMakeVisible() when it can be shared!
   if (!p2p_visible_ && system_state_ && update_performer_.get() &&
-      update_performer_->IsManifestValid()) {
+      update_performer_->CanShare()) {
     LOG(INFO) << "Manifest has been validated. Making p2p file visible.";
     system_state_->p2p_manager()->FileMakeVisible(p2p_file_id_);
     p2p_visible_ = true;

@@ -109,7 +109,7 @@ class UpdateAttempterAndroid
   // Helper method to construct the sequence of actions to be performed for
   // applying an update using a given HttpFetcher. The ownership of |fetcher| is
   // passed to this function.
-  void BuildUpdateActions(HttpFetcher* fetcher);
+  void BuildUpdateActions(HttpFetcher* fetcher, UpdateType update_type);
 
   // Writes to the processing completed marker. Does nothing if
   // |update_completed_marker_| is empty.

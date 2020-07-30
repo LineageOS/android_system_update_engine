@@ -1,3 +1,6 @@
+on init
+    mkdir /mnt/updater 0700 root root
+
 service update_engine /system/bin/update_engine --logtostderr --logtofile --foreground
     class late_start
     user root

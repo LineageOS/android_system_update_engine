@@ -797,7 +797,7 @@ bool DeltaPerformer::Write(const void* bytes, size_t count, ErrorCode* error) {
   return true;
 }
 
-bool DeltaPerformer::IsManifestValid() {
+bool DeltaPerformer::CanShare() {
   return manifest_valid_;
 }
 

@@ -45,6 +45,7 @@ class PrefsInterface;
 enum UpdateType {
   UT_NONE,
   UT_DELTA,
+  UT_EDIFY,
   UT_LAST
 };
 
@@ -64,8 +65,8 @@ class UpdatePerformer : public FileWriter {
                  InstallPlan::Payload* payload,
                  bool is_interactive);
 
-  // Returns |true| only if the manifest has been processed and it's valid.
-  virtual bool IsManifestValid() = 0;
+  // Returns |true| only if the update can be shared.
+  virtual bool CanShare() = 0;
 
   // Verifies the downloaded payload against the signed hash included in the
   // payload, against the update check hash and size using the public key and

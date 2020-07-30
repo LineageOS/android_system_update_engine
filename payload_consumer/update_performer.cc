@@ -17,6 +17,9 @@
 
 #include "update_engine/payload_consumer/update_performer.h"
 #include "update_engine/payload_consumer/delta_performer.h"
+#ifndef WITHOUT_EDIFY
+#include "update_engine/payload_consumer/edify_performer.h"
+#endif
 
 #include <errno.h>
 #ifdef __linux__
@@ -85,6 +88,12 @@ UpdatePerformer* UpdatePerformer::Instance(UpdateType update_type,
     return new DeltaPerformer(prefs, boot_control, hardware,
                               download_delegate, install_plan,
                               payload, is_interactive);
+#ifndef WITHOUT_EDIFY
+  case UT_EDIFY:
+    return new EdifyPerformer(prefs, boot_control, hardware,
+                              download_delegate, install_plan,
+                              payload, is_interactive);
+#endif
   default:
     LOG(ERROR) << "Unknown UpdatePerformerType " << (int)update_type;
     return nullptr;
