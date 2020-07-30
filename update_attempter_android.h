@@ -116,7 +116,7 @@ class UpdateAttempterAndroid
 
   // Helper method to construct the sequence of actions to be performed for
   // applying an update from the given |url|.
-  void BuildUpdateActions(const std::string& url);
+  void BuildUpdateActions(const std::string& url, UpdateType update_type);
 
   // Writes to the processing completed marker. Does nothing if
   // |update_completed_marker_| is empty.

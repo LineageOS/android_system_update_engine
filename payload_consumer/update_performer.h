@@ -45,6 +45,7 @@ class PrefsInterface;
 enum UpdateType {
   UT_NONE,
   UT_DELTA,
+  UT_EDIFY,
   UT_LAST
 };
 

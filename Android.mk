@@ -156,6 +156,7 @@ ue_libpayload_consumer_src_files := \
     payload_consumer/cached_file_descriptor.cc \
     payload_consumer/update_performer.cc \
     payload_consumer/delta_performer.cc \
+    payload_consumer/edify_performer.cc \
     payload_consumer/download_action.cc \
     payload_consumer/extent_reader.cc \
     payload_consumer/extent_writer.cc \
@@ -190,6 +191,8 @@ LOCAL_SHARED_LIBRARIES := \
     $(ue_common_shared_libraries) \
     $(ue_libpayload_consumer_exported_shared_libraries) \
     $(ue_update_metadata_protos_exported_shared_libraries)
+LOCAL_SHARED_LIBRARIES += \
+    libziparchive
 LOCAL_SRC_FILES := $(ue_libpayload_consumer_src_files)
 include $(BUILD_HOST_STATIC_LIBRARY)
 
@@ -212,6 +215,11 @@ LOCAL_SHARED_LIBRARIES := \
     $(ue_common_shared_libraries) \
     $(ue_libpayload_consumer_exported_shared_libraries:-host=) \
     $(ue_update_metadata_protos_exported_shared_libraries)
+LOCAL_SHARED_LIBRARIES += \
+    libziparchive
+LOCAL_WHOLE_STATIC_LIBRARIES += \
+    libedify \
+    libfsupdater
 LOCAL_SRC_FILES := $(ue_libpayload_consumer_src_files)
 include $(BUILD_STATIC_LIBRARY)
 
@@ -472,6 +480,13 @@ LOCAL_STATIC_LIBRARIES += \
     $(ue_libupdate_engine_android_exported_static_libraries:-host=)
 LOCAL_SHARED_LIBRARIES += \
     $(ue_libupdate_engine_android_exported_shared_libraries:-host=)
+LOCAL_STATIC_LIBRARIES += \
+    libapplypatch \
+    libotautil \
+    libotafault
+LOCAL_SHARED_LIBRARIES += \
+    libziparchive \
+    libz
 endif  # local_use_omaha == 1
 
 LOCAL_INIT_RC := update_engine.rc
@@ -531,6 +546,16 @@ LOCAL_STATIC_LIBRARIES += \
     libevent \
     libmodpb64 \
     libgtest_prod
+
+LOCAL_STATIC_LIBRARIES += \
+    libziparchive \
+    libedify \
+    libapplypatch \
+    libotautil \
+    libotafault \
+    libfsupdater \
+    libutils \
+    libz
 
 ifeq ($(strip $(PRODUCT_STATIC_BOOT_CONTROL_HAL)),)
 # No static boot_control HAL defined, so no sideload support. We use a fake
