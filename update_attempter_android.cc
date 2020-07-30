@@ -39,7 +39,7 @@
 #include "update_engine/metrics_reporter_interface.h"
 #include "update_engine/metrics_utils.h"
 #include "update_engine/network_selector.h"
-#include "update_engine/payload_consumer/delta_performer.h"
+#include "update_engine/payload_consumer/update_performer.h"
 #include "update_engine/payload_consumer/download_action.h"
 #include "update_engine/payload_consumer/file_descriptor.h"
 #include "update_engine/payload_consumer/file_descriptor_utils.h"
@@ -196,9 +196,9 @@ bool UpdateAttempterAndroid::ApplyPayload(
 
   install_plan_.hash_checks_mandatory = hardware_->IsOfficialBuild();
   install_plan_.is_resume = !payload_id.empty() &&
-                            DeltaPerformer::CanResumeUpdate(prefs_, payload_id);
+                            UpdatePerformer::CanResumeUpdate(prefs_, payload_id);
   if (!install_plan_.is_resume) {
-    if (!DeltaPerformer::ResetUpdateProgress(prefs_, false)) {
+    if (!UpdatePerformer::ResetUpdateProgress(prefs_, false)) {
       LOG(WARNING) << "Unable to reset the update progress.";
     }
     if (!prefs_->SetString(kPrefsUpdateCheckResponseHash, payload_id)) {
@@ -441,7 +441,7 @@ bool UpdateAttempterAndroid::VerifyPayloadApplicable(
         return LogAndSetError(
             error, FROM_HERE, "Failed to hash " + partition_path);
       }
-      if (!DeltaPerformer::ValidateSourceHash(
+      if (!UpdatePerformer::ValidateSourceHash(
               source_hash, operation, fd, &errorcode)) {
         return false;
       }
@@ -483,7 +483,7 @@ void UpdateAttempterAndroid::ProcessingDone(const ActionProcessor* processor,
     case ErrorCode::kDownloadStateInitializationError:
       // Reset the ongoing update for these errors so it starts from the
       // beginning next time.
-      DeltaPerformer::ResetUpdateProgress(prefs_, false);
+      UpdatePerformer::ResetUpdateProgress(prefs_, false);
       LOG(INFO) << "Resetting update progress.";
       break;
 
@@ -647,7 +647,8 @@ void UpdateAttempterAndroid::BuildUpdateActions(HttpFetcher* fetcher) {
                                        hardware_,
                                        nullptr,  // system_state, not used.
                                        fetcher,  // passes ownership
-                                       true /* interactive */);
+                                       true /* interactive */,
+                                       UT_DELTA);
   download_action->set_delegate(this);
   download_action->set_base_offset(base_offset_);
   auto filesystem_verifier_action =
@@ -819,7 +820,7 @@ void UpdateAttempterAndroid::UpdatePrefsAndReportUpdateMetricsOnReboot() {
   ClearMetricsPrefs();
 
   // Also reset the update progress if the build version has changed.
-  if (!DeltaPerformer::ResetUpdateProgress(prefs_, false)) {
+  if (!UpdatePerformer::ResetUpdateProgress(prefs_, false)) {
     LOG(WARNING) << "Unable to reset the update progress.";
   }
 }

@@ -29,7 +29,7 @@
 #include "update_engine/common/utils.h"
 #include "update_engine/connection_manager_interface.h"
 #include "update_engine/omaha_request_params.h"
-#include "update_engine/payload_consumer/delta_performer.h"
+#include "update_engine/payload_consumer/update_performer.h"
 #include "update_engine/payload_state_interface.h"
 #include "update_engine/update_manager/policy.h"
 #include "update_engine/update_manager/update_manager.h"
@@ -106,14 +106,14 @@ void OmahaResponseHandlerAction::PerformAction() {
   }
   install_plan_.public_key_rsa = response.public_key_rsa;
   install_plan_.hash_checks_mandatory = AreHashChecksMandatory(response);
-  install_plan_.is_resume = DeltaPerformer::CanResumeUpdate(
+  install_plan_.is_resume = UpdatePerformer::CanResumeUpdate(
       system_state_->prefs(), update_check_response_hash);
   if (install_plan_.is_resume) {
     payload_state->UpdateResumed();
   } else {
     payload_state->UpdateRestarted();
     LOG_IF(WARNING,
-           !DeltaPerformer::ResetUpdateProgress(system_state_->prefs(), false))
+           !UpdatePerformer::ResetUpdateProgress(system_state_->prefs(), false))
         << "Unable to reset the update progress.";
     LOG_IF(WARNING,
            !system_state_->prefs()->SetString(kPrefsUpdateCheckResponseHash,

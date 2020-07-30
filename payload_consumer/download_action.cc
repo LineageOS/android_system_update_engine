@@ -44,13 +44,15 @@ DownloadAction::DownloadAction(PrefsInterface* prefs,
                                HardwareInterface* hardware,
                                SystemState* system_state,
                                HttpFetcher* http_fetcher,
-                               bool interactive)
+                               bool interactive,
+                               UpdateType update_type)
     : prefs_(prefs),
       boot_control_(boot_control),
       hardware_(hardware),
       system_state_(system_state),
       http_fetcher_(new MultiRangeHttpFetcher(http_fetcher)),
       interactive_(interactive),
+      update_type_(update_type),
       writer_(nullptr),
       code_(ErrorCode::kSuccess),
       delegate_(nullptr),
@@ -241,17 +243,18 @@ void DownloadAction::StartDownloading() {
     }
   }
 
-  if (writer_ && writer_ != delta_performer_.get()) {
+  if (writer_ && writer_ != update_performer_.get()) {
     LOG(INFO) << "Using writer for test.";
   } else {
-    delta_performer_.reset(new DeltaPerformer(prefs_,
+    update_performer_.reset(UpdatePerformer::Instance(update_type_,
+                                              prefs_,
                                               boot_control_,
                                               hardware_,
                                               delegate_,
                                               &install_plan_,
                                               payload_,
                                               interactive_));
-    writer_ = delta_performer_.get();
+    writer_ = update_performer_.get();
   }
   if (system_state_ != nullptr) {
     const PayloadStateInterface* payload_state = system_state_->payload_state();
@@ -334,7 +337,7 @@ bool DownloadAction::ReceivedBytes(HttpFetcher* fetcher,
   if (writer_ && !writer_->Write(bytes, length, &code_)) {
     if (code_ != ErrorCode::kSuccess) {
       LOG(ERROR) << "Error " << utils::ErrorCodeToString(code_) << " (" << code_
-                 << ") in DeltaPerformer's Write method when "
+                 << ") in UpdatePerformer's Write method when "
                  << "processing the received payload -- Terminating processing";
     }
     // Delete p2p file, if applicable.
@@ -347,10 +350,9 @@ bool DownloadAction::ReceivedBytes(HttpFetcher* fetcher,
     return false;
   }
 
-  // Call p2p_manager_->FileMakeVisible() when we've successfully
-  // verified the manifest!
-  if (!p2p_visible_ && system_state_ && delta_performer_.get() &&
-      delta_performer_->IsManifestValid()) {
+  // Call p2p_manager_->FileMakeVisible() when it can be shared!
+  if (!p2p_visible_ && system_state_ && update_performer_.get() &&
+      update_performer_->IsManifestValid()) {
     LOG(INFO) << "Manifest has been validated. Making p2p file visible.";
     system_state_->p2p_manager()->FileMakeVisible(p2p_file_id_);
     p2p_visible_ = true;
@@ -361,8 +363,8 @@ bool DownloadAction::ReceivedBytes(HttpFetcher* fetcher,
 void DownloadAction::TransferComplete(HttpFetcher* fetcher, bool successful) {
   if (writer_) {
     LOG_IF(WARNING, writer_->Close() != 0) << "Error closing the writer.";
-    if (delta_performer_.get() == writer_) {
-      // no delta_performer_ in tests, so leave the test writer in place
+    if (update_performer_.get() == writer_) {
+      // no update_performer_ in tests, so leave the test writer in place
       writer_ = nullptr;
     }
   }
@@ -370,15 +372,15 @@ void DownloadAction::TransferComplete(HttpFetcher* fetcher, bool successful) {
   ErrorCode code =
       successful ? ErrorCode::kSuccess : ErrorCode::kDownloadTransferError;
   if (code == ErrorCode::kSuccess) {
-    if (delta_performer_ && !payload_->already_applied)
-      code = delta_performer_->VerifyPayload(payload_->hash, payload_->size);
+    if (update_performer_ && !payload_->already_applied)
+      code = update_performer_->VerifyPayload(payload_->hash, payload_->size);
     if (code == ErrorCode::kSuccess) {
       if (payload_ < &install_plan_.payloads.back() &&
           system_state_->payload_state()->NextPayload()) {
         LOG(INFO) << "Incrementing to next payload";
         // No need to reset if this payload was already applied.
-        if (delta_performer_ && !payload_->already_applied)
-          DeltaPerformer::ResetUpdateProgress(prefs_, false);
+        if (update_performer_ && !payload_->already_applied)
+          UpdatePerformer::ResetUpdateProgress(prefs_, false);
         // Start downloading next payload.
         bytes_received_previous_payloads_ += payload_->size;
         payload_++;

@@ -28,13 +28,13 @@
 #include "update_engine/common/boot_control_interface.h"
 #include "update_engine/common/http_fetcher.h"
 #include "update_engine/common/multi_range_http_fetcher.h"
-#include "update_engine/payload_consumer/delta_performer.h"
+#include "update_engine/payload_consumer/update_performer.h"
 #include "update_engine/payload_consumer/install_plan.h"
 #include "update_engine/system_state.h"
 
 // The Download Action downloads a specified url to disk. The url should point
 // to an update in a delta payload format. The payload will be piped into a
-// DeltaPerformer that will apply the delta to the disk.
+// UpdatePerformer that will apply the delta to the disk.
 
 namespace chromeos_update_engine {
 
@@ -78,7 +78,8 @@ class DownloadAction : public InstallPlanAction, public HttpFetcherDelegate {
                  HardwareInterface* hardware,
                  SystemState* system_state,
                  HttpFetcher* http_fetcher,
-                 bool interactive);
+                 bool interactive,
+                 UpdateType update_type);
   ~DownloadAction() override;
 
   // InstallPlanAction overrides.
@@ -131,7 +132,7 @@ class DownloadAction : public InstallPlanAction, public HttpFetcherDelegate {
   // called or if CloseP2PSharingFd() has been called.
   void WriteToP2PFile(const void* data, size_t length, off_t file_offset);
 
-  // Start downloading the current payload using delta_performer.
+  // Start downloading the current payload using update_performer.
   void StartDownloading();
 
   // The InstallPlan passed in
@@ -152,15 +153,17 @@ class DownloadAction : public InstallPlanAction, public HttpFetcherDelegate {
   std::unique_ptr<MultiRangeHttpFetcher> http_fetcher_;
 
   // If |true|, the update is user initiated (vs. periodic update checks). Hence
-  // the |delta_performer_| can decide not to use O_DSYNC flag for faster
+  // the |update_performer_| can decide not to use O_DSYNC flag for faster
   // update.
   bool interactive_;
 
+  UpdateType update_type_;
+
   // The FileWriter that downloaded data should be written to. It will
-  // either point to *decompressing_file_writer_ or *delta_performer_.
+  // either point to *decompressing_file_writer_ or *update_performer_.
   FileWriter* writer_;
 
-  std::unique_ptr<DeltaPerformer> delta_performer_;
+  std::unique_ptr<UpdatePerformer> update_performer_;
 
   // Used by TransferTerminated to figure if this action terminated itself or
   // was terminated by the action processor.
