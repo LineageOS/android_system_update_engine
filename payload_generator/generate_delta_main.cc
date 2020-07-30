@@ -241,7 +241,7 @@ bool ApplyPayload(const string& payload_file,
     TEST_AND_RETURN_FALSE(performer.Write(buf.data(), bytes_read));
   }
   CHECK_EQ(performer.Close(), 0);
-  DeltaPerformer::ResetUpdateProgress(&prefs, false);
+  UpdatePerformer::ResetUpdateProgress(&prefs, false);
   LOG(INFO) << "Completed applying " << (config.is_delta ? "delta" : "full")
             << " payload.";
   return true;

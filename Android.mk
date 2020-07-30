@@ -154,6 +154,7 @@ ue_libpayload_consumer_src_files := \
     common/utils.cc \
     payload_consumer/bzip_extent_writer.cc \
     payload_consumer/cached_file_descriptor.cc \
+    payload_consumer/update_performer.cc \
     payload_consumer/delta_performer.cc \
     payload_consumer/download_action.cc \
     payload_consumer/extent_reader.cc \

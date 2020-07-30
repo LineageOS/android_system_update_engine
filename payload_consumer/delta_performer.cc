@@ -76,7 +76,6 @@ const unsigned DeltaPerformer::kProgressOperationsWeight = 50;
 
 namespace {
 const int kUpdateStateOperationInvalid = -1;
-const int kMaxResumedUpdateFailures = 10;
 #if USE_MTD
 const int kUbiVolumeAttachTimeout = 5 * 60;
 #endif
@@ -988,44 +987,6 @@ bool DeltaPerformer::PerformMoveOperation(const InstallOperation& operation) {
   return true;
 }
 
-bool DeltaPerformer::ValidateSourceHash(const brillo::Blob& calculated_hash,
-                                        const InstallOperation& operation,
-                                        const FileDescriptorPtr source_fd,
-                                        ErrorCode* error) {
-  brillo::Blob expected_source_hash(operation.src_sha256_hash().begin(),
-                                    operation.src_sha256_hash().end());
-  if (calculated_hash != expected_source_hash) {
-    LOG(ERROR) << "The hash of the source data on disk for this operation "
-               << "doesn't match the expected value. This could mean that the "
-               << "delta update payload was targeted for another version, or "
-               << "that the source partition was modified after it was "
-               << "installed, for example, by mounting a filesystem.";
-    LOG(ERROR) << "Expected:   sha256|hex = "
-               << base::HexEncode(expected_source_hash.data(),
-                                  expected_source_hash.size());
-    LOG(ERROR) << "Calculated: sha256|hex = "
-               << base::HexEncode(calculated_hash.data(),
-                                  calculated_hash.size());
-
-    vector<string> source_extents;
-    for (const Extent& ext : operation.src_extents()) {
-      source_extents.push_back(
-          base::StringPrintf("%" PRIu64 ":%" PRIu64,
-                             static_cast<uint64_t>(ext.start_block()),
-                             static_cast<uint64_t>(ext.num_blocks())));
-    }
-    LOG(ERROR) << "Operation source (offset:size) in blocks: "
-               << base::JoinString(source_extents, ",");
-
-    // Log remount history if this device is an ext4 partition.
-    LogMountHistory(source_fd);
-
-    *error = ErrorCode::kDownloadStateInitializationError;
-    return false;
-  }
-  return true;
-}
-
 bool DeltaPerformer::PerformSourceCopyOperation(
     const InstallOperation& operation, ErrorCode* error) {
   if (operation.has_src_length())
@@ -1617,69 +1578,6 @@ void DeltaPerformer::DiscardBuffer(bool do_advance_offset,
 
   // Swap content with an empty vector to ensure that all memory is released.
   brillo::Blob().swap(buffer_);
-}
-
-bool DeltaPerformer::CanResumeUpdate(PrefsInterface* prefs,
-                                     const string& update_check_response_hash) {
-  int64_t next_operation = kUpdateStateOperationInvalid;
-  if (!(prefs->GetInt64(kPrefsUpdateStateNextOperation, &next_operation) &&
-        next_operation != kUpdateStateOperationInvalid &&
-        next_operation > 0))
-    return false;
-
-  string interrupted_hash;
-  if (!(prefs->GetString(kPrefsUpdateCheckResponseHash, &interrupted_hash) &&
-        !interrupted_hash.empty() &&
-        interrupted_hash == update_check_response_hash))
-    return false;
-
-  int64_t resumed_update_failures;
-  // Note that storing this value is optional, but if it is there it should not
-  // be more than the limit.
-  if (prefs->GetInt64(kPrefsResumedUpdateFailures, &resumed_update_failures) &&
-      resumed_update_failures > kMaxResumedUpdateFailures)
-    return false;
-
-  // Sanity check the rest.
-  int64_t next_data_offset = -1;
-  if (!(prefs->GetInt64(kPrefsUpdateStateNextDataOffset, &next_data_offset) &&
-        next_data_offset >= 0))
-    return false;
-
-  string sha256_context;
-  if (!(prefs->GetString(kPrefsUpdateStateSHA256Context, &sha256_context) &&
-        !sha256_context.empty()))
-    return false;
-
-  int64_t manifest_metadata_size = 0;
-  if (!(prefs->GetInt64(kPrefsManifestMetadataSize, &manifest_metadata_size) &&
-        manifest_metadata_size > 0))
-    return false;
-
-  int64_t manifest_signature_size = 0;
-  if (!(prefs->GetInt64(kPrefsManifestSignatureSize,
-                        &manifest_signature_size) &&
-        manifest_signature_size >= 0))
-    return false;
-
-  return true;
-}
-
-bool DeltaPerformer::ResetUpdateProgress(PrefsInterface* prefs, bool quick) {
-  TEST_AND_RETURN_FALSE(prefs->SetInt64(kPrefsUpdateStateNextOperation,
-                                        kUpdateStateOperationInvalid));
-  if (!quick) {
-    prefs->SetInt64(kPrefsUpdateStateNextDataOffset, -1);
-    prefs->SetInt64(kPrefsUpdateStateNextDataLength, 0);
-    prefs->SetString(kPrefsUpdateStateSHA256Context, "");
-    prefs->SetString(kPrefsUpdateStateSignedSHA256Context, "");
-    prefs->SetString(kPrefsUpdateStateSignatureBlob, "");
-    prefs->SetInt64(kPrefsManifestMetadataSize, -1);
-    prefs->SetInt64(kPrefsManifestSignatureSize, -1);
-    prefs->SetInt64(kPrefsResumedUpdateFailures, 0);
-    prefs->Delete(kPrefsPostInstallSucceeded);
-  }
-  return true;
 }
 
 bool DeltaPerformer::CheckpointUpdateProgress() {

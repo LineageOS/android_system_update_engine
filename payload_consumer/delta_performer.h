@@ -34,6 +34,7 @@
 #include "update_engine/payload_consumer/file_writer.h"
 #include "update_engine/payload_consumer/install_plan.h"
 #include "update_engine/payload_consumer/payload_metadata.h"
+#include "update_engine/payload_consumer/update_performer.h"
 #include "update_engine/update_metadata.pb.h"
 
 namespace chromeos_update_engine {
@@ -46,7 +47,7 @@ class PrefsInterface;
 // This class performs the actions in a delta update synchronously. The delta
 // update itself should be passed in in chunks as it is received.
 
-class DeltaPerformer : public FileWriter {
+class DeltaPerformer : public UpdatePerformer {
  public:
   static const uint64_t kSupportedMajorPayloadVersion;
   static const uint32_t kSupportedMinorPayloadVersion;
@@ -104,7 +105,7 @@ class DeltaPerformer : public FileWriter {
   int CloseCurrentPartition();
 
   // Returns |true| only if the manifest has been processed and it's valid.
-  bool IsManifestValid();
+  bool IsManifestValid() override;
 
   // Verifies the downloaded payload against the signed hash included in the
   // payload, against the update check hash and size using the public key and
@@ -114,7 +115,7 @@ class DeltaPerformer : public FileWriter {
   // ErrorCode::kSignedDeltaPayloadExpectedError if the public key is available
   // but the delta payload doesn't include a signature.
   ErrorCode VerifyPayload(const brillo::Blob& update_check_response_hash,
-                          const uint64_t update_check_response_size);
+                          const uint64_t update_check_response_size) override;
 
   // Converts an ordered collection of Extent objects which contain data of
   // length full_length to a comma-separated string. For each Extent, the
@@ -130,17 +131,6 @@ class DeltaPerformer : public FileWriter {
       uint64_t block_size,
       uint64_t full_length,
       std::string* positions_string);
-
-  // Returns true if a previous update attempt can be continued based on the
-  // persistent preferences and the new update check response hash.
-  static bool CanResumeUpdate(PrefsInterface* prefs,
-                              const std::string& update_check_response_hash);
-
-  // Resets the persistent update progress state to indicate that an update
-  // can't be resumed. Performs a quick update-in-progress reset if |quick| is
-  // true, otherwise resets all progress-related update state. Returns true on
-  // success, false otherwise.
-  static bool ResetUpdateProgress(PrefsInterface* prefs, bool quick);
 
   // Attempts to parse the update metadata starting from the beginning of
   // |payload|. On success, returns kMetadataParseSuccess. Returns
@@ -160,14 +150,6 @@ class DeltaPerformer : public FileWriter {
   // Returns the delta minor version. If this value is defined in the manifest,
   // it returns that value, otherwise it returns the default value.
   uint32_t GetMinorVersion() const;
-
-  // Compare |calculated_hash| with source hash in |operation|, return false and
-  // dump hash and set |error| if don't match.
-  // |source_fd| is the file descriptor of the source partition.
-  static bool ValidateSourceHash(const brillo::Blob& calculated_hash,
-                                 const InstallOperation& operation,
-                                 const FileDescriptorPtr source_fd,
-                                 ErrorCode* error);
 
  private:
   friend class DeltaPerformerTest;
