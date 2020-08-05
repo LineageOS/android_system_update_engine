@@ -272,6 +272,7 @@ cc_defaults {
         "libbrillo-binder",
         "libcurl",
         "libcutils",
+        "libupdate_engine_stable-cpp",
         "liblog",
         "libssl",
         "libstatslog",
@@ -298,6 +299,7 @@ cc_library_static {
     srcs: [
         ":libupdate_engine_aidl",
         "binder_service_android.cc",
+        "binder_service_stable_android.cc",
         "certificate_checker.cc",
         "daemon_android.cc",
         "daemon_state_android.cc",
@@ -671,6 +673,7 @@ cc_test {
         "payload_consumer/certificate_parser_android_unittest.cc",
         "payload_consumer/delta_performer_integration_test.cc",
         "payload_consumer/delta_performer_unittest.cc",
+        "payload_consumer/download_action_android_unittest.cc",
         "payload_consumer/extent_reader_unittest.cc",
         "payload_consumer/extent_writer_unittest.cc",
         "payload_consumer/fake_file_descriptor.cc",
@@ -725,4 +728,13 @@ cc_prebuilt_binary {
             enabled: false,
         },
     },
+}
+
+// update_engine header library
+cc_library_headers {
+    name: "libupdate_engine_headers",
+    export_include_dirs: ["."],
+    apex_available: [
+        "com.android.gki.*",
+    ],
 }
