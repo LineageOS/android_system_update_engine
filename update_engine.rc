@@ -4,5 +4,5 @@ service update_engine /system/bin/update_engine --logtostderr --logtofile --fore
     group root system wakelock inet cache
     disabled
 
-on property:ro.boot.slot_suffix=*
+on property:ro.build.ab_update=true
     enable update_engine
