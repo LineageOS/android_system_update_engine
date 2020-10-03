@@ -35,6 +35,7 @@
 #include "update_engine/payload_consumer/file_descriptor.h"
 #include "update_engine/payload_consumer/file_writer.h"
 #include "update_engine/payload_consumer/install_plan.h"
+#include "update_engine/payload_consumer/partition_writer.h"
 #include "update_engine/payload_consumer/payload_metadata.h"
 #include "update_engine/payload_consumer/payload_verifier.h"
 #include "update_engine/update_metadata.pb.h"
@@ -100,10 +101,6 @@ class DeltaPerformer : public FileWriter {
   // |current_partition_|. The manifest needs to be already parsed for this to
   // work. Returns whether the required file descriptors were successfully open.
   bool OpenCurrentPartition();
-
-  // Attempt to open the error-corrected device for the current partition.
-  // Returns whether the operation succeeded.
-  bool OpenCurrentECCPartition();
 
   // Closes the current partition file descriptors if open. Returns 0 on success
   // or -errno on error.
@@ -177,14 +174,6 @@ class DeltaPerformer : public FileWriter {
   // it returns that value, otherwise it returns the default value.
   uint32_t GetMinorVersion() const;
 
-  // Compare |calculated_hash| with source hash in |operation|, return false and
-  // dump hash and set |error| if don't match.
-  // |source_fd| is the file descriptor of the source partition.
-  static bool ValidateSourceHash(const brillo::Blob& calculated_hash,
-                                 const InstallOperation& operation,
-                                 const FileDescriptorPtr source_fd,
-                                 ErrorCode* error);
-
   // Initialize partitions and allocate required space for an update with the
   // given |manifest|. |update_check_response_hash| is used to check if the
   // previous call to this function corresponds to the same payload.
@@ -208,7 +197,6 @@ class DeltaPerformer : public FileWriter {
   friend class DeltaPerformerIntegrationTest;
   FRIEND_TEST(DeltaPerformerTest, BrilloMetadataSignatureSizeTest);
   FRIEND_TEST(DeltaPerformerTest, BrilloParsePayloadMetadataTest);
-  FRIEND_TEST(DeltaPerformerTest, ChooseSourceFDTest);
   FRIEND_TEST(DeltaPerformerTest, UsePublicKeyFromResponse);
 
   // Parse and move the update instructions of all partitions into our local
@@ -261,13 +249,6 @@ class DeltaPerformer : public FileWriter {
                                     ErrorCode* error);
   bool PerformPuffDiffOperation(const InstallOperation& operation,
                                 ErrorCode* error);
-
-  // For a given operation, choose the source fd to be used (raw device or error
-  // correction device) based on the source operation hash.
-  // Returns nullptr if the source hash mismatch cannot be corrected, and set
-  // the |error| accordingly.
-  FileDescriptorPtr ChooseSourceFD(const InstallOperation& operation,
-                                   ErrorCode* error);
 
   // Extracts the payload signature message from the current |buffer_| if the
   // offset matches the one specified by the manifest. Returns whether the
@@ -334,34 +315,6 @@ class DeltaPerformer : public FileWriter {
 
   // Pointer to the current payload in install_plan_.payloads.
   InstallPlan::Payload* payload_{nullptr};
-
-  // File descriptor of the source partition. Only set while updating a
-  // partition when using a delta payload.
-  FileDescriptorPtr source_fd_{nullptr};
-
-  // File descriptor of the error corrected source partition. Only set while
-  // updating partition using a delta payload for a partition where error
-  // correction is available. The size of the error corrected device is smaller
-  // than the underlying raw device, since it doesn't include the error
-  // correction blocks.
-  FileDescriptorPtr source_ecc_fd_{nullptr};
-
-  // The total number of operations that failed source hash verification but
-  // passed after falling back to the error-corrected |source_ecc_fd_| device.
-  uint64_t source_ecc_recovered_failures_{0};
-
-  // Whether opening the current partition as an error-corrected device failed.
-  // Used to avoid re-opening the same source partition if it is not actually
-  // error corrected.
-  bool source_ecc_open_failure_{false};
-
-  // File descriptor of the target partition. Only set while performing the
-  // operations of a given partition.
-  FileDescriptorPtr target_fd_{nullptr};
-
-  // Paths the |source_fd_| and |target_fd_| refer to.
-  std::string source_path_;
-  std::string target_path_;
 
   PayloadMetadata payload_metadata_;
 
@@ -451,6 +404,8 @@ class DeltaPerformer : public FileWriter {
   const base::TimeDelta update_checkpoint_wait_{
       base::TimeDelta::FromSeconds(kCheckpointFrequencySeconds)};
   base::TimeTicks update_checkpoint_time_;
+
+  std::unique_ptr<PartitionWriter> partition_writer_;
 
   DISALLOW_COPY_AND_ASSIGN(DeltaPerformer);
 };
