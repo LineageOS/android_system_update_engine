@@ -795,7 +795,12 @@ bool DynamicPartitionControlAndroid::UpdatePartitionMetadata(
 
   std::string expr;
   uint64_t allocatable_space = builder->AllocatableSpace();
-  if (!GetDynamicPartitionsFeatureFlag().IsRetrofit()) {
+  // On device retrofitting dynamic partitions, allocatable_space = super.
+  // On device launching dynamic partitions w/o VAB,
+  //   allocatable_space = super / 2.
+  // On device launching dynamic partitions with VAB, allocatable_space = super.
+  if (!GetDynamicPartitionsFeatureFlag().IsRetrofit() &&
+      !GetVirtualAbFeatureFlag().IsEnabled()) {
     allocatable_space /= 2;
     expr = "half of ";
   }
