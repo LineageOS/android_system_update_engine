@@ -18,6 +18,7 @@
 #define UPDATE_ENGINE_COMMON_UTILS_H_
 
 #include <errno.h>
+#include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -63,6 +64,15 @@ bool WriteAll(int fd, const void* buf, size_t count);
 bool PWriteAll(int fd, const void* buf, size_t count, off_t offset);
 
 bool WriteAll(const FileDescriptorPtr& fd, const void* buf, size_t count);
+// WriteAll writes data at specified offset, but it modifies file position.
+bool WriteAll(const FileDescriptorPtr& fd,
+              const void* buf,
+              size_t count,
+              off_t off);
+
+// https://man7.org/linux/man-pages/man2/pread.2.html
+// PWriteAll writes data at specified offset, but it DOES NOT modify file
+// position. Behaves similar to linux' pwrite syscall.
 bool PWriteAll(const FileDescriptorPtr& fd,
                const void* buf,
                size_t count,
@@ -81,6 +91,16 @@ bool ReadAll(
 bool PReadAll(
     int fd, void* buf, size_t count, off_t offset, ssize_t* out_bytes_read);
 
+// Reads data at specified offset, this function does change file position.
+bool ReadAll(const FileDescriptorPtr& fd,
+             void* buf,
+             size_t count,
+             off_t offset,
+             ssize_t* out_bytes_read);
+
+// https://man7.org/linux/man-pages/man2/pread.2.html
+// Reads data at specified offset, this function DOES NOT change file position.
+// Behavior is similar to linux's pread syscall.
 bool PReadAll(const FileDescriptorPtr& fd,
               void* buf,
               size_t count,
