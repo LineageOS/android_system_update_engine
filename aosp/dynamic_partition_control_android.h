@@ -89,8 +89,13 @@ class DynamicPartitionControlAndroid : public DynamicPartitionControlInterface {
       const std::string& unsuffixed_partition_name,
       const std::optional<std::string>& source_path,
       bool is_append) override;
+  FileDescriptorPtr OpenCowReader(const std::string& unsuffixed_partition_name,
+                                  const std::optional<std::string>&,
+                                  bool is_append = false) override;
 
   bool UnmapAllPartitions() override;
+
+  bool IsDynamicPartition(const std::string& part_name) override;
 
  protected:
   // These functions are exposed for testing.
@@ -300,6 +305,7 @@ class DynamicPartitionControlAndroid : public DynamicPartitionControlInterface {
   bool is_target_dynamic_ = false;
   uint32_t source_slot_ = UINT32_MAX;
   uint32_t target_slot_ = UINT32_MAX;
+  std::vector<std::string> dynamic_partition_list_;
 
   DISALLOW_COPY_AND_ASSIGN(DynamicPartitionControlAndroid);
 };

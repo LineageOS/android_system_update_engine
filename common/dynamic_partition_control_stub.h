@@ -62,9 +62,14 @@ class DynamicPartitionControlStub : public DynamicPartitionControlInterface {
       const std::string& unsuffixed_partition_name,
       const std::optional<std::string>&,
       bool is_append) override;
+  FileDescriptorPtr OpenCowReader(const std::string& unsuffixed_partition_name,
+                                  const std::optional<std::string>&,
+                                  bool is_append = false) override;
 
   bool MapAllPartitions() override;
   bool UnmapAllPartitions() override;
+
+  bool IsDynamicPartition(const std::string& part_name) override;
 };
 }  // namespace chromeos_update_engine
 

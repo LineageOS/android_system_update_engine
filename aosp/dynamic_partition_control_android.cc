@@ -1256,6 +1256,19 @@ DynamicPartitionControlAndroid::OpenCowWriter(
   return snapshot_->OpenSnapshotWriter(params, std::move(source_path));
 }  // namespace chromeos_update_engine
 
+FileDescriptorPtr DynamicPartitionControlAndroid::OpenCowReader(
+    const std::string& unsuffixed_partition_name,
+    const std::optional<std::string>& source_path,
+    bool is_append) {
+  auto cow_writer =
+      OpenCowWriter(unsuffixed_partition_name, source_path, is_append);
+  if (cow_writer == nullptr) {
+    return nullptr;
+  }
+  cow_writer->InitializeAppend(kEndOfInstallLabel);
+  return cow_writer->OpenReader();
+}
+
 std::optional<base::FilePath> DynamicPartitionControlAndroid::GetSuperDevice() {
   std::string device_dir_str;
   if (!GetDeviceDir(&device_dir_str)) {
@@ -1271,4 +1284,14 @@ bool DynamicPartitionControlAndroid::MapAllPartitions() {
   return snapshot_->MapAllSnapshots(kMapSnapshotTimeout);
 }
 
+bool DynamicPartitionControlAndroid::IsDynamicPartition(
+    const std::string& partition_name) {
+  if (dynamic_partition_list_.empty() &&
+      GetDynamicPartitionsFeatureFlag().IsEnabled()) {
+    CHECK(ListDynamicPartitionsForSlot(source_slot_, &dynamic_partition_list_));
+  }
+  return std::find(dynamic_partition_list_.begin(),
+                   dynamic_partition_list_.end(),
+                   partition_name) != dynamic_partition_list_.end();
+}
 }  // namespace chromeos_update_engine

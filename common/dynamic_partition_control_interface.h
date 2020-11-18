@@ -154,6 +154,12 @@ class DynamicPartitionControlInterface {
       const std::string& unsuffixed_partition_name,
       const std::optional<std::string>&,
       bool is_append = false) = 0;
+  virtual FileDescriptorPtr OpenCowReader(
+      const std::string& unsuffixed_partition_name,
+      const std::optional<std::string>&,
+      bool is_append = false) = 0;
+
+  virtual bool IsDynamicPartition(const std::string& part_name) = 0;
 
   // Create virtual block devices for all partitions.
   virtual bool MapAllPartitions() = 0;
