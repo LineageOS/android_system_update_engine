@@ -533,10 +533,12 @@ MetadataParseResult DeltaPerformer::ParsePayloadMetadata(
     return MetadataParseResult::kError;
   }
 
+#ifndef __ANDROID_RECOVERY__
   // We have the full metadata in |payload|. Verify its integrity
   // and authenticity based on the information we have in Omaha response.
   *error = payload_metadata_.ValidateMetadataSignature(
       payload, payload_->metadata_signature, public_key);
+#endif
   if (*error != ErrorCode::kSuccess) {
     if (install_plan_->hash_checks_mandatory) {
       // The autoupdate_CatchBadSignatures test checks for this string
@@ -1822,6 +1824,7 @@ ErrorCode DeltaPerformer::VerifyPayload(
   TEST_AND_RETURN_VAL(ErrorCode::kDownloadPayloadPubKeyVerificationError,
                       hash_data.size() == kSHA256Size);
 
+#ifndef __ANDROID_RECOVERY__
   if (!PayloadVerifier::VerifySignature(
           signatures_message_data_, public_key, hash_data)) {
     // The autoupdate_CatchBadSignatures test checks for this string
@@ -1829,6 +1832,7 @@ ErrorCode DeltaPerformer::VerifyPayload(
     LOG(ERROR) << "Public key verification failed, thus update failed.";
     return ErrorCode::kDownloadPayloadPubKeyVerificationError;
   }
+#endif
 
   LOG(INFO) << "Payload hash matches value in payload.";
   return ErrorCode::kSuccess;
