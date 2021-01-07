@@ -436,7 +436,8 @@ bool DeltaPerformer::Write(const void* bytes, size_t count, ErrorCode* error) {
       return false;
     manifest_valid_ = true;
     if (!install_plan_->is_resume) {
-      prefs_->SetString(kPrefsManifestBytes, {buffer_.begin(), buffer_.end()});
+      auto begin = reinterpret_cast<const char*>(buffer_.data());
+      prefs_->SetString(kPrefsManifestBytes, {begin, buffer_.size()});
     }
 
     // Clear the download buffer.
@@ -975,20 +976,6 @@ bool DeltaPerformer::ExtractSignatureMessage() {
   signatures_message_data_.assign(
       buffer_.begin(), buffer_.begin() + manifest_.signatures_size());
 
-  // Save the signature blob because if the update is interrupted after the
-  // download phase we don't go through this path anymore. Some alternatives
-  // to consider:
-  //
-  // 1. On resume, re-download the signature blob from the server and
-  // re-verify it.
-  //
-  // 2. Verify the signature as soon as it's received and don't checkpoint the
-  // blob and the signed sha-256 context.
-  LOG_IF(WARNING,
-         !prefs_->SetString(kPrefsUpdateStateSignatureBlob,
-                            signatures_message_data_))
-      << "Unable to store the signature blob.";
-
   LOG(INFO) << "Extracted signature data of size "
             << manifest_.signatures_size() << " at "
             << manifest_.signatures_offset();
@@ -1421,6 +1408,21 @@ bool DeltaPerformer::CheckpointUpdateProgress(bool force) {
   if (last_updated_operation_num_ != next_operation_num_ || force) {
     // Resets the progress in case we die in the middle of the state update.
     ResetUpdateProgress(prefs_, true);
+    if (!signatures_message_data_.empty()) {
+      // Save the signature blob because if the update is interrupted after the
+      // download phase we don't go through this path anymore. Some alternatives
+      // to consider:
+      //
+      // 1. On resume, re-download the signature blob from the server and
+      // re-verify it.
+      //
+      // 2. Verify the signature as soon as it's received and don't checkpoint
+      // the blob and the signed sha-256 context.
+      LOG_IF(WARNING,
+             !prefs_->SetString(kPrefsUpdateStateSignatureBlob,
+                                signatures_message_data_))
+          << "Unable to store the signature blob.";
+    }
     TEST_AND_RETURN_FALSE(prefs_->SetString(
         kPrefsUpdateStateSHA256Context, payload_hash_calculator_.GetContext()));
     TEST_AND_RETURN_FALSE(
