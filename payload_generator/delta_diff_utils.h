@@ -48,7 +48,7 @@ bool DeltaReadPartition(std::vector<AnnotatedOperation>* aops,
                         const PartitionConfig& new_part,
                         ssize_t hard_chunk_blocks,
                         size_t soft_chunk_blocks,
-                        const PayloadVersion& version,
+                        const PayloadGenerationConfig& version,
                         BlobFileWriter* blob_file);
 
 // Create operations in |aops| for identical blocks that moved around in the old
@@ -67,7 +67,7 @@ bool DeltaMovedAndZeroBlocks(std::vector<AnnotatedOperation>* aops,
                              size_t old_num_blocks,
                              size_t new_num_blocks,
                              ssize_t chunk_blocks,
-                             const PayloadVersion& version,
+                             const PayloadGenerationConfig& version,
                              BlobFileWriter* blob_file,
                              ExtentRanges* old_visited_blocks,
                              ExtentRanges* new_visited_blocks,
@@ -90,7 +90,7 @@ bool DeltaReadFile(std::vector<AnnotatedOperation>* aops,
                    const std::vector<puffin::BitExtent>& new_deflates,
                    const std::string& name,
                    ssize_t chunk_blocks,
-                   const PayloadVersion& version,
+                   const PayloadGenerationConfig& config,
                    BlobFileWriter* blob_file);
 
 // Reads the blocks |old_extents| from |old_part| (if it exists) and the
@@ -108,9 +108,9 @@ bool ReadExtentsToDiff(const std::string& old_part,
                        const std::vector<Extent>& new_extents,
                        const std::vector<puffin::BitExtent>& old_deflates,
                        const std::vector<puffin::BitExtent>& new_deflates,
-                       const PayloadVersion& version,
+                       const PayloadGenerationConfig& version,
                        brillo::Blob* out_data,
-                       InstallOperation* out_op);
+                       AnnotatedOperation* out_op);
 
 // Generates the best allowed full operation to produce |new_data|. The allowed
 // operations are based on |payload_version|. The operation blob will be stored
@@ -148,6 +148,15 @@ size_t GetMaxThreads();
 FilesystemInterface::File GetOldFile(
     const std::map<std::string, FilesystemInterface::File>& old_files_map,
     const std::string& new_file_name);
+
+// Read BSDIFF patch data in |data|, compute list of blocks that can be COW_XOR,
+// store these blocks in |aop|.
+bool PopulateXorOps(AnnotatedOperation* aop, const uint8_t* data, size_t size);
+
+inline bool PopulateXorOps(AnnotatedOperation* aop,
+                           const brillo::Blob& patch_data) {
+  return PopulateXorOps(aop, patch_data.data(), patch_data.size());
+}
 
 }  // namespace diff_utils
 

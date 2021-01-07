@@ -233,6 +233,9 @@ struct PayloadGenerationConfig {
 
   // Path to apex_info.pb, extracted from target_file.zip
   std::string apex_info_file;
+
+  // Whether to enable VABC xor op
+  bool enable_vabc_xor = false;
 };
 
 }  // namespace chromeos_update_engine

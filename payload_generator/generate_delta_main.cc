@@ -425,6 +425,9 @@ int Main(int argc, char** argv) {
       disable_vabc,
       false,
       "Whether to disable Virtual AB Compression when installing the OTA");
+  DEFINE_bool(enable_vabc_xor,
+              false,
+              "Whether to use Virtual AB Compression XOR feature");
   DEFINE_string(
       apex_info_file, "", "Path to META/apex_info.pb found in target build");
 
@@ -542,6 +545,8 @@ int Main(int argc, char** argv) {
           utils::IsSymlink(FLAGS_apex_info_file.c_str()));
     payload_config.apex_info_file = FLAGS_apex_info_file;
   }
+
+  payload_config.enable_vabc_xor = FLAGS_enable_vabc_xor;
 
   if (!FLAGS_new_partitions.empty()) {
     LOG_IF(FATAL, !FLAGS_new_image.empty() || !FLAGS_new_kernel.empty())

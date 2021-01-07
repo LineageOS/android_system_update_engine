@@ -51,7 +51,7 @@ class MergeSequenceGeneratorTest : public ::testing::Test {
 };
 
 TEST_F(MergeSequenceGeneratorTest, Create) {
-  std::vector<AnnotatedOperation> aops{{"file1", {}}, {"file2", {}}};
+  std::vector<AnnotatedOperation> aops{{"file1", {}, {}}, {"file2", {}, {}}};
   aops[0].op.set_type(InstallOperation::SOURCE_COPY);
   *aops[0].op.add_src_extents() = ExtentForRange(10, 10);
   *aops[0].op.add_dst_extents() = ExtentForRange(30, 10);
@@ -81,7 +81,7 @@ TEST_F(MergeSequenceGeneratorTest, Create_SplitSource) {
   *(op.add_src_extents()) = ExtentForRange(8, 4);
   *(op.add_dst_extents()) = ExtentForRange(10, 8);
 
-  AnnotatedOperation aop{"file1", op};
+  AnnotatedOperation aop{"file1", op, {}};
   auto generator = MergeSequenceGenerator::Create({aop});
   ASSERT_TRUE(generator);
   std::vector<CowMergeOperation> expected = {
