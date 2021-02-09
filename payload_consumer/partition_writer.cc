@@ -39,6 +39,7 @@
 #include "update_engine/payload_consumer/extent_reader.h"
 #include "update_engine/payload_consumer/extent_writer.h"
 #include "update_engine/payload_consumer/file_descriptor_utils.h"
+#include "update_engine/payload_consumer/install_operation_executor.h"
 #include "update_engine/payload_consumer/install_plan.h"
 #include "update_engine/payload_consumer/mount_history.h"
 #include "update_engine/payload_consumer/payload_constants.h"
@@ -228,23 +229,6 @@ bool PartitionWriter::PerformZeroOrDiscardOperation(
   return true;
 }
 
-std::ostream& operator<<(std::ostream& out,
-                         const RepeatedPtrField<Extent>& extents) {
-  if (extents.size() == 0) {
-    out << "[]";
-    return out;
-  }
-  out << "[";
-  auto begin = extents.begin();
-  out << *begin;
-  for (int i = 1; i < extents.size(); i++) {
-    ++begin;
-    out << ", " << *begin;
-  }
-  out << "]";
-  return out;
-}
-
 bool PartitionWriter::PerformSourceCopyOperation(
     const InstallOperation& operation, ErrorCode* error) {
   // The device may optimize the SOURCE_COPY operation.
@@ -264,7 +248,7 @@ bool PartitionWriter::PerformSourceCopyOperation(
   if (source_fd == nullptr) {
     LOG(ERROR) << "Unrecoverable source hash mismatch found on partition "
                << partition.partition_name()
-               << " extents: " << operation.src_extents();
+               << " extents: " << ExtentsToString(operation.src_extents());
     return false;
   }
 

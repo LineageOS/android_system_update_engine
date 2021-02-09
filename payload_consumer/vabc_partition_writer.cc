@@ -18,6 +18,7 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <libsnapshot/cow_writer.h>
@@ -55,12 +56,27 @@ namespace chromeos_update_engine {
 // label 3, Which contains all operation 2's data, but none of operation 3's
 // data.
 
+VABCPartitionWriter::VABCPartitionWriter(
+    const PartitionUpdate& partition_update,
+    const InstallPlan::Partition& install_part,
+    DynamicPartitionControlInterface* dynamic_control,
+    size_t block_size,
+    bool is_interactive)
+    : partition_update_(partition_update),
+      install_part_(install_part),
+      dynamic_control_(dynamic_control),
+      interactive_(is_interactive),
+      block_size_(block_size),
+      executor_(block_size),
+      verified_source_fd_(block_size, install_part.source_path) {}
+
 bool VABCPartitionWriter::Init(const InstallPlan* install_plan,
                                bool source_may_exist,
                                size_t next_op_index) {
   TEST_AND_RETURN_FALSE(install_plan != nullptr);
-  TEST_AND_RETURN_FALSE(
-      OpenSourcePartition(install_plan->source_slot, source_may_exist));
+  if (source_may_exist) {
+    TEST_AND_RETURN_FALSE(verified_source_fd_.Open());
+  }
   std::optional<std::string> source_path;
   if (!install_part_.source_path.empty()) {
     // TODO(zhangkelvin) Make |source_path| a std::optional<std::string>
@@ -158,6 +174,43 @@ std::unique_ptr<ExtentWriter> VABCPartitionWriter::CreateBaseExtentWriter() {
   return true;
 }
 
+bool VABCPartitionWriter::PerformReplaceOperation(const InstallOperation& op,
+                                                  const void* data,
+                                                  size_t count) {
+  // Setup the ExtentWriter stack based on the operation type.
+  std::unique_ptr<ExtentWriter> writer = CreateBaseExtentWriter();
+
+  return executor_.ExecuteReplaceOperation(op, std::move(writer), data, count);
+}
+
+bool VABCPartitionWriter::PerformSourceBsdiffOperation(
+    const InstallOperation& operation,
+    ErrorCode* error,
+    const void* data,
+    size_t count) {
+  FileDescriptorPtr source_fd =
+      verified_source_fd_.ChooseSourceFD(operation, error);
+  TEST_AND_RETURN_FALSE(source_fd != nullptr);
+
+  auto writer = CreateBaseExtentWriter();
+  return executor_.ExecuteSourceBsdiffOperation(
+      operation, std::move(writer), source_fd, data, count);
+}
+
+bool VABCPartitionWriter::PerformPuffDiffOperation(
+    const InstallOperation& operation,
+    ErrorCode* error,
+    const void* data,
+    size_t count) {
+  FileDescriptorPtr source_fd =
+      verified_source_fd_.ChooseSourceFD(operation, error);
+  TEST_AND_RETURN_FALSE(source_fd != nullptr);
+
+  auto writer = CreateBaseExtentWriter();
+  return executor_.ExecutePuffDiffOperation(
+      operation, std::move(writer), source_fd, data, count);
+}
+
 void VABCPartitionWriter::CheckpointUpdateProgress(size_t next_op_index) {
   // No need to call fsync/sync, as CowWriter flushes after a label is added
   // added.
@@ -175,9 +228,15 @@ void VABCPartitionWriter::CheckpointUpdateProgress(size_t next_op_index) {
 }
 
 VABCPartitionWriter::~VABCPartitionWriter() {
+  Close();
+}
+
+int VABCPartitionWriter::Close() {
   if (cow_writer_) {
     cow_writer_->Finalize();
+    cow_writer_ = nullptr;
   }
+  return 0;
 }
 
 }  // namespace chromeos_update_engine
