@@ -31,6 +31,46 @@
 #include "update_engine/update_metadata.pb.h"
 
 namespace chromeos_update_engine {
+
+// A reference class for interpretation of different OTA ops.
+// Different partition writers(VABCPartitionWriter and the regular
+// PartitionWriter) will use this class via composition, and optionally optimize
+// for some specific operations. For example, in VABC, copy operations are
+// handled with special care, but other operations are defaulted to this class.
+class InstallOperationExecutor {
+ public:
+  explicit InstallOperationExecutor(size_t block_size)
+      : block_size_(block_size) {}
+
+  bool ExecuteInstallOp(const InstallOperation& op,
+                        std::unique_ptr<ExtentWriter> writer,
+                        FileDescriptorPtr source_fd,
+                        const void* data,
+                        size_t size);
+  bool ExecuteReplaceOperation(const InstallOperation& operation,
+                               std::unique_ptr<ExtentWriter> writer,
+                               const void* data,
+                               size_t count);
+  bool ExecuteZeroOrDiscardOperation(const InstallOperation& operation,
+                                     ExtentWriter* writer);
+  bool ExecuteSourceCopyOperation(const InstallOperation& operation,
+                                  ExtentWriter* writer,
+                                  FileDescriptorPtr source_fd);
+  bool ExecuteSourceBsdiffOperation(const InstallOperation& operation,
+                                    std::unique_ptr<ExtentWriter> writer,
+                                    FileDescriptorPtr source_fd,
+                                    const void* data,
+                                    size_t count);
+  bool ExecutePuffDiffOperation(const InstallOperation& operation,
+                                std::unique_ptr<ExtentWriter> writer,
+                                FileDescriptorPtr source_fd,
+                                const void* data,
+                                size_t count);
+
+ private:
+  size_t block_size_;
+};
+
 class PartitionWriter {
  public:
   PartitionWriter(const PartitionUpdate& partition_update,
@@ -129,6 +169,11 @@ class PartitionWriter {
   // Used to avoid re-opening the same source partition if it is not actually
   // error corrected.
   bool source_ecc_open_failure_{false};
+
+  // This instance handles decompression/bsdfif/puffdiff. It's responsible for
+  // constructing data which should be written to target partition, actual
+  // "writing" is handled by |PartitionWriter|
+  InstallOperationExecutor install_op_executor_;
 };
 
 namespace partition_writer {
