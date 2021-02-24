@@ -27,49 +27,11 @@
 #include "update_engine/common/dynamic_partition_control_interface.h"
 #include "update_engine/payload_consumer/extent_writer.h"
 #include "update_engine/payload_consumer/file_descriptor.h"
+#include "update_engine/payload_consumer/install_operation_executor.h"
 #include "update_engine/payload_consumer/install_plan.h"
 #include "update_engine/update_metadata.pb.h"
 
 namespace chromeos_update_engine {
-
-// A reference class for interpretation of different OTA ops.
-// Different partition writers(VABCPartitionWriter and the regular
-// PartitionWriter) will use this class via composition, and optionally optimize
-// for some specific operations. For example, in VABC, copy operations are
-// handled with special care, but other operations are defaulted to this class.
-class InstallOperationExecutor {
- public:
-  explicit InstallOperationExecutor(size_t block_size)
-      : block_size_(block_size) {}
-
-  bool ExecuteInstallOp(const InstallOperation& op,
-                        std::unique_ptr<ExtentWriter> writer,
-                        FileDescriptorPtr source_fd,
-                        const void* data,
-                        size_t size);
-  bool ExecuteReplaceOperation(const InstallOperation& operation,
-                               std::unique_ptr<ExtentWriter> writer,
-                               const void* data,
-                               size_t count);
-  bool ExecuteZeroOrDiscardOperation(const InstallOperation& operation,
-                                     ExtentWriter* writer);
-  bool ExecuteSourceCopyOperation(const InstallOperation& operation,
-                                  ExtentWriter* writer,
-                                  FileDescriptorPtr source_fd);
-  bool ExecuteSourceBsdiffOperation(const InstallOperation& operation,
-                                    std::unique_ptr<ExtentWriter> writer,
-                                    FileDescriptorPtr source_fd,
-                                    const void* data,
-                                    size_t count);
-  bool ExecutePuffDiffOperation(const InstallOperation& operation,
-                                std::unique_ptr<ExtentWriter> writer,
-                                FileDescriptorPtr source_fd,
-                                const void* data,
-                                size_t count);
-
- private:
-  size_t block_size_;
-};
 
 class PartitionWriter {
  public:
