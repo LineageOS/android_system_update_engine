@@ -419,7 +419,7 @@ TEST_F(FilesystemVerifierActionTest, RunWithVABC) {
       .WillByDefault(Return(true));
   ON_CALL(dynamic_control, OpenCowReader(_, _, _))
       .WillByDefault(Return(nullptr));
-  ON_CALL(dynamic_control, IsDynamicPartition(part.name, _))
+  ON_CALL(dynamic_control, IsDynamicPartition(part.name))
       .WillByDefault(Return(true));
 
   EXPECT_CALL(dynamic_control, UpdateUsesSnapshotCompression())

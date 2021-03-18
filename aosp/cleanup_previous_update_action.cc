@@ -20,7 +20,6 @@
 #include <string>
 #include <type_traits>
 
-#include <android-base/chrono_utils.h>
 #include <android-base/properties.h>
 #include <base/bind.h>
 
@@ -181,10 +180,6 @@ void CleanupPreviousUpdateAction::WaitBootCompletedOrSchedule() {
     ScheduleWaitBootCompleted();
     return;
   }
-
-  auto boot_time = std::chrono::duration_cast<std::chrono::milliseconds>(
-      android::base::boot_clock::now().time_since_epoch());
-  merge_stats_->set_boot_complete_time_ms(boot_time.count());
 
   LOG(INFO) << "Boot completed, waiting on markBootSuccessful()";
   CheckSlotMarkedSuccessfulOrSchedule();
@@ -401,11 +396,6 @@ void CleanupPreviousUpdateAction::InitiateMergeAndWait() {
   }
 
   snapshot_->UpdateCowStats(merge_stats_);
-
-  auto merge_start_time = std::chrono::duration_cast<std::chrono::milliseconds>(
-      android::base::boot_clock::now().time_since_epoch());
-  merge_stats_->set_boot_complete_to_merge_start_time_ms(
-      merge_start_time.count() - merge_stats_->boot_complete_time_ms());
 
   if (snapshot_->InitiateMerge()) {
     WaitForMergeOrSchedule();

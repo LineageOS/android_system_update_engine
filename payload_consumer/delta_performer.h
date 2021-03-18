@@ -325,7 +325,7 @@ class DeltaPerformer : public FileWriter {
   ErrorCode CheckTimestampError() const;
 
   // Check if partition `part_name` is a dynamic partition.
-  bool IsDynamicPartition(const std::string& part_name, uint32_t slot);
+  bool IsDynamicPartition(const std::string& part_name);
 
   // Update Engine preference store.
   PrefsInterface* prefs_;
