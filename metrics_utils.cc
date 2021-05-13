@@ -294,7 +294,7 @@ metrics::ConnectionType GetConnectionType(ConnectionType type,
   return metrics::ConnectionType::kUnknown;
 }
 
-int64_t GetPersistedValue(const std::string& key, PrefsInterface* prefs) {
+int64_t GetPersistedValue(std::string_view key, PrefsInterface* prefs) {
   CHECK(prefs);
   if (!prefs->Exists(key))
     return 0;
