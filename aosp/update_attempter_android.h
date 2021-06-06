@@ -162,12 +162,16 @@ class UpdateAttempterAndroid
   //   |kPrefsSystemUpdatedMarker|
   void CollectAndReportUpdateMetricsOnUpdateFinished(ErrorCode error_code);
 
+  // This function is called after update_engine is started after device
+  // reboots. If update_engine is restarted w/o device reboot, this function
+  // would not be called.
+
   // Metrics report function to call:
   //   |ReportAbnormallyTerminatedUpdateAttemptMetrics|
   //   |ReportTimeToRebootMetrics|
   // Prefs to update:
   //   |kPrefsBootId|, |kPrefsPreviousVersion|
-  void UpdatePrefsAndReportUpdateMetricsOnReboot();
+  void UpdateStateAfterReboot();
 
   // Prefs to update:
   //   |kPrefsPayloadAttemptNumber|, |kPrefsUpdateTimestampStart|,
