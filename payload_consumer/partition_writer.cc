@@ -42,6 +42,7 @@
 #include "update_engine/payload_consumer/mount_history.h"
 #include "update_engine/payload_consumer/payload_constants.h"
 #include "update_engine/payload_consumer/xz_extent_writer.h"
+#include "update_engine/payload_generator/extent_utils.h"
 
 namespace chromeos_update_engine {
 
@@ -82,6 +83,8 @@ bool DiscardPartitionTail(const FileDescriptorPtr& fd, uint64_t data_size) {
 }
 
 }  // namespace
+
+using google::protobuf::RepeatedPtrField;
 
 // Opens path for read/write. On success returns an open FileDescriptor
 // and sets *err to 0. On failure, sets *err to errno and returns nullptr.
@@ -365,6 +368,23 @@ bool PartitionWriter::PerformZeroOrDiscardOperation(
   return true;
 }
 
+std::ostream& operator<<(std::ostream& out,
+                         const RepeatedPtrField<Extent>& extents) {
+  if (extents.size() == 0) {
+    out << "[]";
+    return out;
+  }
+  out << "[";
+  auto begin = extents.begin();
+  out << *begin;
+  for (int i = 1; i < extents.size(); i++) {
+    ++begin;
+    out << ", " << *begin;
+  }
+  out << "]";
+  return out;
+}
+
 bool PartitionWriter::PerformSourceCopyOperation(
     const InstallOperation& operation, ErrorCode* error) {
   TEST_AND_RETURN_FALSE(source_fd_ != nullptr);
@@ -373,107 +393,29 @@ bool PartitionWriter::PerformSourceCopyOperation(
   // Being this a device-specific optimization let DynamicPartitionController
   // decide it the operation should be skipped.
   const PartitionUpdate& partition = partition_update_;
-  const auto& partition_control = dynamic_control_;
 
   InstallOperation buf;
-  const bool should_optimize = partition_control->OptimizeOperation(
+  const bool should_optimize = dynamic_control_->OptimizeOperation(
       partition.partition_name(), operation, &buf);
   const InstallOperation& optimized = should_optimize ? buf : operation;
 
-  if (operation.has_src_sha256_hash()) {
-    bool read_ok;
-    brillo::Blob source_hash;
-    brillo::Blob expected_source_hash(operation.src_sha256_hash().begin(),
-                                      operation.src_sha256_hash().end());
-
-    // We fall back to use the error corrected device if the hash of the raw
-    // device doesn't match or there was an error reading the source partition.
-    // Note that this code will also fall back if writing the target partition
-    // fails.
-    if (should_optimize) {
-      // Hash operation.src_extents(), then copy optimized.src_extents to
-      // optimized.dst_extents.
-      read_ok =
-          fd_utils::ReadAndHashExtents(
-              source_fd_, operation.src_extents(), block_size_, &source_hash) &&
-          fd_utils::CopyAndHashExtents(source_fd_,
-                                       optimized.src_extents(),
-                                       target_fd_,
-                                       optimized.dst_extents(),
-                                       block_size_,
-                                       nullptr /* skip hashing */);
-    } else {
-      read_ok = fd_utils::CopyAndHashExtents(source_fd_,
-                                             operation.src_extents(),
-                                             target_fd_,
-                                             operation.dst_extents(),
-                                             block_size_,
-                                             &source_hash);
-    }
-    if (read_ok && expected_source_hash == source_hash)
-      return true;
-    LOG(WARNING) << "Source hash from RAW device mismatched, attempting to "
-                    "correct using ECC";
-    if (!OpenCurrentECCPartition()) {
-      // The following function call will return false since the source hash
-      // mismatches, but we still want to call it so it prints the appropriate
-      // log message.
-      return ValidateSourceHash(source_hash, operation, source_fd_, error);
-    }
-
-    LOG(WARNING) << "Source hash from RAW device mismatched: found "
-                 << base::HexEncode(source_hash.data(), source_hash.size())
-                 << ", expected "
-                 << base::HexEncode(expected_source_hash.data(),
-                                    expected_source_hash.size());
-    if (should_optimize) {
-      TEST_AND_RETURN_FALSE(fd_utils::ReadAndHashExtents(
-          source_ecc_fd_, operation.src_extents(), block_size_, &source_hash));
-      TEST_AND_RETURN_FALSE(
-          fd_utils::CopyAndHashExtents(source_ecc_fd_,
-                                       optimized.src_extents(),
-                                       target_fd_,
-                                       optimized.dst_extents(),
-                                       block_size_,
-                                       nullptr /* skip hashing */));
-    } else {
-      TEST_AND_RETURN_FALSE(
-          fd_utils::CopyAndHashExtents(source_ecc_fd_,
-                                       operation.src_extents(),
-                                       target_fd_,
-                                       operation.dst_extents(),
-                                       block_size_,
-                                       &source_hash));
-    }
-    TEST_AND_RETURN_FALSE(
-        ValidateSourceHash(source_hash, operation, source_ecc_fd_, error));
-    // At this point reading from the error corrected device worked, but
-    // reading from the raw device failed, so this is considered a recovered
-    // failure.
-    source_ecc_recovered_failures_++;
-  } else {
-    // When the operation doesn't include a source hash, we attempt the error
-    // corrected device first since we can't verify the block in the raw device
-    // at this point, but we fall back to the raw device since the error
-    // corrected device can be shorter or not available.
-
-    if (OpenCurrentECCPartition() &&
-        fd_utils::CopyAndHashExtents(source_ecc_fd_,
-                                     optimized.src_extents(),
-                                     target_fd_,
-                                     optimized.dst_extents(),
-                                     block_size_,
-                                     nullptr)) {
-      return true;
-    }
-    TEST_AND_RETURN_FALSE(fd_utils::CopyAndHashExtents(source_fd_,
-                                                       optimized.src_extents(),
-                                                       target_fd_,
-                                                       optimized.dst_extents(),
-                                                       block_size_,
-                                                       nullptr));
+  // Invoke ChooseSourceFD with original operation, so that it can properly
+  // verify source hashes. Optimized operation might contain a smaller set of
+  // extents, or completely empty.
+  auto source_fd = ChooseSourceFD(operation, error);
+  if (source_fd == nullptr) {
+    LOG(ERROR) << "Unrecoverable source hash mismatch found on partition "
+               << partition.partition_name()
+               << " extents: " << operation.src_extents();
+    return false;
   }
-  return true;
+
+  return fd_utils::CopyAndHashExtents(source_fd,
+                                      optimized.src_extents(),
+                                      target_fd_,
+                                      optimized.dst_extents(),
+                                      block_size_,
+                                      nullptr);
 }
 
 bool PartitionWriter::PerformSourceBsdiffOperation(

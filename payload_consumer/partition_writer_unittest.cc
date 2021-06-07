@@ -167,7 +167,7 @@ TEST_F(PartitionWriterTest, ErrorCorrectionSourceCopyFallbackTest) {
   ASSERT_EQ(output_data, expected_data);
 
   // Verify that the fake_fec was actually used.
-  EXPECT_EQ(1U, fake_fec->GetReadOps().size());
+  EXPECT_GE(fake_fec->GetReadOps().size(), 1U);
   EXPECT_EQ(1U, GetSourceEccRecoveredFailures());
 }
 
