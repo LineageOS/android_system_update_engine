@@ -159,7 +159,7 @@ void UpdateAttempterAndroid::Init() {
     SetStatusAndNotify(UpdateStatus::UPDATED_NEED_REBOOT);
   } else {
     SetStatusAndNotify(UpdateStatus::IDLE);
-    UpdatePrefsAndReportUpdateMetricsOnReboot();
+    UpdateStateAfterReboot();
 #ifdef _UE_SIDELOAD
     LOG(INFO) << "Skip ScheduleCleanupPreviousUpdate in sideload because "
               << "ApplyPayload will call it later.";
@@ -883,7 +883,7 @@ void UpdateAttempterAndroid::CollectAndReportUpdateMetricsOnUpdateFinished(
   }
 }
 
-void UpdateAttempterAndroid::UpdatePrefsAndReportUpdateMetricsOnReboot() {
+void UpdateAttempterAndroid::UpdateStateAfterReboot() {
   string current_boot_id;
   TEST_AND_RETURN(utils::GetBootId(&current_boot_id));
   // Example: [ro.build.version.incremental]: [4292972]
