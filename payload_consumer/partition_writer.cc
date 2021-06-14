@@ -17,6 +17,7 @@
 
 #include <fcntl.h>
 #include <linux/fs.h>
+#include <sys/mman.h>
 
 #include <algorithm>
 #include <initializer_list>
@@ -24,6 +25,7 @@
 #include <utility>
 #include <vector>
 
+#include <base/files/memory_mapped_file.h>
 #include <base/strings/string_number_conversions.h>
 #include <bsdiff/bspatch.h>
 #include <puffin/puffpatch.h>
@@ -250,7 +252,8 @@ PartitionWriter::PartitionWriter(
       install_part_(install_part),
       dynamic_control_(dynamic_control),
       interactive_(is_interactive),
-      block_size_(block_size) {}
+      block_size_(block_size),
+      install_op_executor_(block_size) {}
 
 PartitionWriter::~PartitionWriter() {
   Close();
@@ -317,21 +320,54 @@ bool PartitionWriter::Init(const InstallPlan* install_plan,
   return true;
 }
 
-bool PartitionWriter::PerformReplaceOperation(const InstallOperation& operation,
-                                              const void* data,
-                                              size_t count) {
+bool InstallOperationExecutor::ExecuteReplaceOperation(
+    const InstallOperation& operation,
+    std::unique_ptr<ExtentWriter> writer,
+    const void* data,
+    size_t count) {
+  TEST_AND_RETURN_FALSE(operation.type() == InstallOperation::REPLACE ||
+                        operation.type() == InstallOperation::REPLACE_BZ ||
+                        operation.type() == InstallOperation::REPLACE_XZ);
   // Setup the ExtentWriter stack based on the operation type.
-  std::unique_ptr<ExtentWriter> writer = CreateBaseExtentWriter();
-
   if (operation.type() == InstallOperation::REPLACE_BZ) {
     writer.reset(new BzipExtentWriter(std::move(writer)));
   } else if (operation.type() == InstallOperation::REPLACE_XZ) {
     writer.reset(new XzExtentWriter(std::move(writer)));
   }
-
   TEST_AND_RETURN_FALSE(writer->Init(operation.dst_extents(), block_size_));
   TEST_AND_RETURN_FALSE(writer->Write(data, operation.data_length()));
 
+  return true;
+}
+
+bool PartitionWriter::PerformReplaceOperation(const InstallOperation& operation,
+                                              const void* data,
+                                              size_t count) {
+  // Setup the ExtentWriter stack based on the operation type.
+  std::unique_ptr<ExtentWriter> writer = CreateBaseExtentWriter();
+  writer->Init(operation.dst_extents(), block_size_);
+  return install_op_executor_.ExecuteReplaceOperation(
+      operation, std::move(writer), data, count);
+}
+
+bool InstallOperationExecutor::ExecuteZeroOrDiscardOperation(
+    const InstallOperation& operation, ExtentWriter* writer) {
+  TEST_AND_RETURN_FALSE(operation.type() == InstallOperation::ZERO ||
+                        operation.type() == InstallOperation::DISCARD);
+  for (const auto& extent : operation.dst_extents()) {
+    // Mmap a region of /dev/zero, as we don't need any actual memory to store
+    // these 0s, so mmap a region of "free memory".
+    base::File dev_zero(base::FilePath("/dev/zero"),
+                        base::File::FLAG_OPEN | base::File::FLAG_READ);
+    base::MemoryMappedFile buffer;
+    TEST_AND_RETURN_FALSE_ERRNO(buffer.Initialize(
+        std::move(dev_zero),
+        base::MemoryMappedFile::Region{
+            0, static_cast<size_t>(extent.num_blocks() * block_size_)},
+        base::MemoryMappedFile::Access::READ_ONLY));
+    TEST_AND_RETURN_FALSE(buffer.data() != nullptr);
+    writer->Write(buffer.data(), buffer.length());
+  }
   return true;
 }
 
@@ -385,6 +421,17 @@ std::ostream& operator<<(std::ostream& out,
   return out;
 }
 
+bool InstallOperationExecutor::ExecuteSourceCopyOperation(
+    const InstallOperation& operation,
+    ExtentWriter* writer,
+    FileDescriptorPtr source_fd) {
+  TEST_AND_RETURN_FALSE(operation.type() == InstallOperation::SOURCE_COPY);
+  TEST_AND_RETURN_FALSE(source_fd != nullptr);
+
+  return fd_utils::CommonHashExtents(
+      source_fd, operation.src_extents(), writer, block_size_, nullptr);
+}
+
 bool PartitionWriter::PerformSourceCopyOperation(
     const InstallOperation& operation, ErrorCode* error) {
   TEST_AND_RETURN_FALSE(source_fd_ != nullptr);
@@ -410,20 +457,21 @@ bool PartitionWriter::PerformSourceCopyOperation(
     return false;
   }
 
-  return fd_utils::CopyAndHashExtents(source_fd,
-                                      optimized.src_extents(),
-                                      target_fd_,
-                                      optimized.dst_extents(),
-                                      block_size_,
-                                      nullptr);
+  auto writer = CreateBaseExtentWriter();
+  writer->Init(optimized.dst_extents(), block_size_);
+  return install_op_executor_.ExecuteSourceCopyOperation(
+      optimized, writer.get(), source_fd);
 }
 
-bool PartitionWriter::PerformSourceBsdiffOperation(
+bool InstallOperationExecutor::ExecuteSourceBsdiffOperation(
     const InstallOperation& operation,
-    ErrorCode* error,
+    std::unique_ptr<ExtentWriter> writer,
+    FileDescriptorPtr source_fd,
     const void* data,
     size_t count) {
-  FileDescriptorPtr source_fd = ChooseSourceFD(operation, error);
+  TEST_AND_RETURN_FALSE(operation.type() == InstallOperation::SOURCE_BSDIFF ||
+                        operation.type() == InstallOperation::BROTLI_BSDIFF ||
+                        operation.type() == InstallOperation::BSDIFF);
   TEST_AND_RETURN_FALSE(source_fd != nullptr);
 
   auto reader = std::make_unique<DirectExtentReader>();
@@ -433,7 +481,6 @@ bool PartitionWriter::PerformSourceBsdiffOperation(
       std::move(reader),
       utils::BlocksInExtents(operation.src_extents()) * block_size_);
 
-  auto writer = CreateBaseExtentWriter();
   TEST_AND_RETURN_FALSE(writer->Init(operation.dst_extents(), block_size_));
   auto dst_file = std::make_unique<BsdiffExtentFile>(
       std::move(writer),
@@ -446,12 +493,27 @@ bool PartitionWriter::PerformSourceBsdiffOperation(
   return true;
 }
 
-bool PartitionWriter::PerformPuffDiffOperation(
+bool PartitionWriter::PerformSourceBsdiffOperation(
     const InstallOperation& operation,
     ErrorCode* error,
     const void* data,
     size_t count) {
   FileDescriptorPtr source_fd = ChooseSourceFD(operation, error);
+  TEST_AND_RETURN_FALSE(source_fd != nullptr);
+
+  auto writer = CreateBaseExtentWriter();
+  writer->Init(operation.dst_extents(), block_size_);
+  return install_op_executor_.ExecuteSourceBsdiffOperation(
+      operation, std::move(writer), source_fd, data, count);
+}
+
+bool InstallOperationExecutor::ExecutePuffDiffOperation(
+    const InstallOperation& operation,
+    std::unique_ptr<ExtentWriter> writer,
+    FileDescriptorPtr source_fd,
+    const void* data,
+    size_t count) {
+  TEST_AND_RETURN_FALSE(operation.type() == InstallOperation::PUFFDIFF);
   TEST_AND_RETURN_FALSE(source_fd != nullptr);
 
   auto reader = std::make_unique<DirectExtentReader>();
@@ -461,7 +523,6 @@ bool PartitionWriter::PerformPuffDiffOperation(
       std::move(reader),
       utils::BlocksInExtents(operation.src_extents()) * block_size_));
 
-  auto writer = CreateBaseExtentWriter();
   TEST_AND_RETURN_FALSE(writer->Init(operation.dst_extents(), block_size_));
   puffin::UniqueStreamPtr dst_stream(new PuffinExtentStream(
       std::move(writer),
@@ -475,6 +536,20 @@ bool PartitionWriter::PerformPuffDiffOperation(
                         count,
                         kMaxCacheSize));
   return true;
+}
+
+bool PartitionWriter::PerformPuffDiffOperation(
+    const InstallOperation& operation,
+    ErrorCode* error,
+    const void* data,
+    size_t count) {
+  FileDescriptorPtr source_fd = ChooseSourceFD(operation, error);
+  TEST_AND_RETURN_FALSE(source_fd != nullptr);
+
+  auto writer = CreateBaseExtentWriter();
+  writer->Init(operation.dst_extents(), block_size_);
+  return install_op_executor_.ExecutePuffDiffOperation(
+      operation, std::move(writer), source_fd, data, count);
 }
 
 FileDescriptorPtr PartitionWriter::ChooseSourceFD(
@@ -598,6 +673,36 @@ void PartitionWriter::CheckpointUpdateProgress(size_t next_op_index) {
 
 std::unique_ptr<ExtentWriter> PartitionWriter::CreateBaseExtentWriter() {
   return std::make_unique<DirectExtentWriter>(target_fd_);
+}
+
+bool InstallOperationExecutor::ExecuteInstallOp(
+    const InstallOperation& op,
+    std::unique_ptr<ExtentWriter> writer,
+    FileDescriptorPtr source_fd,
+    const void* data,
+    size_t size) {
+  switch (op.type()) {
+    case InstallOperation::REPLACE:
+    case InstallOperation::REPLACE_BZ:
+    case InstallOperation::REPLACE_XZ:
+      return ExecuteReplaceOperation(op, std::move(writer), data, size);
+    case InstallOperation::ZERO:
+    case InstallOperation::DISCARD:
+      return ExecuteZeroOrDiscardOperation(op, writer.get());
+    case InstallOperation::SOURCE_COPY:
+      return ExecuteSourceCopyOperation(op, writer.get(), source_fd);
+    case InstallOperation::SOURCE_BSDIFF:
+    case InstallOperation::BROTLI_BSDIFF:
+      return ExecuteSourceBsdiffOperation(
+          op, std::move(writer), source_fd, data, size);
+    case InstallOperation::PUFFDIFF:
+      return ExecutePuffDiffOperation(
+          op, std::move(writer), source_fd, data, size);
+      break;
+    default:
+      return false;
+  }
+  return false;
 }
 
 }  // namespace chromeos_update_engine
