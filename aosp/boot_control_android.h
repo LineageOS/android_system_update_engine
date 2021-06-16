@@ -62,6 +62,7 @@ class BootControlAndroid : public BootControlInterface {
   bool SetActiveBootSlot(BootControlInterface::Slot slot) override;
   bool MarkBootSuccessfulAsync(base::Callback<void(bool)> callback) override;
   bool IsSlotMarkedSuccessful(BootControlInterface::Slot slot) const override;
+  Slot GetActiveBootSlot() override;
   DynamicPartitionControlInterface* GetDynamicPartitionControl() override;
 
  private:
