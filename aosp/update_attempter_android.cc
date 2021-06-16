@@ -152,6 +152,17 @@ UpdateAttempterAndroid::~UpdateAttempterAndroid() {
   processor_->set_delegate(nullptr);
 }
 
+[[nodiscard]] static bool DidSystemReboot(PrefsInterface* prefs) {
+  string boot_id;
+  TEST_AND_RETURN_FALSE(utils::GetBootId(&boot_id));
+  string old_boot_id;
+  // If no previous boot id found, treat as a reboot and write boot ID.
+  if (!prefs->GetString(kPrefsBootId, &old_boot_id)) {
+    return true;
+  }
+  return old_boot_id != boot_id;
+}
+
 void UpdateAttempterAndroid::Init() {
   // In case of update_engine restart without a reboot we need to restore the
   // reboot needed state.
@@ -159,7 +170,10 @@ void UpdateAttempterAndroid::Init() {
     SetStatusAndNotify(UpdateStatus::UPDATED_NEED_REBOOT);
   } else {
     SetStatusAndNotify(UpdateStatus::IDLE);
-    UpdateStateAfterReboot();
+    if (DidSystemReboot(prefs_)) {
+      UpdateStateAfterReboot();
+    }
+
 #ifdef _UE_SIDELOAD
     LOG(INFO) << "Skip ScheduleCleanupPreviousUpdate in sideload because "
               << "ApplyPayload will call it later.";
@@ -884,21 +898,23 @@ void UpdateAttempterAndroid::CollectAndReportUpdateMetricsOnUpdateFinished(
 }
 
 void UpdateAttempterAndroid::UpdateStateAfterReboot() {
-  string current_boot_id;
-  TEST_AND_RETURN(utils::GetBootId(&current_boot_id));
   // Example: [ro.build.version.incremental]: [4292972]
   string current_version =
       android::base::GetProperty("ro.build.version.incremental", "");
   TEST_AND_RETURN(!current_version.empty());
   const auto current_slot = boot_control_->GetCurrentSlot();
 
+  // |InitAfterReboot()| is only called after system reboot, so record boot id
+  // unconditionally
+  string current_boot_id;
+  TEST_AND_RETURN(utils::GetBootId(&current_boot_id));
+  prefs_->SetString(kPrefsBootId, current_boot_id);
+
   // If there's no record of previous version (e.g. due to a data wipe), we
   // save the info of current boot and skip the metrics report.
   if (!prefs_->Exists(kPrefsPreviousVersion)) {
-    prefs_->SetString(kPrefsBootId, current_boot_id);
     prefs_->SetString(kPrefsPreviousVersion, current_version);
-    prefs_->SetInt64(std::string{kPrefsPreviousSlot},
-                     boot_control_->GetCurrentSlot());
+    prefs_->SetInt64(kPrefsPreviousSlot, boot_control_->GetCurrentSlot());
     ClearMetricsPrefs();
     return;
   }
@@ -909,14 +925,9 @@ void UpdateAttempterAndroid::UpdateStateAfterReboot() {
   // TODO(xunchang) identify and report rollback by checking UpdateMarker.
   if (prefs_->GetString(kPrefsPreviousVersion, &previous_version) &&
       previous_version == current_version && previous_slot == current_slot) {
-    string last_boot_id;
-    bool is_reboot = prefs_->Exists(kPrefsBootId) &&
-                     (prefs_->GetString(kPrefsBootId, &last_boot_id) &&
-                      last_boot_id != current_boot_id);
     // Increment the reboot number if |kPrefsNumReboots| exists. That pref is
     // set when we start a new update.
-    if (is_reboot && prefs_->Exists(kPrefsNumReboots)) {
-      prefs_->SetString(kPrefsBootId, current_boot_id);
+    if (prefs_->Exists(kPrefsNumReboots)) {
       int64_t reboot_count =
           metrics_utils::GetPersistedValue(kPrefsNumReboots, prefs_);
       metrics_utils::SetNumReboots(reboot_count + 1, prefs_);
@@ -926,10 +937,8 @@ void UpdateAttempterAndroid::UpdateStateAfterReboot() {
 
   // Now that the build version changes, report the update metrics.
   // TODO(xunchang) check the build version is larger than the previous one.
-  prefs_->SetString(kPrefsBootId, current_boot_id);
   prefs_->SetString(kPrefsPreviousVersion, current_version);
-  prefs_->SetInt64(std::string{kPrefsPreviousSlot},
-                   boot_control_->GetCurrentSlot());
+  prefs_->SetInt64(kPrefsPreviousSlot, boot_control_->GetCurrentSlot());
 
   bool previous_attempt_exists = prefs_->Exists(kPrefsPayloadAttemptNumber);
   // |kPrefsPayloadAttemptNumber| should be cleared upon successful update.
