@@ -374,32 +374,28 @@ bool InstallOperationExecutor::ExecuteZeroOrDiscardOperation(
 bool PartitionWriter::PerformZeroOrDiscardOperation(
     const InstallOperation& operation) {
 #ifdef BLKZEROOUT
-  bool attempt_ioctl = true;
   int request =
       (operation.type() == InstallOperation::ZERO ? BLKZEROOUT : BLKDISCARD);
 #else   // !defined(BLKZEROOUT)
-  bool attempt_ioctl = false;
-  int request = 0;
+  auto writer = CreateBaseExtentWriter();
+  return install_op_executor_.ExecuteZeroOrDiscardOperation(operation,
+                                                            writer.get());
 #endif  // !defined(BLKZEROOUT)
 
-  brillo::Blob zeros;
   for (const Extent& extent : operation.dst_extents()) {
     const uint64_t start = extent.start_block() * block_size_;
     const uint64_t length = extent.num_blocks() * block_size_;
-    if (attempt_ioctl) {
-      int result = 0;
-      if (target_fd_->BlkIoctl(request, start, length, &result) && result == 0)
-        continue;
-      attempt_ioctl = false;
+    int result = 0;
+    if (target_fd_->BlkIoctl(request, start, length, &result) && result == 0) {
+      continue;
     }
-    // In case of failure, we fall back to writing 0 to the selected region.
-    zeros.resize(16 * block_size_);
-    for (uint64_t offset = 0; offset < length; offset += zeros.size()) {
-      uint64_t chunk_length =
-          std::min(length - offset, static_cast<uint64_t>(zeros.size()));
-      TEST_AND_RETURN_FALSE(utils::WriteAll(
-          target_fd_, zeros.data(), chunk_length, start + offset));
-    }
+    // In case of failure, we fall back to writing 0 for the entire operation.
+    PLOG(WARNING) << "BlkIoctl failed. Falling back to write 0s for remainder "
+                     "of this operation.";
+    auto writer = CreateBaseExtentWriter();
+    writer->Init(operation.dst_extents(), block_size_);
+    return install_op_executor_.ExecuteZeroOrDiscardOperation(operation,
+                                                              writer.get());
   }
   return true;
 }
@@ -426,8 +422,6 @@ bool InstallOperationExecutor::ExecuteSourceCopyOperation(
     ExtentWriter* writer,
     FileDescriptorPtr source_fd) {
   TEST_AND_RETURN_FALSE(operation.type() == InstallOperation::SOURCE_COPY);
-  TEST_AND_RETURN_FALSE(source_fd != nullptr);
-
   return fd_utils::CommonHashExtents(
       source_fd, operation.src_extents(), writer, block_size_, nullptr);
 }
@@ -561,9 +555,10 @@ FileDescriptorPtr PartitionWriter::ChooseSourceFD(
 
   if (!operation.has_src_sha256_hash()) {
     // When the operation doesn't include a source hash, we attempt the error
-    // corrected device first since we can't verify the block in the raw device
-    // at this point, but we first need to make sure all extents are readable
-    // since the error corrected device can be shorter or not available.
+    // corrected device first since we can't verify the block in the raw
+    // device at this point, but we first need to make sure all extents are
+    // readable since the error corrected device can be shorter or not
+    // available.
     if (OpenCurrentECCPartition() &&
         fd_utils::ReadAndHashExtents(
             source_ecc_fd_, operation.src_extents(), block_size_, nullptr)) {
