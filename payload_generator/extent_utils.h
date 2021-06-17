@@ -22,6 +22,7 @@
 
 #include <base/logging.h>
 
+#include "google/protobuf/repeated_field.h"
 #include "update_engine/payload_consumer/payload_constants.h"
 #include "update_engine/update_metadata.pb.h"
 
@@ -63,6 +64,8 @@ void ExtentsToVector(const google::protobuf::RepeatedPtrField<Extent>& extents,
 
 // Returns a string representing all extents in |extents|.
 std::string ExtentsToString(const std::vector<Extent>& extents);
+std::string ExtentsToString(
+    const google::protobuf::RepeatedPtrField<Extent>& extents);
 
 // Takes a pointer to extents |extents| and extents |extents_to_add|, and
 // merges them by adding |extents_to_add| to |extents| and normalizing.
