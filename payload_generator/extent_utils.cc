@@ -87,13 +87,23 @@ void ExtentsToVector(const google::protobuf::RepeatedPtrField<Extent>& extents,
   }
 }
 
-string ExtentsToString(const vector<Extent>& extents) {
+template <typename Container>
+string ExtentsToStringTemplate(const Container& extents) {
   string ext_str;
   for (const Extent& e : extents)
     ext_str += base::StringPrintf("[%" PRIu64 ", %" PRIu64 "] ",
                                   static_cast<uint64_t>(e.start_block()),
                                   static_cast<uint64_t>(e.num_blocks()));
   return ext_str;
+}
+
+std::string ExtentsToString(const std::vector<Extent>& extents) {
+  return ExtentsToStringTemplate(extents);
+}
+
+std::string ExtentsToString(
+    const google::protobuf::RepeatedPtrField<Extent>& extents) {
+  return ExtentsToStringTemplate(extents);
 }
 
 void NormalizeExtents(vector<Extent>* extents) {

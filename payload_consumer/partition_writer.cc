@@ -25,12 +25,7 @@
 #include <utility>
 #include <vector>
 
-#include <base/files/memory_mapped_file.h>
 #include <base/strings/string_number_conversions.h>
-#include <bsdiff/bspatch.h>
-#include <puffin/puffpatch.h>
-#include <bsdiff/file_interface.h>
-#include <puffin/stream.h>
 
 #include "update_engine/common/terminator.h"
 #include "update_engine/common/utils.h"
@@ -113,135 +108,6 @@ FileDescriptorPtr OpenFile(const char* path,
   return fd;
 }
 
-class BsdiffExtentFile : public bsdiff::FileInterface {
- public:
-  BsdiffExtentFile(std::unique_ptr<ExtentReader> reader, size_t size)
-      : BsdiffExtentFile(std::move(reader), nullptr, size) {}
-  BsdiffExtentFile(std::unique_ptr<ExtentWriter> writer, size_t size)
-      : BsdiffExtentFile(nullptr, std::move(writer), size) {}
-
-  ~BsdiffExtentFile() override = default;
-
-  bool Read(void* buf, size_t count, size_t* bytes_read) override {
-    TEST_AND_RETURN_FALSE(reader_->Read(buf, count));
-    *bytes_read = count;
-    offset_ += count;
-    return true;
-  }
-
-  bool Write(const void* buf, size_t count, size_t* bytes_written) override {
-    TEST_AND_RETURN_FALSE(writer_->Write(buf, count));
-    *bytes_written = count;
-    offset_ += count;
-    return true;
-  }
-
-  bool Seek(off_t pos) override {
-    if (reader_ != nullptr) {
-      TEST_AND_RETURN_FALSE(reader_->Seek(pos));
-      offset_ = pos;
-    } else {
-      // For writes technically there should be no change of position, or it
-      // should be equivalent of current offset.
-      TEST_AND_RETURN_FALSE(offset_ == static_cast<uint64_t>(pos));
-    }
-    return true;
-  }
-
-  bool Close() override { return true; }
-
-  bool GetSize(uint64_t* size) override {
-    *size = size_;
-    return true;
-  }
-
- private:
-  BsdiffExtentFile(std::unique_ptr<ExtentReader> reader,
-                   std::unique_ptr<ExtentWriter> writer,
-                   size_t size)
-      : reader_(std::move(reader)),
-        writer_(std::move(writer)),
-        size_(size),
-        offset_(0) {}
-
-  std::unique_ptr<ExtentReader> reader_;
-  std::unique_ptr<ExtentWriter> writer_;
-  uint64_t size_;
-  uint64_t offset_;
-
-  DISALLOW_COPY_AND_ASSIGN(BsdiffExtentFile);
-};
-// A class to be passed to |puffpatch| for reading from |source_fd_| and writing
-// into |target_fd_|.
-class PuffinExtentStream : public puffin::StreamInterface {
- public:
-  // Constructor for creating a stream for reading from an |ExtentReader|.
-  PuffinExtentStream(std::unique_ptr<ExtentReader> reader, uint64_t size)
-      : PuffinExtentStream(std::move(reader), nullptr, size) {}
-
-  // Constructor for creating a stream for writing to an |ExtentWriter|.
-  PuffinExtentStream(std::unique_ptr<ExtentWriter> writer, uint64_t size)
-      : PuffinExtentStream(nullptr, std::move(writer), size) {}
-
-  ~PuffinExtentStream() override = default;
-
-  bool GetSize(uint64_t* size) const override {
-    *size = size_;
-    return true;
-  }
-
-  bool GetOffset(uint64_t* offset) const override {
-    *offset = offset_;
-    return true;
-  }
-
-  bool Seek(uint64_t offset) override {
-    if (is_read_) {
-      TEST_AND_RETURN_FALSE(reader_->Seek(offset));
-      offset_ = offset;
-    } else {
-      // For writes technically there should be no change of position, or it
-      // should equivalent of current offset.
-      TEST_AND_RETURN_FALSE(offset_ == offset);
-    }
-    return true;
-  }
-
-  bool Read(void* buffer, size_t count) override {
-    TEST_AND_RETURN_FALSE(is_read_);
-    TEST_AND_RETURN_FALSE(reader_->Read(buffer, count));
-    offset_ += count;
-    return true;
-  }
-
-  bool Write(const void* buffer, size_t count) override {
-    TEST_AND_RETURN_FALSE(!is_read_);
-    TEST_AND_RETURN_FALSE(writer_->Write(buffer, count));
-    offset_ += count;
-    return true;
-  }
-
-  bool Close() override { return true; }
-
- private:
-  PuffinExtentStream(std::unique_ptr<ExtentReader> reader,
-                     std::unique_ptr<ExtentWriter> writer,
-                     uint64_t size)
-      : reader_(std::move(reader)),
-        writer_(std::move(writer)),
-        size_(size),
-        offset_(0),
-        is_read_(reader_ ? true : false) {}
-
-  std::unique_ptr<ExtentReader> reader_;
-  std::unique_ptr<ExtentWriter> writer_;
-  uint64_t size_;
-  uint64_t offset_;
-  bool is_read_;
-
-  DISALLOW_COPY_AND_ASSIGN(PuffinExtentStream);
-};
-
 PartitionWriter::PartitionWriter(
     const PartitionUpdate& partition_update,
     const InstallPlan::Partition& install_part,
@@ -320,26 +186,6 @@ bool PartitionWriter::Init(const InstallPlan* install_plan,
   return true;
 }
 
-bool InstallOperationExecutor::ExecuteReplaceOperation(
-    const InstallOperation& operation,
-    std::unique_ptr<ExtentWriter> writer,
-    const void* data,
-    size_t count) {
-  TEST_AND_RETURN_FALSE(operation.type() == InstallOperation::REPLACE ||
-                        operation.type() == InstallOperation::REPLACE_BZ ||
-                        operation.type() == InstallOperation::REPLACE_XZ);
-  // Setup the ExtentWriter stack based on the operation type.
-  if (operation.type() == InstallOperation::REPLACE_BZ) {
-    writer.reset(new BzipExtentWriter(std::move(writer)));
-  } else if (operation.type() == InstallOperation::REPLACE_XZ) {
-    writer.reset(new XzExtentWriter(std::move(writer)));
-  }
-  TEST_AND_RETURN_FALSE(writer->Init(operation.dst_extents(), block_size_));
-  TEST_AND_RETURN_FALSE(writer->Write(data, operation.data_length()));
-
-  return true;
-}
-
 bool PartitionWriter::PerformReplaceOperation(const InstallOperation& operation,
                                               const void* data,
                                               size_t count) {
@@ -350,56 +196,31 @@ bool PartitionWriter::PerformReplaceOperation(const InstallOperation& operation,
       operation, std::move(writer), data, count);
 }
 
-bool InstallOperationExecutor::ExecuteZeroOrDiscardOperation(
-    const InstallOperation& operation, ExtentWriter* writer) {
-  TEST_AND_RETURN_FALSE(operation.type() == InstallOperation::ZERO ||
-                        operation.type() == InstallOperation::DISCARD);
-  for (const auto& extent : operation.dst_extents()) {
-    // Mmap a region of /dev/zero, as we don't need any actual memory to store
-    // these 0s, so mmap a region of "free memory".
-    base::File dev_zero(base::FilePath("/dev/zero"),
-                        base::File::FLAG_OPEN | base::File::FLAG_READ);
-    base::MemoryMappedFile buffer;
-    TEST_AND_RETURN_FALSE_ERRNO(buffer.Initialize(
-        std::move(dev_zero),
-        base::MemoryMappedFile::Region{
-            0, static_cast<size_t>(extent.num_blocks() * block_size_)},
-        base::MemoryMappedFile::Access::READ_ONLY));
-    TEST_AND_RETURN_FALSE(buffer.data() != nullptr);
-    writer->Write(buffer.data(), buffer.length());
-  }
-  return true;
-}
-
 bool PartitionWriter::PerformZeroOrDiscardOperation(
     const InstallOperation& operation) {
 #ifdef BLKZEROOUT
-  bool attempt_ioctl = true;
   int request =
       (operation.type() == InstallOperation::ZERO ? BLKZEROOUT : BLKDISCARD);
 #else   // !defined(BLKZEROOUT)
-  bool attempt_ioctl = false;
-  int request = 0;
+  auto writer = CreateBaseExtentWriter();
+  return install_op_executor_.ExecuteZeroOrDiscardOperation(operation,
+                                                            writer.get());
 #endif  // !defined(BLKZEROOUT)
 
-  brillo::Blob zeros;
   for (const Extent& extent : operation.dst_extents()) {
     const uint64_t start = extent.start_block() * block_size_;
     const uint64_t length = extent.num_blocks() * block_size_;
-    if (attempt_ioctl) {
-      int result = 0;
-      if (target_fd_->BlkIoctl(request, start, length, &result) && result == 0)
-        continue;
-      attempt_ioctl = false;
+    int result = 0;
+    if (target_fd_->BlkIoctl(request, start, length, &result) && result == 0) {
+      continue;
     }
-    // In case of failure, we fall back to writing 0 to the selected region.
-    zeros.resize(16 * block_size_);
-    for (uint64_t offset = 0; offset < length; offset += zeros.size()) {
-      uint64_t chunk_length =
-          std::min(length - offset, static_cast<uint64_t>(zeros.size()));
-      TEST_AND_RETURN_FALSE(utils::WriteAll(
-          target_fd_, zeros.data(), chunk_length, start + offset));
-    }
+    // In case of failure, we fall back to writing 0 for the entire operation.
+    PLOG(WARNING) << "BlkIoctl failed. Falling back to write 0s for remainder "
+                     "of this operation.";
+    auto writer = CreateBaseExtentWriter();
+    writer->Init(operation.dst_extents(), block_size_);
+    return install_op_executor_.ExecuteZeroOrDiscardOperation(operation,
+                                                              writer.get());
   }
   return true;
 }
@@ -419,17 +240,6 @@ std::ostream& operator<<(std::ostream& out,
   }
   out << "]";
   return out;
-}
-
-bool InstallOperationExecutor::ExecuteSourceCopyOperation(
-    const InstallOperation& operation,
-    ExtentWriter* writer,
-    FileDescriptorPtr source_fd) {
-  TEST_AND_RETURN_FALSE(operation.type() == InstallOperation::SOURCE_COPY);
-  TEST_AND_RETURN_FALSE(source_fd != nullptr);
-
-  return fd_utils::CommonHashExtents(
-      source_fd, operation.src_extents(), writer, block_size_, nullptr);
 }
 
 bool PartitionWriter::PerformSourceCopyOperation(
@@ -463,36 +273,6 @@ bool PartitionWriter::PerformSourceCopyOperation(
       optimized, writer.get(), source_fd);
 }
 
-bool InstallOperationExecutor::ExecuteSourceBsdiffOperation(
-    const InstallOperation& operation,
-    std::unique_ptr<ExtentWriter> writer,
-    FileDescriptorPtr source_fd,
-    const void* data,
-    size_t count) {
-  TEST_AND_RETURN_FALSE(operation.type() == InstallOperation::SOURCE_BSDIFF ||
-                        operation.type() == InstallOperation::BROTLI_BSDIFF ||
-                        operation.type() == InstallOperation::BSDIFF);
-  TEST_AND_RETURN_FALSE(source_fd != nullptr);
-
-  auto reader = std::make_unique<DirectExtentReader>();
-  TEST_AND_RETURN_FALSE(
-      reader->Init(source_fd, operation.src_extents(), block_size_));
-  auto src_file = std::make_unique<BsdiffExtentFile>(
-      std::move(reader),
-      utils::BlocksInExtents(operation.src_extents()) * block_size_);
-
-  TEST_AND_RETURN_FALSE(writer->Init(operation.dst_extents(), block_size_));
-  auto dst_file = std::make_unique<BsdiffExtentFile>(
-      std::move(writer),
-      utils::BlocksInExtents(operation.dst_extents()) * block_size_);
-
-  TEST_AND_RETURN_FALSE(bsdiff::bspatch(std::move(src_file),
-                                        std::move(dst_file),
-                                        reinterpret_cast<const uint8_t*>(data),
-                                        count) == 0);
-  return true;
-}
-
 bool PartitionWriter::PerformSourceBsdiffOperation(
     const InstallOperation& operation,
     ErrorCode* error,
@@ -505,37 +285,6 @@ bool PartitionWriter::PerformSourceBsdiffOperation(
   writer->Init(operation.dst_extents(), block_size_);
   return install_op_executor_.ExecuteSourceBsdiffOperation(
       operation, std::move(writer), source_fd, data, count);
-}
-
-bool InstallOperationExecutor::ExecutePuffDiffOperation(
-    const InstallOperation& operation,
-    std::unique_ptr<ExtentWriter> writer,
-    FileDescriptorPtr source_fd,
-    const void* data,
-    size_t count) {
-  TEST_AND_RETURN_FALSE(operation.type() == InstallOperation::PUFFDIFF);
-  TEST_AND_RETURN_FALSE(source_fd != nullptr);
-
-  auto reader = std::make_unique<DirectExtentReader>();
-  TEST_AND_RETURN_FALSE(
-      reader->Init(source_fd, operation.src_extents(), block_size_));
-  puffin::UniqueStreamPtr src_stream(new PuffinExtentStream(
-      std::move(reader),
-      utils::BlocksInExtents(operation.src_extents()) * block_size_));
-
-  TEST_AND_RETURN_FALSE(writer->Init(operation.dst_extents(), block_size_));
-  puffin::UniqueStreamPtr dst_stream(new PuffinExtentStream(
-      std::move(writer),
-      utils::BlocksInExtents(operation.dst_extents()) * block_size_));
-
-  constexpr size_t kMaxCacheSize = 5 * 1024 * 1024;  // Total 5MB cache.
-  TEST_AND_RETURN_FALSE(
-      puffin::PuffPatch(std::move(src_stream),
-                        std::move(dst_stream),
-                        reinterpret_cast<const uint8_t*>(data),
-                        count,
-                        kMaxCacheSize));
-  return true;
 }
 
 bool PartitionWriter::PerformPuffDiffOperation(
@@ -561,9 +310,10 @@ FileDescriptorPtr PartitionWriter::ChooseSourceFD(
 
   if (!operation.has_src_sha256_hash()) {
     // When the operation doesn't include a source hash, we attempt the error
-    // corrected device first since we can't verify the block in the raw device
-    // at this point, but we first need to make sure all extents are readable
-    // since the error corrected device can be shorter or not available.
+    // corrected device first since we can't verify the block in the raw
+    // device at this point, but we first need to make sure all extents are
+    // readable since the error corrected device can be shorter or not
+    // available.
     if (OpenCurrentECCPartition() &&
         fd_utils::ReadAndHashExtents(
             source_ecc_fd_, operation.src_extents(), block_size_, nullptr)) {
@@ -673,36 +423,6 @@ void PartitionWriter::CheckpointUpdateProgress(size_t next_op_index) {
 
 std::unique_ptr<ExtentWriter> PartitionWriter::CreateBaseExtentWriter() {
   return std::make_unique<DirectExtentWriter>(target_fd_);
-}
-
-bool InstallOperationExecutor::ExecuteInstallOp(
-    const InstallOperation& op,
-    std::unique_ptr<ExtentWriter> writer,
-    FileDescriptorPtr source_fd,
-    const void* data,
-    size_t size) {
-  switch (op.type()) {
-    case InstallOperation::REPLACE:
-    case InstallOperation::REPLACE_BZ:
-    case InstallOperation::REPLACE_XZ:
-      return ExecuteReplaceOperation(op, std::move(writer), data, size);
-    case InstallOperation::ZERO:
-    case InstallOperation::DISCARD:
-      return ExecuteZeroOrDiscardOperation(op, writer.get());
-    case InstallOperation::SOURCE_COPY:
-      return ExecuteSourceCopyOperation(op, writer.get(), source_fd);
-    case InstallOperation::SOURCE_BSDIFF:
-    case InstallOperation::BROTLI_BSDIFF:
-      return ExecuteSourceBsdiffOperation(
-          op, std::move(writer), source_fd, data, size);
-    case InstallOperation::PUFFDIFF:
-      return ExecutePuffDiffOperation(
-          op, std::move(writer), source_fd, data, size);
-      break;
-    default:
-      return false;
-  }
-  return false;
 }
 
 }  // namespace chromeos_update_engine
