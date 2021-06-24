@@ -90,7 +90,15 @@ bool VABCPartitionWriter::Init(const InstallPlan* install_plan,
   auto converted = ConvertToCowOperations(partition_update_.operations(),
                                           partition_update_.merge_operations());
 
-  WriteAllCowOps(block_size_, converted, cow_writer_.get(), source_fd_);
+  if (!converted.empty()) {
+    // Use source fd directly. Ideally we want to verify all extents used in
+    // source copy, but then what do we do if some extents contain correct
+    // hashes and some don't?
+    auto source_fd = std::make_shared<EintrSafeFileDescriptor>();
+    TEST_AND_RETURN_FALSE_ERRNO(
+        source_fd->Open(install_part_.source_path.c_str(), O_RDONLY));
+    WriteAllCowOps(block_size_, converted, cow_writer_.get(), source_fd);
+  }
   return true;
 }
 

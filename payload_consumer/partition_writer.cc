@@ -19,13 +19,18 @@
 #include <linux/fs.h>
 #include <sys/mman.h>
 
+#include <inttypes.h>
+
 #include <algorithm>
 #include <initializer_list>
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 
 #include <base/strings/string_number_conversions.h>
+#include <base/strings/string_util.h>
+#include <base/strings/stringprintf.h>
 
 #include "update_engine/common/terminator.h"
 #include "update_engine/common/utils.h"
@@ -33,7 +38,6 @@
 #include "update_engine/payload_consumer/cached_file_descriptor.h"
 #include "update_engine/payload_consumer/extent_reader.h"
 #include "update_engine/payload_consumer/extent_writer.h"
-#include "update_engine/payload_consumer/fec_file_descriptor.h"
 #include "update_engine/payload_consumer/file_descriptor_utils.h"
 #include "update_engine/payload_consumer/install_plan.h"
 #include "update_engine/payload_consumer/mount_history.h"
@@ -117,6 +121,7 @@ PartitionWriter::PartitionWriter(
     : partition_update_(partition_update),
       install_part_(install_part),
       dynamic_control_(dynamic_control),
+      verified_source_fd_(block_size, install_part.source_path),
       interactive_(is_interactive),
       block_size_(block_size),
       install_op_executor_(block_size) {}
@@ -133,9 +138,7 @@ bool PartitionWriter::OpenSourcePartition(uint32_t source_slot,
   }
   if (install_part_.source_size > 0 && !install_part_.source_path.empty()) {
     source_path_ = install_part_.source_path;
-    int err;
-    source_fd_ = OpenFile(source_path_.c_str(), O_RDONLY, false, &err);
-    if (source_fd_ == nullptr) {
+    if (!verified_source_fd_.Open()) {
       LOG(ERROR) << "Unable to open source partition " << install_part_.name
                  << " on slot " << BootControlInterface::SlotName(source_slot)
                  << ", file " << source_path_;
@@ -244,8 +247,6 @@ std::ostream& operator<<(std::ostream& out,
 
 bool PartitionWriter::PerformSourceCopyOperation(
     const InstallOperation& operation, ErrorCode* error) {
-  TEST_AND_RETURN_FALSE(source_fd_ != nullptr);
-
   // The device may optimize the SOURCE_COPY operation.
   // Being this a device-specific optimization let DynamicPartitionController
   // decide it the operation should be skipped.
@@ -303,98 +304,12 @@ bool PartitionWriter::PerformPuffDiffOperation(
 
 FileDescriptorPtr PartitionWriter::ChooseSourceFD(
     const InstallOperation& operation, ErrorCode* error) {
-  if (source_fd_ == nullptr) {
-    LOG(ERROR) << "ChooseSourceFD fail: source_fd_ == nullptr";
-    return nullptr;
-  }
-
-  if (!operation.has_src_sha256_hash()) {
-    // When the operation doesn't include a source hash, we attempt the error
-    // corrected device first since we can't verify the block in the raw
-    // device at this point, but we first need to make sure all extents are
-    // readable since the error corrected device can be shorter or not
-    // available.
-    if (OpenCurrentECCPartition() &&
-        fd_utils::ReadAndHashExtents(
-            source_ecc_fd_, operation.src_extents(), block_size_, nullptr)) {
-      return source_ecc_fd_;
-    }
-    return source_fd_;
-  }
-
-  brillo::Blob source_hash;
-  brillo::Blob expected_source_hash(operation.src_sha256_hash().begin(),
-                                    operation.src_sha256_hash().end());
-  if (fd_utils::ReadAndHashExtents(
-          source_fd_, operation.src_extents(), block_size_, &source_hash) &&
-      source_hash == expected_source_hash) {
-    return source_fd_;
-  }
-  // We fall back to use the error corrected device if the hash of the raw
-  // device doesn't match or there was an error reading the source partition.
-  if (!OpenCurrentECCPartition()) {
-    // The following function call will return false since the source hash
-    // mismatches, but we still want to call it so it prints the appropriate
-    // log message.
-    ValidateSourceHash(source_hash, operation, source_fd_, error);
-    return nullptr;
-  }
-  LOG(WARNING) << "Source hash from RAW device mismatched: found "
-               << base::HexEncode(source_hash.data(), source_hash.size())
-               << ", expected "
-               << base::HexEncode(expected_source_hash.data(),
-                                  expected_source_hash.size());
-
-  if (fd_utils::ReadAndHashExtents(
-          source_ecc_fd_, operation.src_extents(), block_size_, &source_hash) &&
-      ValidateSourceHash(source_hash, operation, source_ecc_fd_, error)) {
-    // At this point reading from the error corrected device worked, but
-    // reading from the raw device failed, so this is considered a recovered
-    // failure.
-    source_ecc_recovered_failures_++;
-    return source_ecc_fd_;
-  }
-  return nullptr;
-}
-
-bool PartitionWriter::OpenCurrentECCPartition() {
-  // No support for ECC for full payloads.
-  // Full payload should not have any opeartion that requires ECC partitions.
-  if (source_ecc_fd_)
-    return true;
-
-  if (source_ecc_open_failure_)
-    return false;
-
-#if USE_FEC
-  const PartitionUpdate& partition = partition_update_;
-  const InstallPlan::Partition& install_part = install_part_;
-  std::string path = install_part.source_path;
-  FileDescriptorPtr fd(new FecFileDescriptor());
-  if (!fd->Open(path.c_str(), O_RDONLY, 0)) {
-    PLOG(ERROR) << "Unable to open ECC source partition "
-                << partition.partition_name() << ", file " << path;
-    source_ecc_open_failure_ = true;
-    return false;
-  }
-  source_ecc_fd_ = fd;
-#else
-  // No support for ECC compiled.
-  source_ecc_open_failure_ = true;
-#endif  // USE_FEC
-
-  return !source_ecc_open_failure_;
+  return verified_source_fd_.ChooseSourceFD(operation, error);
 }
 
 int PartitionWriter::Close() {
   int err = 0;
-  if (source_fd_ && !source_fd_->Close()) {
-    err = errno;
-    PLOG(ERROR) << "Error closing source partition";
-    if (!err)
-      err = 1;
-  }
-  source_fd_.reset();
+
   source_path_.clear();
 
   if (target_fd_ && !target_fd_->Close()) {
@@ -406,14 +321,6 @@ int PartitionWriter::Close() {
   target_fd_.reset();
   target_path_.clear();
 
-  if (source_ecc_fd_ && !source_ecc_fd_->Close()) {
-    err = errno;
-    PLOG(ERROR) << "Error closing ECC source partition";
-    if (!err)
-      err = 1;
-  }
-  source_ecc_fd_.reset();
-  source_ecc_open_failure_ = false;
   return -err;
 }
 
@@ -423,6 +330,46 @@ void PartitionWriter::CheckpointUpdateProgress(size_t next_op_index) {
 
 std::unique_ptr<ExtentWriter> PartitionWriter::CreateBaseExtentWriter() {
   return std::make_unique<DirectExtentWriter>(target_fd_);
+}
+
+bool PartitionWriter::ValidateSourceHash(const brillo::Blob& calculated_hash,
+                                         const InstallOperation& operation,
+                                         const FileDescriptorPtr source_fd,
+                                         ErrorCode* error) {
+  using std::string;
+  using std::vector;
+  brillo::Blob expected_source_hash(operation.src_sha256_hash().begin(),
+                                    operation.src_sha256_hash().end());
+  if (calculated_hash != expected_source_hash) {
+    LOG(ERROR) << "The hash of the source data on disk for this operation "
+               << "doesn't match the expected value. This could mean that the "
+               << "delta update payload was targeted for another version, or "
+               << "that the source partition was modified after it was "
+               << "installed, for example, by mounting a filesystem.";
+    LOG(ERROR) << "Expected:   sha256|hex = "
+               << base::HexEncode(expected_source_hash.data(),
+                                  expected_source_hash.size());
+    LOG(ERROR) << "Calculated: sha256|hex = "
+               << base::HexEncode(calculated_hash.data(),
+                                  calculated_hash.size());
+
+    vector<string> source_extents;
+    for (const Extent& ext : operation.src_extents()) {
+      source_extents.push_back(
+          base::StringPrintf("%" PRIu64 ":%" PRIu64,
+                             static_cast<uint64_t>(ext.start_block()),
+                             static_cast<uint64_t>(ext.num_blocks())));
+    }
+    LOG(ERROR) << "Operation source (offset:size) in blocks: "
+               << base::JoinString(source_extents, ",");
+
+    // Log remount history if this device is an ext4 partition.
+    LogMountHistory(source_fd);
+
+    *error = ErrorCode::kDownloadStateInitializationError;
+    return false;
+  }
+  return true;
 }
 
 }  // namespace chromeos_update_engine
