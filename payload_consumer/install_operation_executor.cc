@@ -248,7 +248,7 @@ bool InstallOperationExecutor::ExecuteSourceCopyOperation(
     ExtentWriter* writer,
     FileDescriptorPtr source_fd) {
   TEST_AND_RETURN_FALSE(operation.type() == InstallOperation::SOURCE_COPY);
-  writer->Init(operation.dst_extents(), block_size_);
+  TEST_AND_RETURN_FALSE(writer->Init(operation.dst_extents(), block_size_));
   return fd_utils::CommonHashExtents(
       source_fd, operation.src_extents(), writer, block_size_, nullptr);
 }
