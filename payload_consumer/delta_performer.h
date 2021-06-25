@@ -196,7 +196,7 @@ class DeltaPerformer : public FileWriter {
 
  protected:
   // Exposed as virtual for testing purposes.
-  virtual std::unique_ptr<PartitionWriter> CreatePartitionWriter(
+  virtual std::unique_ptr<PartitionWriterInterface> CreatePartitionWriter(
       const PartitionUpdate& partition_update,
       const InstallPlan::Partition& install_part,
       DynamicPartitionControlInterface* dynamic_control,
@@ -426,7 +426,7 @@ class DeltaPerformer : public FileWriter {
       base::TimeDelta::FromSeconds(kCheckpointFrequencySeconds)};
   base::TimeTicks update_checkpoint_time_;
 
-  std::unique_ptr<PartitionWriter> partition_writer_;
+  std::unique_ptr<PartitionWriterInterface> partition_writer_;
 
   DISALLOW_COPY_AND_ASSIGN(DeltaPerformer);
 };
