@@ -127,7 +127,8 @@ class Payload(object):
         self.payload_file = zfp.open("payload.bin", "r")
     elif isinstance(payload_file, str):
       payload_fp = open(payload_file, "rb")
-      payload_bytes = mmap.mmap(payload_fp.fileno(), 0, access=mmap.ACCESS_READ)
+      payload_bytes = mmap.mmap(
+          payload_fp.fileno(), 0, access=mmap.ACCESS_READ)
       self.payload_file = io.BytesIO(payload_bytes)
     else:
       self.payload_file = payload_file
@@ -138,6 +139,7 @@ class Payload(object):
     self.manifest = None
     self.data_offset = None
     self.metadata_signature = None
+    self.payload_signature = None
     self.metadata_size = None
 
   def _ReadHeader(self):
@@ -234,6 +236,13 @@ class Payload(object):
 
     self.metadata_size = self.header.size + self.header.manifest_len
     self.data_offset = self.metadata_size + self.header.metadata_signature_len
+
+    if self.manifest.signatures_offset and self.manifest.signatures_size:
+      payload_signature_blob = self.ReadDataBlob(
+          self.manifest.signatures_offset, self.manifest.signatures_size)
+      payload_signature = update_metadata_pb2.Signatures()
+      payload_signature.ParseFromString(payload_signature_blob)
+      self.payload_signature = payload_signature
 
     self.is_init = True
 
