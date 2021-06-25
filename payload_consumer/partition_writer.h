@@ -29,19 +29,19 @@
 #include "update_engine/payload_consumer/file_descriptor.h"
 #include "update_engine/payload_consumer/install_operation_executor.h"
 #include "update_engine/payload_consumer/install_plan.h"
+#include "update_engine/payload_consumer/partition_writer_interface.h"
 #include "update_engine/payload_consumer/verified_source_fd.h"
 #include "update_engine/update_metadata.pb.h"
 
 namespace chromeos_update_engine {
-
-class PartitionWriter {
+class PartitionWriter : public PartitionWriterInterface {
  public:
   PartitionWriter(const PartitionUpdate& partition_update,
                   const InstallPlan::Partition& install_part,
                   DynamicPartitionControlInterface* dynamic_control,
                   size_t block_size,
                   bool is_interactive);
-  virtual ~PartitionWriter();
+  ~PartitionWriter();
   static bool ValidateSourceHash(const brillo::Blob& calculated_hash,
                                  const InstallOperation& operation,
                                  const FileDescriptorPtr source_fd,
@@ -49,63 +49,58 @@ class PartitionWriter {
 
   // Perform necessary initialization work before InstallOperation can be
   // applied to this partition
-  [[nodiscard]] virtual bool Init(const InstallPlan* install_plan,
-                                  bool source_may_exist,
-                                  size_t next_op_index);
+  [[nodiscard]] bool Init(const InstallPlan* install_plan,
+                          bool source_may_exist,
+                          size_t next_op_index) override;
 
   // |CheckpointUpdateProgress| will be called after SetNextOpIndex(), but it's
   // optional. DeltaPerformer may or may not call this everytime an operation is
   // applied.
   //   |next_op_index| is index of next operation that should be applied.
   // |next_op_index-1| is the last operation that is already applied.
-  virtual void CheckpointUpdateProgress(size_t next_op_index);
+  void CheckpointUpdateProgress(size_t next_op_index) override;
 
   // Close partition writer, when calling this function there's no guarantee
   // that all |InstallOperations| are sent to |PartitionWriter|. This function
   // will be called even if we are pausing/aborting the update.
-  int Close();
+  int Close() override;
 
   // These perform a specific type of operation and return true on success.
   // |error| will be set if source hash mismatch, otherwise |error| might not be
   // set even if it fails.
-  [[nodiscard]] virtual bool PerformReplaceOperation(
-      const InstallOperation& operation, const void* data, size_t count);
-  [[nodiscard]] virtual bool PerformZeroOrDiscardOperation(
-      const InstallOperation& operation);
+  [[nodiscard]] bool PerformReplaceOperation(const InstallOperation& operation,
+                                             const void* data,
+                                             size_t count) override;
+  [[nodiscard]] bool PerformZeroOrDiscardOperation(
+      const InstallOperation& operation) override;
 
-  [[nodiscard]] virtual bool PerformSourceCopyOperation(
-      const InstallOperation& operation, ErrorCode* error);
-  [[nodiscard]] virtual bool PerformSourceBsdiffOperation(
+  [[nodiscard]] bool PerformSourceCopyOperation(
+      const InstallOperation& operation, ErrorCode* error) override;
+  [[nodiscard]] bool PerformSourceBsdiffOperation(
       const InstallOperation& operation,
       ErrorCode* error,
       const void* data,
-      size_t count);
-  [[nodiscard]] virtual bool PerformPuffDiffOperation(
-      const InstallOperation& operation,
-      ErrorCode* error,
-      const void* data,
-      size_t count);
+      size_t count) override;
+  [[nodiscard]] bool PerformPuffDiffOperation(const InstallOperation& operation,
+                                              ErrorCode* error,
+                                              const void* data,
+                                              size_t count) override;
 
   // |DeltaPerformer| calls this when all Install Ops are sent to partition
   // writer. No |Perform*Operation| methods will be called in the future, and
   // the partition writer is expected to be closed soon.
-  [[nodiscard]] virtual bool FinishedInstallOps() { return true; }
+  [[nodiscard]] bool FinishedInstallOps() override { return true; }
 
- protected:
+ private:
   friend class PartitionWriterTest;
   FRIEND_TEST(PartitionWriterTest, ChooseSourceFDTest);
 
   [[nodiscard]] bool OpenSourcePartition(uint32_t source_slot,
                                          bool source_may_exist);
-
-  bool OpenCurrentECCPartition();
-  // For a given operation, choose the source fd to be used (raw device or error
-  // correction device) based on the source operation hash.
-  // Returns nullptr if the source hash mismatch cannot be corrected, and set
-  // the |error| accordingly.
-  FileDescriptorPtr ChooseSourceFD(const InstallOperation& operation,
+  FileDescriptorPtr ChooseSourceFD(const InstallOperation& op,
                                    ErrorCode* error);
-  [[nodiscard]] virtual std::unique_ptr<ExtentWriter> CreateBaseExtentWriter();
+
+  [[nodiscard]] std::unique_ptr<ExtentWriter> CreateBaseExtentWriter();
 
   const PartitionUpdate& partition_update_;
   const InstallPlan::Partition& install_part_;
@@ -128,7 +123,7 @@ class PartitionWriter {
 namespace partition_writer {
 // Return a PartitionWriter instance for perform InstallOps on this partition.
 // Uses VABCPartitionWriter for Virtual AB Compression
-std::unique_ptr<PartitionWriter> CreatePartitionWriter(
+std::unique_ptr<PartitionWriterInterface> CreatePartitionWriter(
     const PartitionUpdate& partition_update,
     const InstallPlan::Partition& install_part,
     DynamicPartitionControlInterface* dynamic_control,

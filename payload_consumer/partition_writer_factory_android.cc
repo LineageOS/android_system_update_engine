@@ -23,7 +23,7 @@
 
 namespace chromeos_update_engine::partition_writer {
 
-std::unique_ptr<PartitionWriter> CreatePartitionWriter(
+std::unique_ptr<PartitionWriterInterface> CreatePartitionWriter(
     const PartitionUpdate& partition_update,
     const InstallPlan::Partition& install_part,
     DynamicPartitionControlInterface* dynamic_control,

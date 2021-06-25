@@ -1491,7 +1491,7 @@ bool DeltaPerformer::IsDynamicPartition(const std::string& part_name,
       part_name, slot);
 }
 
-std::unique_ptr<PartitionWriter> DeltaPerformer::CreatePartitionWriter(
+std::unique_ptr<PartitionWriterInterface> DeltaPerformer::CreatePartitionWriter(
     const PartitionUpdate& partition_update,
     const InstallPlan::Partition& install_part,
     DynamicPartitionControlInterface* dynamic_control,
