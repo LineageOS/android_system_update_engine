@@ -32,8 +32,6 @@
 #include <base/format_macros.h>
 #include <base/metrics/histogram_macros.h>
 #include <base/strings/string_number_conversions.h>
-#include <base/strings/string_util.h>
-#include <base/strings/stringprintf.h>
 #include <base/time/time.h>
 #include <brillo/data_encoding.h>
 #include <bsdiff/bspatch.h>
@@ -873,44 +871,6 @@ bool DeltaPerformer::PerformZeroOrDiscardOperation(
   return partition_writer_->PerformZeroOrDiscardOperation(operation);
 }
 
-bool PartitionWriter::ValidateSourceHash(const brillo::Blob& calculated_hash,
-                                         const InstallOperation& operation,
-                                         const FileDescriptorPtr source_fd,
-                                         ErrorCode* error) {
-  brillo::Blob expected_source_hash(operation.src_sha256_hash().begin(),
-                                    operation.src_sha256_hash().end());
-  if (calculated_hash != expected_source_hash) {
-    LOG(ERROR) << "The hash of the source data on disk for this operation "
-               << "doesn't match the expected value. This could mean that the "
-               << "delta update payload was targeted for another version, or "
-               << "that the source partition was modified after it was "
-               << "installed, for example, by mounting a filesystem.";
-    LOG(ERROR) << "Expected:   sha256|hex = "
-               << base::HexEncode(expected_source_hash.data(),
-                                  expected_source_hash.size());
-    LOG(ERROR) << "Calculated: sha256|hex = "
-               << base::HexEncode(calculated_hash.data(),
-                                  calculated_hash.size());
-
-    vector<string> source_extents;
-    for (const Extent& ext : operation.src_extents()) {
-      source_extents.push_back(
-          base::StringPrintf("%" PRIu64 ":%" PRIu64,
-                             static_cast<uint64_t>(ext.start_block()),
-                             static_cast<uint64_t>(ext.num_blocks())));
-    }
-    LOG(ERROR) << "Operation source (offset:size) in blocks: "
-               << base::JoinString(source_extents, ",");
-
-    // Log remount history if this device is an ext4 partition.
-    LogMountHistory(source_fd);
-
-    *error = ErrorCode::kDownloadStateInitializationError;
-    return false;
-  }
-  return true;
-}
-
 bool DeltaPerformer::PerformSourceCopyOperation(
     const InstallOperation& operation, ErrorCode* error) {
   if (operation.has_src_length())
@@ -1531,7 +1491,7 @@ bool DeltaPerformer::IsDynamicPartition(const std::string& part_name,
       part_name, slot);
 }
 
-std::unique_ptr<PartitionWriter> DeltaPerformer::CreatePartitionWriter(
+std::unique_ptr<PartitionWriterInterface> DeltaPerformer::CreatePartitionWriter(
     const PartitionUpdate& partition_update,
     const InstallPlan::Partition& install_part,
     DynamicPartitionControlInterface* dynamic_control,

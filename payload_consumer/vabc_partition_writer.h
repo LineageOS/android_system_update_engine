@@ -18,24 +18,28 @@
 #define UPDATE_ENGINE_VABC_PARTITION_WRITER_H_
 
 #include <memory>
+#include <string>
 #include <vector>
 
 #include <libsnapshot/snapshot_writer.h>
 
 #include "update_engine/common/cow_operation_convert.h"
+#include "update_engine/payload_consumer/install_operation_executor.h"
 #include "update_engine/payload_consumer/install_plan.h"
 #include "update_engine/payload_consumer/partition_writer.h"
 
 namespace chromeos_update_engine {
-class VABCPartitionWriter final : public PartitionWriter {
+class VABCPartitionWriter final : public PartitionWriterInterface {
  public:
-  using PartitionWriter::PartitionWriter;
+  VABCPartitionWriter(const PartitionUpdate& partition_update,
+                      const InstallPlan::Partition& install_part,
+                      DynamicPartitionControlInterface* dynamic_control,
+                      size_t block_size,
+                      bool is_interactive);
   [[nodiscard]] bool Init(const InstallPlan* install_plan,
                           bool source_may_exist,
                           size_t next_op_index) override;
   ~VABCPartitionWriter() override;
-
-  [[nodiscard]] std::unique_ptr<ExtentWriter> CreateBaseExtentWriter() override;
 
   // Only ZERO and SOURCE_COPY InstallOperations are treated special by VABC
   // Partition Writer. These operations correspond to COW_ZERO and COW_COPY. All
@@ -45,6 +49,20 @@ class VABCPartitionWriter final : public PartitionWriter {
   [[nodiscard]] bool PerformSourceCopyOperation(
       const InstallOperation& operation, ErrorCode* error) override;
 
+  [[nodiscard]] bool PerformReplaceOperation(const InstallOperation& operation,
+                                             const void* data,
+                                             size_t count) override;
+
+  [[nodiscard]] bool PerformSourceBsdiffOperation(
+      const InstallOperation& operation,
+      ErrorCode* error,
+      const void* data,
+      size_t count) override;
+  [[nodiscard]] bool PerformPuffDiffOperation(const InstallOperation& operation,
+                                              ErrorCode* error,
+                                              const void* data,
+                                              size_t count) override;
+
   void CheckpointUpdateProgress(size_t next_op_index) override;
 
   static bool WriteAllCowOps(size_t block_size,
@@ -53,9 +71,24 @@ class VABCPartitionWriter final : public PartitionWriter {
                              FileDescriptorPtr source_fd);
 
   [[nodiscard]] bool FinishedInstallOps() override;
+  int Close() override;
 
  private:
   std::unique_ptr<android::snapshot::ISnapshotWriter> cow_writer_;
+
+  bool OpenCurrentECCPartition();
+  [[nodiscard]] std::unique_ptr<ExtentWriter> CreateBaseExtentWriter();
+
+  const PartitionUpdate& partition_update_;
+  const InstallPlan::Partition& install_part_;
+  DynamicPartitionControlInterface* dynamic_control_;
+  // Path to source partition
+  std::string source_path_;
+
+  const bool interactive_;
+  const size_t block_size_;
+  InstallOperationExecutor executor_;
+  VerifiedSourceFd verified_source_fd_;
 };
 
 }  // namespace chromeos_update_engine

@@ -176,14 +176,6 @@ class DeltaPerformer : public FileWriter {
   // Exposed for testing purposes.
   bool CheckpointUpdateProgress(bool force);
 
-  // Compare |calculated_hash| with source hash in |operation|, return false and
-  // dump hash and set |error| if don't match.
-  // |source_fd| is the file descriptor of the source partition.
-  static bool ValidateSourceHash(const brillo::Blob& calculated_hash,
-                                 const InstallOperation& operation,
-                                 const FileDescriptorPtr source_fd,
-                                 ErrorCode* error);
-
   // Initialize partitions and allocate required space for an update with the
   // given |manifest|. |update_check_response_hash| is used to check if the
   // previous call to this function corresponds to the same payload.
@@ -204,7 +196,7 @@ class DeltaPerformer : public FileWriter {
 
  protected:
   // Exposed as virtual for testing purposes.
-  virtual std::unique_ptr<PartitionWriter> CreatePartitionWriter(
+  virtual std::unique_ptr<PartitionWriterInterface> CreatePartitionWriter(
       const PartitionUpdate& partition_update,
       const InstallPlan::Partition& install_part,
       DynamicPartitionControlInterface* dynamic_control,
@@ -434,7 +426,7 @@ class DeltaPerformer : public FileWriter {
       base::TimeDelta::FromSeconds(kCheckpointFrequencySeconds)};
   base::TimeTicks update_checkpoint_time_;
 
-  std::unique_ptr<PartitionWriter> partition_writer_;
+  std::unique_ptr<PartitionWriterInterface> partition_writer_;
 
   DISALLOW_COPY_AND_ASSIGN(DeltaPerformer);
 };

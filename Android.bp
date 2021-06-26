@@ -244,6 +244,7 @@ cc_library_static {
         "payload_consumer/vabc_partition_writer.cc",
         "payload_consumer/snapshot_extent_writer.cc",
         "payload_consumer/postinstall_runner_action.cc",
+        "payload_consumer/verified_source_fd.cc",
         "payload_consumer/verity_writer_android.cc",
         "payload_consumer/xz_extent_writer.cc",
         "payload_consumer/fec_file_descriptor.cc",
