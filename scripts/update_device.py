@@ -30,6 +30,7 @@ import subprocess
 import sys
 import struct
 import tempfile
+import time
 import threading
 import xml.etree.ElementTree
 import zipfile
@@ -441,6 +442,8 @@ def main():
   logging.basicConfig(
       level=logging.WARNING if args.no_verbose else logging.INFO)
 
+  start_time = time.perf_counter()
+
   dut = AdbHost(args.s)
 
   server_thread = None
@@ -548,6 +551,7 @@ def main():
     for cmd in finalize_cmds:
       dut.adb(cmd, 5)
 
+  logging.info('Update took %.3f seconds', (time.perf_counter() - start_time))
   return 0
 
 
