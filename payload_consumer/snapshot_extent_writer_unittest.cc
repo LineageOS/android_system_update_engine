@@ -70,6 +70,10 @@ class FakeCowWriter : public android::snapshot::ICowWriter {
     return true;
   }
 
+  bool EmitSequenceData(size_t num_ops, const uint32_t* data) override {
+    return false;
+  }
+
   // Return number of bytes the cow image occupies on disk.
   uint64_t GetCowSize() override {
     return std::accumulate(
