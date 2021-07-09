@@ -41,6 +41,7 @@ class BlockExtentWriter : public chromeos_update_engine::ExtentWriter {
   virtual bool WriteExtent(const void* bytes,
                            const Extent& extent,
                            size_t block_size) = 0;
+  size_t BlockSize() const { return block_size_; }
 
  private:
   bool NextExtent();

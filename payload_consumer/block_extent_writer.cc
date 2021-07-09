@@ -45,7 +45,7 @@ size_t BlockExtentWriter::ConsumeWithBuffer(const uint8_t* data, size_t count) {
 
   if (buffer_.empty() && count >= cur_extent_size) {
     if (!WriteExtent(data, cur_extent, block_size_)) {
-      LOG(ERROR) << "AddRawBlocks(" << cur_extent.start_block() << ", " << data
+      LOG(ERROR) << "WriteExtent(" << cur_extent.start_block() << ", " << data
                  << ", " << cur_extent_size << ") failed.";
       // return value is expected to be greater than 0. Return 0 to signal error
       // condition
