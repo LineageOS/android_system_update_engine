@@ -277,6 +277,7 @@ cc_defaults {
         "libutils",
         "android.hardware.boot@1.0",
         "android.hardware.boot@1.1",
+        "android.hardware.boot@1.2",
     ],
     header_libs: [
         "avb_headers",
