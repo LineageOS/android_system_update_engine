@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <map>
 #include <memory>
+#include <ostream>
 #include <utility>
 
 #include <android-base/properties.h>
@@ -163,15 +164,37 @@ UpdateAttempterAndroid::~UpdateAttempterAndroid() {
   return old_boot_id != boot_id;
 }
 
+std::ostream& operator<<(std::ostream& out, OTAResult result) {
+  switch (result) {
+    case OTAResult::NOT_ATTEMPTED:
+      out << "OTAResult::NOT_ATTEMPTED";
+      break;
+    case OTAResult::ROLLED_BACK:
+      out << "OTAResult::ROLLED_BACK";
+      break;
+    case OTAResult::UPDATED_NEED_REBOOT:
+      out << "OTAResult::UPDATED_NEED_REBOOT";
+      break;
+    case OTAResult::OTA_SUCCESSFUL:
+      out << "OTAResult::OTA_SUCCESSFUL";
+      break;
+  }
+  return out;
+}
+
 void UpdateAttempterAndroid::Init() {
   // In case of update_engine restart without a reboot we need to restore the
   // reboot needed state.
   if (UpdateCompletedOnThisBoot()) {
+    LOG(INFO) << "Updated installed but update_engine is restarted without "
+                 "device reboot. Resuming old state.";
     SetStatusAndNotify(UpdateStatus::UPDATED_NEED_REBOOT);
   } else {
+    const auto result = GetOTAUpdateResult();
+    LOG(INFO) << result;
     SetStatusAndNotify(UpdateStatus::IDLE);
     if (DidSystemReboot(prefs_)) {
-      UpdateStateAfterReboot();
+      UpdateStateAfterReboot(result);
     }
 
 #ifdef _UE_SIDELOAD
@@ -383,6 +406,15 @@ bool UpdateAttempterAndroid::ResetStatus(brillo::ErrorPtr* error) {
     std::vector<ApexInfo> apex_infos_blank;
     apex_handler_android_->AllocateSpace(apex_infos_blank);
   }
+  // Remove the reboot marker so that if the machine is rebooted
+  // after resetting to idle state, it doesn't go back to
+  // UpdateStatus::UPDATED_NEED_REBOOT state.
+  if (!ClearUpdateCompletedMarker()) {
+    return LogAndSetError(error,
+                          FROM_HERE,
+                          "Failed to reset the status because "
+                          "ClearUpdateCompletedMarker() failed");
+  }
 
   switch (status_) {
     case UpdateStatus::IDLE: {
@@ -416,11 +448,6 @@ bool UpdateAttempterAndroid::ResetStatus(brillo::ErrorPtr* error) {
       if (!boot_control_->GetDynamicPartitionControl()->ResetUpdate(prefs_))
         ret_value = false;
 
-      // Remove the reboot marker so that if the machine is rebooted
-      // after resetting to idle state, it doesn't go back to
-      // UpdateStatus::UPDATED_NEED_REBOOT state.
-      if (!prefs_->Delete(kPrefsUpdateCompletedOnBootId))
-        ret_value = false;
       ClearMetricsPrefs();
 
       if (!ret_value) {
@@ -567,7 +594,9 @@ void UpdateAttempterAndroid::ProcessingDone(const ActionProcessor* processor,
   switch (code) {
     case ErrorCode::kSuccess:
       // Update succeeded.
-      WriteUpdateCompletedMarker();
+      if (!WriteUpdateCompletedMarker()) {
+        LOG(ERROR) << "Failed to write update completion marker";
+      }
       prefs_->SetInt64(kPrefsDeltaUpdateFailures, 0);
 
       LOG(INFO) << "Update successfully applied, waiting to reboot.";
@@ -705,6 +734,7 @@ void UpdateAttempterAndroid::TerminateUpdateAndNotify(ErrorCode error_code) {
   }
 
   if (status_ == UpdateStatus::CLEANUP_PREVIOUS_UPDATE) {
+    ClearUpdateCompletedMarker();
     LOG(INFO) << "Terminating cleanup previous update.";
     SetStatusAndNotify(UpdateStatus::IDLE);
     for (auto observer : daemon_state_->service_observers())
@@ -798,9 +828,20 @@ void UpdateAttempterAndroid::BuildUpdateActions(HttpFetcher* fetcher) {
 }
 
 bool UpdateAttempterAndroid::WriteUpdateCompletedMarker() {
+  LOG(INFO) << "Writing update complete marker.";
   string boot_id;
   TEST_AND_RETURN_FALSE(utils::GetBootId(&boot_id));
-  prefs_->SetString(kPrefsUpdateCompletedOnBootId, boot_id);
+  TEST_AND_RETURN_FALSE(
+      prefs_->SetString(kPrefsUpdateCompletedOnBootId, boot_id));
+  TEST_AND_RETURN_FALSE(
+      prefs_->SetInt64(kPrefsPreviousSlot, boot_control_->GetCurrentSlot()));
+  return true;
+}
+
+bool UpdateAttempterAndroid::ClearUpdateCompletedMarker() {
+  LOG(INFO) << "Clearing update complete marker.";
+  TEST_AND_RETURN_FALSE(prefs_->Delete(kPrefsUpdateCompletedOnBootId));
+  TEST_AND_RETURN_FALSE(prefs_->Delete(kPrefsPreviousSlot));
   return true;
 }
 
@@ -897,15 +938,66 @@ void UpdateAttempterAndroid::CollectAndReportUpdateMetricsOnUpdateFinished(
   }
 }
 
-void UpdateAttempterAndroid::UpdateStateAfterReboot() {
+bool UpdateAttempterAndroid::OTARebootSucceeded() const {
+  const auto current_slot = boot_control_->GetCurrentSlot();
+  const string current_version =
+      android::base::GetProperty("ro.build.version.incremental", "");
+  int64_t previous_slot = -1;
+  TEST_AND_RETURN_FALSE(prefs_->GetInt64(kPrefsPreviousSlot, &previous_slot));
+  string previous_version;
+  TEST_AND_RETURN_FALSE(
+      prefs_->GetString(kPrefsPreviousVersion, &previous_version));
+  if (previous_slot != current_slot) {
+    LOG(INFO) << "Detected a slot switch, OTA succeeded, device updated from "
+              << previous_version << " to " << current_version;
+    if (previous_version == current_version) {
+      LOG(INFO) << "Previous version is the same as current version, this is "
+                   "possibly a self-OTA.";
+    }
+    return true;
+  } else {
+    LOG(INFO) << "Slot didn't switch, either the OTA is rolled back, or slot "
+                 "switch never happened, or system not rebooted at all.";
+    if (previous_version != current_version) {
+      LOG(INFO) << "Slot didn't change, but version changed from "
+                << previous_version << " to " << current_version
+                << " device could be flashed.";
+    }
+    return false;
+  }
+}
+
+OTAResult UpdateAttempterAndroid::GetOTAUpdateResult() const {
+  // We only set |kPrefsSystemUpdatedMarker| if slot is actually switched, so
+  // existence of this pref is sufficient indicator. Given that we have to
+  // delete this pref after checking it. This is done in
+  // |DeltaPerformer::ResetUpdateProgress|
+  auto slot_switch_attempted = prefs_->Exists(kPrefsUpdateCompletedOnBootId);
+  auto system_rebooted = DidSystemReboot(prefs_);
+  auto ota_successful = OTARebootSucceeded();
+  if (ota_successful) {
+    return OTAResult::OTA_SUCCESSFUL;
+  }
+  if (slot_switch_attempted) {
+    if (system_rebooted) {
+      // If we attempted slot switch, but still end up on the same slot, we
+      // probably rolled back.
+      return OTAResult::ROLLED_BACK;
+    } else {
+      return OTAResult::UPDATED_NEED_REBOOT;
+    }
+  }
+  return OTAResult::NOT_ATTEMPTED;
+}
+
+void UpdateAttempterAndroid::UpdateStateAfterReboot(const OTAResult result) {
   // Example: [ro.build.version.incremental]: [4292972]
   string current_version =
       android::base::GetProperty("ro.build.version.incremental", "");
   TEST_AND_RETURN(!current_version.empty());
-  const auto current_slot = boot_control_->GetCurrentSlot();
 
-  // |InitAfterReboot()| is only called after system reboot, so record boot id
-  // unconditionally
+  // |UpdateStateAfterReboot()| is only called after system reboot, so record
+  // boot id unconditionally
   string current_boot_id;
   TEST_AND_RETURN(utils::GetBootId(&current_boot_id));
   prefs_->SetString(kPrefsBootId, current_boot_id);
@@ -918,19 +1010,25 @@ void UpdateAttempterAndroid::UpdateStateAfterReboot() {
     ClearMetricsPrefs();
     return;
   }
-  int64_t previous_slot = -1;
-  prefs_->GetInt64(kPrefsPreviousSlot, &previous_slot);
-  string previous_version;
   // update_engine restarted under the same build and same slot.
-  // TODO(xunchang) identify and report rollback by checking UpdateMarker.
-  if (prefs_->GetString(kPrefsPreviousVersion, &previous_version) &&
-      previous_version == current_version && previous_slot == current_slot) {
+  if (result != OTAResult::OTA_SUCCESSFUL) {
     // Increment the reboot number if |kPrefsNumReboots| exists. That pref is
     // set when we start a new update.
     if (prefs_->Exists(kPrefsNumReboots)) {
       int64_t reboot_count =
           metrics_utils::GetPersistedValue(kPrefsNumReboots, prefs_);
       metrics_utils::SetNumReboots(reboot_count + 1, prefs_);
+    }
+
+    if (result == OTAResult::ROLLED_BACK) {
+      // This will release all space previously allocated for apex
+      // decompression. If we detect a rollback, we should release space and
+      // return the space to user. Any subsequent attempt to install OTA will
+      // allocate space again anyway.
+      LOG(INFO) << "Detected a rollback, releasing space allocated for apex "
+                   "deompression.";
+      apex_handler_android_->AllocateSpace({});
+      DeltaPerformer::ResetUpdateProgress(prefs_, false);
     }
     return;
   }
@@ -969,6 +1067,7 @@ void UpdateAttempterAndroid::UpdatePrefsOnUpdateStart(bool is_resume) {
   }
   metrics_utils::SetUpdateTimestampStart(clock_->GetMonotonicTime(), prefs_);
   metrics_utils::SetUpdateBootTimestampStart(clock_->GetBootTime(), prefs_);
+  ClearUpdateCompletedMarker();
 }
 
 void UpdateAttempterAndroid::ClearMetricsPrefs() {

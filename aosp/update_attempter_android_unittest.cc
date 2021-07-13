@@ -106,6 +106,7 @@ TEST_F(UpdateAttempterAndroidTest, UpdatePrefsBuildVersionChangeOnInit) {
   prefs_.SetString(kPrefsPreviousVersion, "00001");  // Set the fake version
   prefs_.SetInt64(kPrefsPayloadAttemptNumber, 1);
   prefs_.SetInt64(kPrefsSystemUpdatedMarker, 23456);
+  prefs_.SetInt64(kPrefsPreviousSlot, 1);
 
   EXPECT_CALL(*metrics_reporter_,
               ReportAbnormallyTerminatedUpdateAttemptMetrics())
