@@ -45,6 +45,13 @@
 
 namespace chromeos_update_engine {
 
+enum class OTAResult {
+  NOT_ATTEMPTED,
+  ROLLED_BACK,
+  UPDATED_NEED_REBOOT,
+  OTA_SUCCESSFUL,
+};
+
 class UpdateAttempterAndroid
     : public ServiceDelegateAndroidInterface,
       public ActionProcessorDelegate,
@@ -114,8 +121,23 @@ class UpdateAttempterAndroid
   // CleanupPreviousUpdateActionDelegateInterface
   void OnCleanupProgressUpdate(double progress) override;
 
+  // Check the result of an OTA update. Intended to be called after reboot, this
+  // will use prefs on disk to determine if OTA was installed, or rolledback.
+  [[nodiscard]] OTAResult GetOTAUpdateResult() const;
+  // Intended to be called:
+  // 1. When system rebooted and slot switch is attempted
+  // 2. When a new update is started
+  // 3. When user called |ResetStatus()|
+  bool ClearUpdateCompletedMarker();
+
  private:
   friend class UpdateAttempterAndroidTest;
+
+  // Return |true| only if slot switched successfully after an OTA reboot.
+  // This will return |false| if an downgrade OTA is applied. Because after a
+  // downgrade OTA, we wipe /data, and there's no way for update_engine to
+  // "remember" that a downgrade OTA took place.
+  [[nodiscard]] bool OTARebootSucceeded() const;
 
   // Schedules an event loop callback to start the action processor. This is
   // scheduled asynchronously to unblock the event loop.
@@ -136,10 +158,10 @@ class UpdateAttempterAndroid
 
   // Writes to the processing completed marker. Does nothing if
   // |update_completed_marker_| is empty.
-  bool WriteUpdateCompletedMarker();
+  [[nodiscard]] bool WriteUpdateCompletedMarker();
 
   // Returns whether an update was completed in the current boot.
-  bool UpdateCompletedOnThisBoot();
+  [[nodiscard]] bool UpdateCompletedOnThisBoot();
 
   // Prefs to use for metrics report
   // |kPrefsPayloadAttemptNumber|: number of update attempts for the current
@@ -171,7 +193,7 @@ class UpdateAttempterAndroid
   //   |ReportTimeToRebootMetrics|
   // Prefs to update:
   //   |kPrefsBootId|, |kPrefsPreviousVersion|
-  void UpdateStateAfterReboot();
+  void UpdateStateAfterReboot(OTAResult result);
 
   // Prefs to update:
   //   |kPrefsPayloadAttemptNumber|, |kPrefsUpdateTimestampStart|,
