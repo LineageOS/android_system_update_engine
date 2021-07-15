@@ -233,12 +233,22 @@ message InstallOperation {
 // read after write, similar to the inplace update schema.
 message CowMergeOperation {
   enum Type {
-    COW_COPY = 0;  // identical blocks
+    COW_COPY = 0;     // identical blocks
+    COW_XOR = 1;      // used when src/dst blocks are highly similar
+    COW_REPLACE = 2;  // Raw replace operation
   }
   optional Type type = 1;
 
   optional Extent src_extent = 2;
   optional Extent dst_extent = 3;
+  // For COW_XOR, source location might be unaligned, so this field is in range
+  // [0, block_size), representing how much should the src_extent shift toward
+  // larger block number. If this field is non-zero, then src_extent will
+  // include 1 extra block in the end, as the merge op actually references the
+  // first |src_offset| bytes of that extra block. For example, if |dst_extent|
+  // is [10, 15], |src_offset| is 500, then src_extent might look like [25, 31].
+  // Note that |src_extent| contains 1 extra block than the |dst_extent|.
+  optional uint32 src_offset = 4;
 }
 
 // Describes the update to apply to a single partition.
