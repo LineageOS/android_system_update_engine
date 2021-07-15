@@ -131,7 +131,7 @@ template <typename Container>
 size_t GetNthBlock(const Container& extents, const size_t n) {
   size_t cur_block_count = 0;
   for (const auto& extent : extents) {
-    if (cur_block_count + extent.num_blocks() >= n) {
+    if (n - cur_block_count < extent.num_blocks()) {
       return extent.start_block() + (n - cur_block_count);
     }
     cur_block_count += extent.num_blocks();
