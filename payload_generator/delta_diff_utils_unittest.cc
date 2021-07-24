@@ -133,7 +133,7 @@ class DeltaDiffUtilsTest : public ::testing::Test {
                                                old_part_.size / block_size_,
                                                new_part_.size / block_size_,
                                                chunk_blocks,
-                                               version,
+                                               {.version = version},
                                                &blob_file,
                                                &old_visited_blocks_,
                                                &new_visited_blocks_,
@@ -170,8 +170,8 @@ TEST_F(DeltaDiffUtilsTest, SkipVerityExtentsTest) {
       new_part_,
       -1,
       -1,
-      PayloadVersion(kMaxSupportedMajorPayloadVersion,
-                     kVerityMinorPayloadVersion),
+      {.version = PayloadVersion(kMaxSupportedMajorPayloadVersion,
+                                 kVerityMinorPayloadVersion)},
       &blob_file));
   for (const auto& aop : aops_) {
     new_visited_blocks_.AddRepeatedExtents(aop.op.dst_extents());
@@ -207,7 +207,8 @@ TEST_F(DeltaDiffUtilsTest, ReplaceSmallTest) {
         WriteExtents(new_part_.path, new_extents, kBlockSize, data_to_test));
 
     brillo::Blob data;
-    InstallOperation op;
+    AnnotatedOperation aop;
+    InstallOperation& op = aop.op;
     ASSERT_TRUE(diff_utils::ReadExtentsToDiff(
         old_part_.path,
         new_part_.path,
@@ -215,9 +216,10 @@ TEST_F(DeltaDiffUtilsTest, ReplaceSmallTest) {
         new_extents,
         {},  // old_deflates
         {},  // new_deflates
-        PayloadVersion(kBrilloMajorPayloadVersion, kSourceMinorPayloadVersion),
+        {.version = PayloadVersion(kBrilloMajorPayloadVersion,
+                                   kSourceMinorPayloadVersion)},
         &data,
-        &op));
+        &aop));
     ASSERT_FALSE(data.empty());
 
     ASSERT_TRUE(op.has_type());
@@ -249,7 +251,7 @@ TEST_F(DeltaDiffUtilsTest, SourceCopyTest) {
   ASSERT_TRUE(WriteExtents(new_part_.path, new_extents, kBlockSize, data_blob));
 
   brillo::Blob data;
-  InstallOperation op;
+  AnnotatedOperation aop;
   ASSERT_TRUE(diff_utils::ReadExtentsToDiff(
       old_part_.path,
       new_part_.path,
@@ -257,9 +259,11 @@ TEST_F(DeltaDiffUtilsTest, SourceCopyTest) {
       new_extents,
       {},  // old_deflates
       {},  // new_deflates
-      PayloadVersion(kBrilloMajorPayloadVersion, kSourceMinorPayloadVersion),
+      {.version = PayloadVersion(kBrilloMajorPayloadVersion,
+                                 kSourceMinorPayloadVersion)},
       &data,
-      &op));
+      &aop));
+  InstallOperation& op = aop.op;
   ASSERT_TRUE(data.empty());
 
   ASSERT_TRUE(op.has_type());
@@ -283,7 +287,7 @@ TEST_F(DeltaDiffUtilsTest, SourceBsdiffTest) {
   ASSERT_TRUE(WriteExtents(new_part_.path, new_extents, kBlockSize, data_blob));
 
   brillo::Blob data;
-  InstallOperation op;
+  AnnotatedOperation aop;
   ASSERT_TRUE(diff_utils::ReadExtentsToDiff(
       old_part_.path,
       new_part_.path,
@@ -291,9 +295,11 @@ TEST_F(DeltaDiffUtilsTest, SourceBsdiffTest) {
       new_extents,
       {},  // old_deflates
       {},  // new_deflates
-      PayloadVersion(kBrilloMajorPayloadVersion, kSourceMinorPayloadVersion),
+      {.version = PayloadVersion(kBrilloMajorPayloadVersion,
+                                 kSourceMinorPayloadVersion)},
       &data,
-      &op));
+      &aop));
+  auto& op = aop.op;
   ASSERT_FALSE(data.empty());
   ASSERT_TRUE(op.has_type());
   ASSERT_EQ(InstallOperation::SOURCE_BSDIFF, op.type());
@@ -312,7 +318,7 @@ TEST_F(DeltaDiffUtilsTest, PreferReplaceTest) {
   ASSERT_TRUE(WriteExtents(new_part_.path, extents, kBlockSize, data_blob));
 
   brillo::Blob data;
-  InstallOperation op;
+  AnnotatedOperation aop;
   ASSERT_TRUE(diff_utils::ReadExtentsToDiff(
       old_part_.path,
       new_part_.path,
@@ -320,10 +326,11 @@ TEST_F(DeltaDiffUtilsTest, PreferReplaceTest) {
       extents,
       {},  // old_deflates
       {},  // new_deflates
-      PayloadVersion(kMaxSupportedMajorPayloadVersion,
-                     kMaxSupportedMinorPayloadVersion),
+      {.version = PayloadVersion(kMaxSupportedMajorPayloadVersion,
+                                 kMaxSupportedMinorPayloadVersion)},
       &data,
-      &op));
+      &aop));
+  auto& op = aop.op;
   ASSERT_FALSE(data.empty());
   ASSERT_TRUE(op.has_type());
   ASSERT_EQ(InstallOperation::REPLACE_BZ, op.type());
