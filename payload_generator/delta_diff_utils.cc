@@ -35,15 +35,17 @@
 #include <memory>
 #include <numeric>
 #include <utility>
+#include <vector>
 
 #include <base/files/file_util.h>
 #include <base/format_macros.h>
 #include <base/strings/string_util.h>
 #include <base/strings/stringprintf.h>
 #include <base/threading/simple_thread.h>
-#include <base/time/time.h>
 #include <brillo/data_encoding.h>
 #include <bsdiff/bsdiff.h>
+#include <bsdiff/control_entry.h>
+#include <bsdiff/patch_reader.h>
 #include <bsdiff/patch_writer_factory.h>
 #include <puffin/utils.h>
 
@@ -131,6 +133,44 @@ int LevenshteinDistance(const string& a, const string& b) {
   }
   return distances.back();
 }
+
+static bool ShouldCreateNewOp(const std::vector<CowMergeOperation>& ops,
+                              size_t src_block,
+                              size_t dst_block,
+                              size_t src_offset) {
+  if (ops.empty()) {
+    return true;
+  }
+  const auto& op = ops.back();
+  if (op.src_offset() != src_offset) {
+    return true;
+  }
+  const auto& src_extent = op.src_extent();
+  const auto& dst_extent = op.dst_extent();
+  return src_extent.start_block() + src_extent.num_blocks() != src_block ||
+         dst_extent.start_block() + dst_extent.num_blocks() != dst_block;
+}
+
+static void AppendXorBlock(std::vector<CowMergeOperation>* ops,
+                           size_t src_block,
+                           size_t dst_block,
+                           size_t src_offset) {
+  if (ShouldCreateNewOp(*ops, src_block, dst_block, src_offset)) {
+    auto& op = ops->emplace_back();
+    op.mutable_src_extent()->set_start_block(src_block);
+    op.mutable_src_extent()->set_num_blocks(1);
+    op.mutable_dst_extent()->set_start_block(dst_block);
+    op.mutable_dst_extent()->set_num_blocks(1);
+    op.set_src_offset(src_offset);
+  } else {
+    auto& op = ops->back();
+    auto& src_extent = *op.mutable_src_extent();
+    auto& dst_extent = *op.mutable_dst_extent();
+    src_extent.set_num_blocks(src_extent.num_blocks() + 1);
+    dst_extent.set_num_blocks(dst_extent.num_blocks() + 1);
+  }
+}
+
 }  // namespace
 
 namespace diff_utils {
@@ -142,7 +182,7 @@ class FileDeltaProcessor : public base::DelegateSimpleThread::Delegate {
  public:
   FileDeltaProcessor(const string& old_part,
                      const string& new_part,
-                     const PayloadVersion& version,
+                     const PayloadGenerationConfig& config,
                      const vector<Extent>& old_extents,
                      const vector<Extent>& new_extents,
                      const vector<puffin::BitExtent>& old_deflates,
@@ -152,7 +192,7 @@ class FileDeltaProcessor : public base::DelegateSimpleThread::Delegate {
                      BlobFileWriter* blob_file)
       : old_part_(old_part),
         new_part_(new_part),
-        version_(version),
+        config_(config),
         old_extents_(old_extents),
         new_extents_(new_extents),
         new_extents_blocks_(utils::BlocksInExtents(new_extents)),
@@ -179,7 +219,7 @@ class FileDeltaProcessor : public base::DelegateSimpleThread::Delegate {
  private:
   const string& old_part_;  // NOLINT(runtime/member_string_references)
   const string& new_part_;  // NOLINT(runtime/member_string_references)
-  const PayloadVersion& version_;
+  const PayloadGenerationConfig& config_;
 
   // The block ranges of the old/new file within the src/tgt image
   const vector<Extent> old_extents_;
@@ -213,7 +253,7 @@ void FileDeltaProcessor::Run() {
                      new_deflates_,
                      name_,
                      chunk_blocks_,
-                     version_,
+                     config_,
                      blob_file_)) {
     LOG(ERROR) << "Failed to generate delta for " << name_ << " ("
                << new_extents_blocks_ << " blocks)";
@@ -222,7 +262,7 @@ void FileDeltaProcessor::Run() {
   }
 
   if (!ABGenerator::FragmentOperations(
-          version_, &file_aops_, new_part_, blob_file_)) {
+          config_.version, &file_aops_, new_part_, blob_file_)) {
     LOG(ERROR) << "Failed to fragment operations for " << name_;
     failed_ = true;
     return;
@@ -273,8 +313,9 @@ bool DeltaReadPartition(vector<AnnotatedOperation>* aops,
                         const PartitionConfig& new_part,
                         ssize_t hard_chunk_blocks,
                         size_t soft_chunk_blocks,
-                        const PayloadVersion& version,
+                        const PayloadGenerationConfig& config,
                         BlobFileWriter* blob_file) {
+  const auto& version = config.version;
   ExtentRanges old_visited_blocks;
   ExtentRanges new_visited_blocks;
 
@@ -297,7 +338,7 @@ bool DeltaReadPartition(vector<AnnotatedOperation>* aops,
                                                 old_part.size / kBlockSize,
                                                 new_part.size / kBlockSize,
                                                 soft_chunk_blocks,
-                                                version,
+                                                config,
                                                 blob_file,
                                                 &old_visited_blocks,
                                                 &new_visited_blocks,
@@ -355,7 +396,7 @@ bool DeltaReadPartition(vector<AnnotatedOperation>* aops,
 
     file_delta_processors.emplace_back(old_part.path,
                                        new_part.path,
-                                       version,
+                                       config,
                                        std::move(old_file_extents),
                                        std::move(new_file_extents),
                                        old_file.deflates,
@@ -385,7 +426,7 @@ bool DeltaReadPartition(vector<AnnotatedOperation>* aops,
     file_delta_processors.emplace_back(
         old_part.path,
         new_part.path,
-        version,
+        config,
         std::move(old_unvisited),
         std::move(new_unvisited),
         vector<puffin::BitExtent>{},  // old_deflates,
@@ -424,11 +465,12 @@ bool DeltaMovedAndZeroBlocks(vector<AnnotatedOperation>* aops,
                              size_t old_num_blocks,
                              size_t new_num_blocks,
                              ssize_t chunk_blocks,
-                             const PayloadVersion& version,
+                             const PayloadGenerationConfig& config,
                              BlobFileWriter* blob_file,
                              ExtentRanges* old_visited_blocks,
                              ExtentRanges* new_visited_blocks,
                              ExtentRanges* old_zero_blocks) {
+  const auto& version = config.version;
   vector<BlockMapping::BlockId> old_block_ids;
   vector<BlockMapping::BlockId> new_block_ids;
   TEST_AND_RETURN_FALSE(MapPartitionBlocks(old_part,
@@ -516,7 +558,7 @@ bool DeltaMovedAndZeroBlocks(vector<AnnotatedOperation>* aops,
                                           {},        // new_deflates
                                           "<zeros>",
                                           chunk_blocks,
-                                          version,
+                                          config,
                                           blob_file));
     }
   }
@@ -575,10 +617,9 @@ bool DeltaReadFile(vector<AnnotatedOperation>* aops,
                    const vector<puffin::BitExtent>& new_deflates,
                    const string& name,
                    ssize_t chunk_blocks,
-                   const PayloadVersion& version,
+                   const PayloadGenerationConfig& config,
                    BlobFileWriter* blob_file) {
   brillo::Blob data;
-  InstallOperation operation;
 
   uint64_t total_blocks = utils::BlocksInExtents(new_extents);
   if (chunk_blocks == 0) {
@@ -602,30 +643,29 @@ bool DeltaReadFile(vector<AnnotatedOperation>* aops,
     NormalizeExtents(&old_extents_chunk);
     NormalizeExtents(&new_extents_chunk);
 
+    // Now, insert into the list of operations.
+    AnnotatedOperation aop;
     TEST_AND_RETURN_FALSE(ReadExtentsToDiff(old_part,
                                             new_part,
                                             old_extents_chunk,
                                             new_extents_chunk,
                                             old_deflates,
                                             new_deflates,
-                                            version,
+                                            config,
                                             &data,
-                                            &operation));
+                                            &aop));
 
     // Check if the operation writes nothing.
-    if (operation.dst_extents_size() == 0) {
+    if (aop.op.dst_extents_size() == 0) {
       LOG(ERROR) << "Empty non-MOVE operation";
       return false;
     }
 
-    // Now, insert into the list of operations.
-    AnnotatedOperation aop;
     aop.name = name;
     if (static_cast<uint64_t>(chunk_blocks) < total_blocks) {
       aop.name = base::StringPrintf(
           "%s:%" PRIu64, name.c_str(), block_offset / chunk_blocks);
     }
-    aop.op = operation;
 
     // Write the data
     TEST_AND_RETURN_FALSE(aop.SetOperationBlob(data, blob_file));
@@ -688,16 +728,84 @@ bool GenerateBestFullOperation(const brillo::Blob& new_data,
   return true;
 }
 
+// Decide which blocks are similar from bsdiff patch.
+// Blocks included in out_op->xor_map will be converted to COW_XOR during OTA
+// installation
+bool PopulateXorOps(AnnotatedOperation* aop, const uint8_t* data, size_t size) {
+  bsdiff::BsdiffPatchReader patch_reader;
+  TEST_AND_RETURN_FALSE(patch_reader.Init(data, size));
+  ControlEntry entry;
+  size_t new_off = 0;
+  int64_t old_off = 0;
+  auto& xor_ops = aop->xor_ops;
+  size_t total_xor_blocks = 0;
+  const auto new_file_size =
+      utils::BlocksInExtents(aop->op.dst_extents()) * kBlockSize;
+  while (new_off < new_file_size) {
+    if (!patch_reader.ParseControlEntry(&entry)) {
+      LOG(ERROR)
+          << "Exhausted bsdiff patch data before reaching end of new file. "
+             "Current position: "
+          << new_off << " new file size: " << new_file_size;
+      return false;
+    }
+    if (old_off >= 0) {
+      auto dst_off_aligned = utils::RoundUp(new_off, kBlockSize);
+      const auto skip = dst_off_aligned - new_off;
+      auto src_off = old_off + skip;
+      const size_t chunk_size =
+          entry.diff_size - std::min(skip, entry.diff_size);
+      const auto xor_blocks = (chunk_size + kBlockSize / 2) / kBlockSize;
+      total_xor_blocks += xor_blocks;
+      // Append chunk_size/kBlockSize number of XOR blocks, subject to rounding
+      // rules: if decimal part of that division is >= 0.5, round up.
+      for (size_t i = 0; i < xor_blocks; i++) {
+        AppendXorBlock(
+            &xor_ops,
+            GetNthBlock(aop->op.src_extents(), src_off / kBlockSize),
+            GetNthBlock(aop->op.dst_extents(), dst_off_aligned / kBlockSize),
+            src_off % kBlockSize);
+        src_off += kBlockSize;
+        dst_off_aligned += kBlockSize;
+      }
+    }
+
+    old_off += entry.diff_size + entry.offset_increment;
+    new_off += entry.diff_size + entry.extra_size;
+  }
+
+  for (auto& op : xor_ops) {
+    CHECK_EQ(op.src_extent().num_blocks(), op.dst_extent().num_blocks());
+    // If |src_offset| is greater than 0, then we are reading 1
+    // extra block at the end of src_extent. This dependency must
+    // be honored during merge sequence generation, or we can end
+    // up with a corrupted device after merge.
+    if (op.src_offset() > 0) {
+      op.mutable_src_extent()->set_num_blocks(op.dst_extent().num_blocks() + 1);
+    }
+  }
+
+  if (xor_ops.size() > 0) {
+    // TODO(177104308) Filter out duplicate blocks in XOR op
+    LOG(INFO) << "Added " << total_xor_blocks << " XOR blocks, "
+              << total_xor_blocks * 100.0f / new_off * kBlockSize
+              << "% of blocks in this InstallOp are XOR";
+  }
+  return true;
+}
+
 bool ReadExtentsToDiff(const string& old_part,
                        const string& new_part,
                        const vector<Extent>& old_extents,
                        const vector<Extent>& new_extents,
                        const vector<puffin::BitExtent>& old_deflates,
                        const vector<puffin::BitExtent>& new_deflates,
-                       const PayloadVersion& version,
+                       const PayloadGenerationConfig& config,
                        brillo::Blob* out_data,
-                       InstallOperation* out_op) {
-  InstallOperation operation;
+                       AnnotatedOperation* out_op) {
+  const auto& version = config.version;
+  AnnotatedOperation aop;
+  InstallOperation& operation = aop.op;
 
   // We read blocks from old_extents and write blocks to new_extents.
   uint64_t blocks_to_read = utils::BlocksInExtents(old_extents);
@@ -721,9 +829,10 @@ bool ReadExtentsToDiff(const string& old_part,
     puffdiff_allowed = false;
   }
 
-  // Make copies of the extents so we can modify them.
-  vector<Extent> src_extents = old_extents;
-  vector<Extent> dst_extents = new_extents;
+  const vector<Extent>& src_extents = old_extents;
+  const vector<Extent>& dst_extents = new_extents;
+  // All operations have dst_extents.
+  StoreExtents(dst_extents, operation.mutable_dst_extents());
 
   // Read in bytes from new data.
   brillo::Blob new_data;
@@ -786,11 +895,15 @@ bool ReadExtentsToDiff(const string& old_part,
                                                   nullptr));
 
         TEST_AND_RETURN_FALSE(utils::ReadFile(patch.value(), &bsdiff_delta));
+
         CHECK_GT(bsdiff_delta.size(), static_cast<brillo::Blob::size_type>(0));
         if (IsDiffOperationBetter(operation,
                                   data_blob.size(),
                                   bsdiff_delta.size(),
                                   src_extents.size())) {
+          if (config.enable_vabc_xor) {
+            PopulateXorOps(&aop, bsdiff_delta);
+          }
           operation.set_type(operation_type);
           data_blob = std::move(bsdiff_delta);
         }
@@ -860,11 +973,9 @@ bool ReadExtentsToDiff(const string& old_part,
   if (!IsNoSourceOperation(operation.type())) {
     StoreExtents(src_extents, operation.mutable_src_extents());
   }
-  // All operations have dst_extents.
-  StoreExtents(dst_extents, operation.mutable_dst_extents());
 
   *out_data = std::move(data_blob);
-  *out_op = operation;
+  *out_op = aop;
   return true;
 }
 
