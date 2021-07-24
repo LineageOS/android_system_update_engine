@@ -1167,6 +1167,30 @@ void UpdateAttempterAndroid::CleanupSuccessfulUpdate(
   ScheduleCleanupPreviousUpdate();
 }
 
+bool UpdateAttempterAndroid::setShouldSwitchSlotOnReboot(
+    const std::string& metadata_filename, brillo::ErrorPtr* error) {
+  if (processor_->IsRunning()) {
+    return LogAndSetError(
+        error, FROM_HERE, "Already processing an update, cancel it first.");
+  }
+  // TODO(187321613) Implement this
+  return LogAndSetError(
+      error, FROM_HERE, "setShouldSwitchSlotOnReboot is not implemented yet.");
+}
+
+bool UpdateAttempterAndroid::resetShouldSwitchSlotOnReboot(
+    brillo::ErrorPtr* error) {
+  if (processor_->IsRunning()) {
+    return LogAndSetError(
+        error, FROM_HERE, "Already processing an update, cancel it first.");
+  }
+  // TODO(187321613) Implement this
+  return LogAndSetError(
+      error,
+      FROM_HERE,
+      "resetShouldSwitchSlotOnReboot is not implemented yet.");
+}
+
 void UpdateAttempterAndroid::ScheduleCleanupPreviousUpdate() {
   // If a previous CleanupSuccessfulUpdate call has not finished, or an update
   // is in progress, skip enqueueing the action.

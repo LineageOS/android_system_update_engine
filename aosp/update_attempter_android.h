@@ -96,6 +96,9 @@ class UpdateAttempterAndroid
   void CleanupSuccessfulUpdate(
       std::unique_ptr<CleanupSuccessfulUpdateCallbackInterface> callback,
       brillo::ErrorPtr* error) override;
+  bool setShouldSwitchSlotOnReboot(const std::string& metadata_filename,
+                                   brillo::ErrorPtr* error) override;
+  bool resetShouldSwitchSlotOnReboot(brillo::ErrorPtr* error) override;
 
   // ActionProcessorDelegate methods:
   void ProcessingDone(const ActionProcessor* processor,
