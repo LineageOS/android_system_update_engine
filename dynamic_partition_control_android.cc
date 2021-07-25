@@ -754,6 +754,9 @@ bool DynamicPartitionControlAndroid::PrepareSnapshotPartitionsForUpdate(
     uint32_t target_slot,
     const DeltaArchiveManifest& manifest,
     uint64_t* required_size) {
+  if (IsRecovery()) {
+    return false;
+  }
   TEST_AND_RETURN_FALSE(ExpectMetadataMounted());
   if (!snapshot_->BeginUpdate()) {
     LOG(ERROR) << "Cannot begin new update.";
