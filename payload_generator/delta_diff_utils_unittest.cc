@@ -24,6 +24,7 @@
 #include <base/files/scoped_file.h>
 #include <base/format_macros.h>
 #include <base/strings/stringprintf.h>
+#include <bsdiff/patch_writer.h>
 #include <gtest/gtest.h>
 
 #include "update_engine/common/test_utils.h"
@@ -133,7 +134,7 @@ class DeltaDiffUtilsTest : public ::testing::Test {
                                                old_part_.size / block_size_,
                                                new_part_.size / block_size_,
                                                chunk_blocks,
-                                               version,
+                                               {.version = version},
                                                &blob_file,
                                                &old_visited_blocks_,
                                                &new_visited_blocks_,
@@ -170,8 +171,8 @@ TEST_F(DeltaDiffUtilsTest, SkipVerityExtentsTest) {
       new_part_,
       -1,
       -1,
-      PayloadVersion(kMaxSupportedMajorPayloadVersion,
-                     kVerityMinorPayloadVersion),
+      {.version = PayloadVersion(kMaxSupportedMajorPayloadVersion,
+                                 kVerityMinorPayloadVersion)},
       &blob_file));
   for (const auto& aop : aops_) {
     new_visited_blocks_.AddRepeatedExtents(aop.op.dst_extents());
@@ -207,7 +208,8 @@ TEST_F(DeltaDiffUtilsTest, ReplaceSmallTest) {
         WriteExtents(new_part_.path, new_extents, kBlockSize, data_to_test));
 
     brillo::Blob data;
-    InstallOperation op;
+    AnnotatedOperation aop;
+    InstallOperation& op = aop.op;
     ASSERT_TRUE(diff_utils::ReadExtentsToDiff(
         old_part_.path,
         new_part_.path,
@@ -215,9 +217,10 @@ TEST_F(DeltaDiffUtilsTest, ReplaceSmallTest) {
         new_extents,
         {},  // old_deflates
         {},  // new_deflates
-        PayloadVersion(kBrilloMajorPayloadVersion, kSourceMinorPayloadVersion),
+        {.version = PayloadVersion(kBrilloMajorPayloadVersion,
+                                   kSourceMinorPayloadVersion)},
         &data,
-        &op));
+        &aop));
     ASSERT_FALSE(data.empty());
 
     ASSERT_TRUE(op.has_type());
@@ -249,7 +252,7 @@ TEST_F(DeltaDiffUtilsTest, SourceCopyTest) {
   ASSERT_TRUE(WriteExtents(new_part_.path, new_extents, kBlockSize, data_blob));
 
   brillo::Blob data;
-  InstallOperation op;
+  AnnotatedOperation aop;
   ASSERT_TRUE(diff_utils::ReadExtentsToDiff(
       old_part_.path,
       new_part_.path,
@@ -257,9 +260,11 @@ TEST_F(DeltaDiffUtilsTest, SourceCopyTest) {
       new_extents,
       {},  // old_deflates
       {},  // new_deflates
-      PayloadVersion(kBrilloMajorPayloadVersion, kSourceMinorPayloadVersion),
+      {.version = PayloadVersion(kBrilloMajorPayloadVersion,
+                                 kSourceMinorPayloadVersion)},
       &data,
-      &op));
+      &aop));
+  InstallOperation& op = aop.op;
   ASSERT_TRUE(data.empty());
 
   ASSERT_TRUE(op.has_type());
@@ -283,7 +288,7 @@ TEST_F(DeltaDiffUtilsTest, SourceBsdiffTest) {
   ASSERT_TRUE(WriteExtents(new_part_.path, new_extents, kBlockSize, data_blob));
 
   brillo::Blob data;
-  InstallOperation op;
+  AnnotatedOperation aop;
   ASSERT_TRUE(diff_utils::ReadExtentsToDiff(
       old_part_.path,
       new_part_.path,
@@ -291,9 +296,11 @@ TEST_F(DeltaDiffUtilsTest, SourceBsdiffTest) {
       new_extents,
       {},  // old_deflates
       {},  // new_deflates
-      PayloadVersion(kBrilloMajorPayloadVersion, kSourceMinorPayloadVersion),
+      {.version = PayloadVersion(kBrilloMajorPayloadVersion,
+                                 kSourceMinorPayloadVersion)},
       &data,
-      &op));
+      &aop));
+  auto& op = aop.op;
   ASSERT_FALSE(data.empty());
   ASSERT_TRUE(op.has_type());
   ASSERT_EQ(InstallOperation::SOURCE_BSDIFF, op.type());
@@ -312,7 +319,7 @@ TEST_F(DeltaDiffUtilsTest, PreferReplaceTest) {
   ASSERT_TRUE(WriteExtents(new_part_.path, extents, kBlockSize, data_blob));
 
   brillo::Blob data;
-  InstallOperation op;
+  AnnotatedOperation aop;
   ASSERT_TRUE(diff_utils::ReadExtentsToDiff(
       old_part_.path,
       new_part_.path,
@@ -320,10 +327,11 @@ TEST_F(DeltaDiffUtilsTest, PreferReplaceTest) {
       extents,
       {},  // old_deflates
       {},  // new_deflates
-      PayloadVersion(kMaxSupportedMajorPayloadVersion,
-                     kMaxSupportedMinorPayloadVersion),
+      {.version = PayloadVersion(kMaxSupportedMajorPayloadVersion,
+                                 kMaxSupportedMinorPayloadVersion)},
       &data,
-      &op));
+      &aop));
+  auto& op = aop.op;
   ASSERT_FALSE(data.empty());
   ASSERT_TRUE(op.has_type());
   ASSERT_EQ(InstallOperation::REPLACE_BZ, op.type());
@@ -585,6 +593,117 @@ TEST_F(DeltaDiffUtilsTest, GetOldFileTest) {
             "delta_generator");
   // Check file name with minimum size.
   ASSERT_EQ(diff_utils::GetOldFile(old_files_map, "a").name, "filename");
+}
+
+TEST_F(DeltaDiffUtilsTest, XorOpsSourceNotAligned) {
+  ScopedTempFile patch_file;
+  bsdiff::BsdiffPatchWriter writer{patch_file.path()};
+  ASSERT_TRUE(writer.Init(kBlockSize * 10));
+  ASSERT_TRUE(writer.AddControlEntry(ControlEntry(0, 0, 123 + kBlockSize)));
+  ASSERT_TRUE(writer.AddControlEntry(ControlEntry(kBlockSize, 0, 0)));
+  ASSERT_TRUE(writer.Close());
+
+  std::string patch_data;
+  utils::ReadFile(patch_file.path(), &patch_data);
+
+  AnnotatedOperation aop;
+  *aop.op.add_src_extents() = ExtentForRange(50, 10);
+  *aop.op.add_dst_extents() = ExtentForRange(500, 10);
+
+  diff_utils::PopulateXorOps(
+      &aop,
+      reinterpret_cast<const uint8_t*>(patch_data.data()),
+      patch_data.size());
+  ASSERT_EQ(aop.xor_ops.size(), 1UL) << "Only 1 block can possibly be XORed";
+  ASSERT_EQ(aop.xor_ops[0].src_extent().num_blocks(), 1UL);
+  ASSERT_EQ(aop.xor_ops[0].src_extent().start_block(), 51UL);
+  ASSERT_EQ(aop.xor_ops[0].src_offset(), 123UL);
+
+  ASSERT_EQ(aop.xor_ops[0].dst_extent().num_blocks(), 1UL);
+  ASSERT_EQ(aop.xor_ops[0].dst_extent().start_block(), 500UL);
+}
+
+TEST_F(DeltaDiffUtilsTest, XorOpsTargetNotAligned) {
+  ScopedTempFile patch_file;
+  bsdiff::BsdiffPatchWriter writer{patch_file.path()};
+  ASSERT_TRUE(writer.Init(kBlockSize * 10));
+  ASSERT_TRUE(writer.AddControlEntry(
+      ControlEntry(0, kBlockSize - 456, 123 + kBlockSize)));
+  ASSERT_TRUE(writer.AddControlEntry(ControlEntry(kBlockSize + 456, 0, 0)));
+  ASSERT_TRUE(writer.Close());
+
+  std::string patch_data;
+  utils::ReadFile(patch_file.path(), &patch_data);
+
+  AnnotatedOperation aop;
+  *aop.op.add_src_extents() = ExtentForRange(50, 10);
+  *aop.op.add_dst_extents() = ExtentForRange(500, 10);
+
+  diff_utils::PopulateXorOps(
+      &aop,
+      reinterpret_cast<const uint8_t*>(patch_data.data()),
+      patch_data.size());
+  ASSERT_EQ(aop.xor_ops.size(), 1UL) << "Only 1 block can possibly be XORed";
+  ASSERT_EQ(aop.xor_ops[0].src_extent().num_blocks(), 1UL);
+  ASSERT_EQ(aop.xor_ops[0].src_extent().start_block(), 51UL);
+  ASSERT_EQ(aop.xor_ops[0].src_offset(), 123UL + 456UL);
+
+  ASSERT_EQ(aop.xor_ops[0].dst_extent().num_blocks(), 1UL);
+  ASSERT_EQ(aop.xor_ops[0].dst_extent().start_block(), 501UL);
+}
+
+TEST_F(DeltaDiffUtilsTest, XorOpsStrided) {
+  ScopedTempFile patch_file;
+  bsdiff::BsdiffPatchWriter writer{patch_file.path()};
+  ASSERT_TRUE(writer.Init(kBlockSize * 10));
+  ASSERT_TRUE(writer.AddControlEntry(ControlEntry(0, kBlockSize - 456, 123)));
+  ASSERT_TRUE(
+      writer.AddControlEntry(ControlEntry(kBlockSize * 10 + 456, 0, 0)));
+  ASSERT_TRUE(writer.Close());
+
+  std::string patch_data;
+  utils::ReadFile(patch_file.path(), &patch_data);
+
+  AnnotatedOperation aop;
+  *aop.op.add_src_extents() = ExtentForRange(50, 5);
+  *aop.op.add_src_extents() = ExtentForRange(60, 5);
+
+  *aop.op.add_dst_extents() = ExtentForRange(500, 2);
+  *aop.op.add_dst_extents() = ExtentForRange(600, 2);
+  *aop.op.add_dst_extents() = ExtentForRange(700, 7);
+
+  diff_utils::PopulateXorOps(
+      &aop,
+      reinterpret_cast<const uint8_t*>(patch_data.data()),
+      patch_data.size());
+  ASSERT_EQ(aop.xor_ops.size(), 4UL);
+  for (const auto& op : aop.xor_ops) {
+    ASSERT_EQ(op.src_offset(), 123UL + 456UL);
+    LOG(INFO) << op.src_extent() << ", " << op.dst_extent();
+  }
+  ASSERT_EQ(aop.xor_ops[0].src_extent().num_blocks(), 2UL);
+  ASSERT_EQ(aop.xor_ops[0].src_extent().start_block(), 50UL);
+
+  ASSERT_EQ(aop.xor_ops[0].dst_extent().num_blocks(), 1UL);
+  ASSERT_EQ(aop.xor_ops[0].dst_extent().start_block(), 501UL);
+
+  ASSERT_EQ(aop.xor_ops[1].src_extent().num_blocks(), 3UL);
+  ASSERT_EQ(aop.xor_ops[1].src_extent().start_block(), 51UL);
+
+  ASSERT_EQ(aop.xor_ops[1].dst_extent().num_blocks(), 2UL);
+  ASSERT_EQ(aop.xor_ops[1].dst_extent().start_block(), 600UL);
+
+  ASSERT_EQ(aop.xor_ops[2].src_extent().num_blocks(), 3UL);
+  ASSERT_EQ(aop.xor_ops[2].src_extent().start_block(), 53UL);
+
+  ASSERT_EQ(aop.xor_ops[2].dst_extent().num_blocks(), 2UL);
+  ASSERT_EQ(aop.xor_ops[2].dst_extent().start_block(), 700UL);
+
+  ASSERT_EQ(aop.xor_ops[3].src_extent().num_blocks(), 6UL);
+  ASSERT_EQ(aop.xor_ops[3].src_extent().start_block(), 60UL);
+
+  ASSERT_EQ(aop.xor_ops[3].dst_extent().num_blocks(), 5UL);
+  ASSERT_EQ(aop.xor_ops[3].dst_extent().start_block(), 702UL);
 }
 
 }  // namespace chromeos_update_engine

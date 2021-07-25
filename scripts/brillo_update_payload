@@ -204,6 +204,8 @@ a subset of partitions on device."
   DEFINE_string full_boot "" "Will include full boot image"
   DEFINE_string disable_vabc "" \
     "Optional: Disables Virtual AB Compression when installing the OTA"
+  DEFINE_string enable_vabc_xor "" \
+    "Optional: Enable the use of Virtual AB Compression XOR feature"
 fi
 if [[ "${COMMAND}" == "hash" || "${COMMAND}" == "sign" ]]; then
   DEFINE_string unsigned_payload "" "Path to the input unsigned payload."
@@ -708,6 +710,11 @@ cmd_generate() {
       GENERATOR_ARGS+=(
         --disable_verity_computation="${FLAGS_disable_verity_computation}" )
     fi
+  fi
+
+  if [[ -n "${FLAGS_enable_vabc_xor}" ]]; then
+    GENERATOR_ARGS+=(
+      --enable_vabc_xor="${FLAGS_enable_vabc_xor}" )
   fi
 
   if [[ -n "${FLAGS_disable_vabc}" ]]; then
