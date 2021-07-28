@@ -157,6 +157,17 @@ Status BinderUpdateEngineAndroidService::resetStatus() {
   return Status::ok();
 }
 
+Status BinderUpdateEngineAndroidService::setShouldSwitchSlotOnReboot(
+    const android::String16& metadata_filename) {
+  // TODO(187321613) Call the service_delegate_ for the actual implementation
+  return Status::ok();
+}
+
+Status BinderUpdateEngineAndroidService::resetShouldSwitchSlotOnReboot() {
+  // TODO(187321613) Call the service_delegate_ for the actual implementation
+  return Status::ok();
+}
+
 Status BinderUpdateEngineAndroidService::verifyPayloadApplicable(
     const android::String16& metadata_filename, bool* return_value) {
   const std::string payload_metadata{
