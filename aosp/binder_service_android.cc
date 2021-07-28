@@ -159,12 +159,19 @@ Status BinderUpdateEngineAndroidService::resetStatus() {
 
 Status BinderUpdateEngineAndroidService::setShouldSwitchSlotOnReboot(
     const android::String16& metadata_filename) {
-  // TODO(187321613) Call the service_delegate_ for the actual implementation
+  brillo::ErrorPtr error;
+  if (!service_delegate_->setShouldSwitchSlotOnReboot(
+          android::String8(metadata_filename).string(), &error)) {
+    return ErrorPtrToStatus(error);
+  }
   return Status::ok();
 }
 
 Status BinderUpdateEngineAndroidService::resetShouldSwitchSlotOnReboot() {
-  // TODO(187321613) Call the service_delegate_ for the actual implementation
+  brillo::ErrorPtr error;
+  if (!service_delegate_->resetShouldSwitchSlotOnReboot(&error)) {
+    return ErrorPtrToStatus(error);
+  }
   return Status::ok();
 }
 
