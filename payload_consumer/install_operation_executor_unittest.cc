@@ -205,4 +205,22 @@ TEST_F(InstallOperationExecutorTest, SourceCopyOpTest) {
   }
   VerityUntouchedExtents(op);
 }
+
+TEST_F(InstallOperationExecutorTest, GetNthBlockTest) {
+  std::vector<Extent> extents;
+  extents.emplace_back(ExtentForRange(10, 3));
+  extents.emplace_back(ExtentForRange(20, 2));
+  extents.emplace_back(ExtentForRange(30, 1));
+  extents.emplace_back(ExtentForRange(40, 4));
+
+  ASSERT_EQ(GetNthBlock(extents, 0), 10U);
+  ASSERT_EQ(GetNthBlock(extents, 2), 12U);
+  ASSERT_EQ(GetNthBlock(extents, 3), 20U);
+  ASSERT_EQ(GetNthBlock(extents, 4), 21U);
+  ASSERT_EQ(GetNthBlock(extents, 5), 30U);
+  ASSERT_EQ(GetNthBlock(extents, 6), 40U);
+  ASSERT_EQ(GetNthBlock(extents, 7), 41U);
+  ASSERT_EQ(GetNthBlock(extents, 8), 42U);
+}
+
 }  // namespace chromeos_update_engine
