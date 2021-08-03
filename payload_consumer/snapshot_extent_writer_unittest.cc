@@ -60,6 +60,13 @@ class FakeCowWriter : public android::snapshot::ICowWriter {
     operations_[new_block_start] = {.type = CowOp::COW_ZERO};
     return true;
   }
+  bool EmitXorBlocks(uint32_t new_block_start,
+                     const void* data,
+                     size_t size,
+                     uint32_t old_block,
+                     uint16_t offset) override {
+    return false;
+  }
   bool Finalize() override {
     finalize_called_ = true;
     return true;
