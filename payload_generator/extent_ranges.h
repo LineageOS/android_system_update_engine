@@ -23,6 +23,7 @@
 
 #include <base/macros.h>
 
+#include "update_engine/common/utils.h"
 #include "update_engine/update_metadata.pb.h"
 
 // An ExtentRanges object represents an unordered collection of extents (and
@@ -84,6 +85,18 @@ class ExtentRanges {
   // the number of blocks in this extent set.
   std::vector<Extent> GetExtentsForBlockCount(uint64_t count) const;
 
+  // Compute the intersection between this ExtentRange and the |extent|
+  // parameter. Return results in a vector. If there's no intersection, an empty
+  // vector is returned.
+  std::vector<Extent> GetIntersectingExtents(const Extent& extent) const;
+
+  // Get a range of extents that possibly intersect with |extent|. (Returned
+  // extents do not necessarily intersect!). It is perfectly acceptable to just
+  // return all extents in this set, though more efficient solution using binary
+  // search is preferred.
+  Range<ExtentSet::const_iterator> GetCandidateRange(
+      const Extent& extent) const;
+
  private:
   ExtentSet extent_set_;
   uint64_t blocks_;
@@ -94,6 +107,8 @@ class ExtentRanges {
 // omitting blocks present in the ExtentRanges |ranges|.
 std::vector<Extent> FilterExtentRanges(const std::vector<Extent>& extents,
                                        const ExtentRanges& ranges);
+
+Extent GetOverlapExtent(const Extent& extent1, const Extent& extent2);
 
 }  // namespace chromeos_update_engine
 

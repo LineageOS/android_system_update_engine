@@ -45,7 +45,7 @@ bool ExtentRanges::ExtentsOverlapOrTouch(const Extent& a, const Extent& b) {
 
 bool ExtentRanges::ExtentsOverlap(const Extent& a, const Extent& b) {
   if (a.start_block() == b.start_block())
-    return true;
+    return a.num_blocks() != 0;
   if (a.start_block() == kSparseHole || b.start_block() == kSparseHole)
     return false;
   if (a.start_block() < b.start_block()) {
@@ -281,6 +281,31 @@ vector<Extent> ExtentRanges::GetExtentsForBlockCount(uint64_t count) const {
   return out;
 }
 
+Range<ExtentRanges::ExtentSet::const_iterator> ExtentRanges::GetCandidateRange(
+    const Extent& extent) const {
+  auto lower_it = extent_set_.lower_bound(extent);
+  if (lower_it != extent_set_.begin()) {
+    --lower_it;
+  }
+
+  const auto upper_it = extent_set_.upper_bound(
+      ExtentForRange(extent.start_block() + extent.num_blocks(), 1));
+  return {lower_it, upper_it};
+}
+
+std::vector<Extent> ExtentRanges::GetIntersectingExtents(
+    const Extent& extent) const {
+  const auto candidates = GetCandidateRange(extent);
+  std::vector<Extent> result;
+  for (const auto& ext : candidates) {
+    if (auto intersection = GetOverlapExtent(ext, extent);
+        intersection.num_blocks() != 0) {
+      result.emplace_back(std::move(intersection));
+    }
+  }
+  return result;
+}
+
 vector<Extent> FilterExtentRanges(const vector<Extent>& extents,
                                   const ExtentRanges& ranges) {
   vector<Extent> result;
@@ -329,6 +354,17 @@ vector<Extent> FilterExtentRanges(const vector<Extent>& extents,
       result.push_back(extent);
   }
   return result;
+}
+
+Extent GetOverlapExtent(const Extent& extent1, const Extent& extent2) {
+  if (!ExtentRanges::ExtentsOverlap(extent1, extent2)) {
+    return {};
+  }
+  const auto start_block =
+      std::max(extent1.start_block(), extent2.start_block());
+  const auto end_block = std::min(extent1.start_block() + extent1.num_blocks(),
+                                  extent2.start_block() + extent2.num_blocks());
+  return ExtentForRange(start_block, end_block - start_block);
 }
 
 }  // namespace chromeos_update_engine
