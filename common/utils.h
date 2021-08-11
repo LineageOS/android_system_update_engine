@@ -465,6 +465,17 @@ class ScopedActionCompleter {
   DISALLOW_COPY_AND_ASSIGN(ScopedActionCompleter);
 };
 
+// Simple wrapper for creating a slice of some container,
+// similar to string_view but for other containers.
+template <typename T>
+struct Range {
+  Range(T t1, T t2) : t1_(t1), t2_(t2) {}
+  constexpr auto begin() const noexcept { return t1_; }
+  constexpr auto end() const noexcept { return t2_; }
+  T t1_;
+  T t2_;
+};
+
 }  // namespace chromeos_update_engine
 
 #define TEST_AND_RETURN_FALSE_ERRNO(_x)                              \
