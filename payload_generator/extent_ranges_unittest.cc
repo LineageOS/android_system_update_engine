@@ -315,4 +315,20 @@ TEST(ExtentRangesTest, FilterExtentRangesOvelapping) {
                 ranges));
 }
 
+TEST(ExtentRangesTest, GetOverlapExtent) {
+  const auto ret1 =
+      GetOverlapExtent(ExtentForRange(5, 5), ExtentForRange(10, 10));
+  ASSERT_EQ(ret1.num_blocks(), 0UL) << ret1;
+  const auto ret2 =
+      GetOverlapExtent(ExtentForRange(5, 5), ExtentForRange(9, 10));
+  ASSERT_EQ(ret2, ExtentForRange(9, 1));
+
+  const auto ret3 =
+      GetOverlapExtent(ExtentForRange(7, 5), ExtentForRange(3, 10));
+  ASSERT_EQ(ret3, ExtentForRange(7, 5));
+  const auto ret4 =
+      GetOverlapExtent(ExtentForRange(7, 5), ExtentForRange(3, 3));
+  ASSERT_EQ(ret4.num_blocks(), 0UL);
+}
+
 }  // namespace chromeos_update_engine
