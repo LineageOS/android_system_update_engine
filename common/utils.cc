@@ -1047,4 +1047,8 @@ std::unique_ptr<android::base::MappedFile> GetReadonlyZeroBlock(size_t size) {
 
 }  // namespace utils
 
+std::string HexEncode(const brillo::Blob& blob) noexcept {
+  return base::HexEncode(blob.data(), blob.size());
+}
+
 }  // namespace chromeos_update_engine

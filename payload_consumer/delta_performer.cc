@@ -624,10 +624,8 @@ bool DeltaPerformer::IsManifestValid() {
 }
 
 bool DeltaPerformer::ParseManifestPartitions(ErrorCode* error) {
-  partitions_.clear();
-  for (const PartitionUpdate& partition : manifest_.partitions()) {
-    partitions_.push_back(partition);
-  }
+  partitions_.assign(manifest_.partitions().begin(),
+                     manifest_.partitions().end());
 
   // For VAB and partial updates, the partition preparation will copy the
   // dynamic partitions metadata to the target metadata slot, and rename the
@@ -685,87 +683,11 @@ bool DeltaPerformer::ParseManifestPartitions(ErrorCode* error) {
     }
   }
 
-  // Fill in the InstallPlan::partitions based on the partitions from the
-  // payload.
-  for (const auto& partition : partitions_) {
-    InstallPlan::Partition install_part;
-    install_part.name = partition.partition_name();
-    install_part.run_postinstall =
-        partition.has_run_postinstall() && partition.run_postinstall();
-    if (install_part.run_postinstall) {
-      install_part.postinstall_path =
-          (partition.has_postinstall_path() ? partition.postinstall_path()
-                                            : kPostinstallDefaultScript);
-      install_part.filesystem_type = partition.filesystem_type();
-      install_part.postinstall_optional = partition.postinstall_optional();
-    }
-
-    if (partition.has_old_partition_info()) {
-      const PartitionInfo& info = partition.old_partition_info();
-      install_part.source_size = info.size();
-      install_part.source_hash.assign(info.hash().begin(), info.hash().end());
-    }
-
-    if (!partition.has_new_partition_info()) {
-      LOG(ERROR) << "Unable to get new partition hash info on partition "
-                 << install_part.name << ".";
-      *error = ErrorCode::kDownloadNewPartitionInfoError;
-      return false;
-    }
-    const PartitionInfo& info = partition.new_partition_info();
-    install_part.target_size = info.size();
-    install_part.target_hash.assign(info.hash().begin(), info.hash().end());
-
-    install_part.block_size = block_size_;
-    if (partition.has_hash_tree_extent()) {
-      Extent extent = partition.hash_tree_data_extent();
-      install_part.hash_tree_data_offset = extent.start_block() * block_size_;
-      install_part.hash_tree_data_size = extent.num_blocks() * block_size_;
-      extent = partition.hash_tree_extent();
-      install_part.hash_tree_offset = extent.start_block() * block_size_;
-      install_part.hash_tree_size = extent.num_blocks() * block_size_;
-      uint64_t hash_tree_data_end =
-          install_part.hash_tree_data_offset + install_part.hash_tree_data_size;
-      if (install_part.hash_tree_offset < hash_tree_data_end) {
-        LOG(ERROR) << "Invalid hash tree extents, hash tree data ends at "
-                   << hash_tree_data_end << ", but hash tree starts at "
-                   << install_part.hash_tree_offset;
-        *error = ErrorCode::kDownloadNewPartitionInfoError;
-        return false;
-      }
-      install_part.hash_tree_algorithm = partition.hash_tree_algorithm();
-      install_part.hash_tree_salt.assign(partition.hash_tree_salt().begin(),
-                                         partition.hash_tree_salt().end());
-    }
-    if (partition.has_fec_extent()) {
-      Extent extent = partition.fec_data_extent();
-      install_part.fec_data_offset = extent.start_block() * block_size_;
-      install_part.fec_data_size = extent.num_blocks() * block_size_;
-      extent = partition.fec_extent();
-      install_part.fec_offset = extent.start_block() * block_size_;
-      install_part.fec_size = extent.num_blocks() * block_size_;
-      uint64_t fec_data_end =
-          install_part.fec_data_offset + install_part.fec_data_size;
-      if (install_part.fec_offset < fec_data_end) {
-        LOG(ERROR) << "Invalid fec extents, fec data ends at " << fec_data_end
-                   << ", but fec starts at " << install_part.fec_offset;
-        *error = ErrorCode::kDownloadNewPartitionInfoError;
-        return false;
-      }
-      install_part.fec_roots = partition.fec_roots();
-    }
-
-    install_plan_->partitions.push_back(install_part);
-  }
-
-  // TODO(xunchang) only need to load the partitions for those in payload.
-  // Because we have already loaded the other once when generating SOURCE_COPY
-  // operations.
-  if (!install_plan_->LoadPartitionsFromSlots(boot_control_)) {
-    LOG(ERROR) << "Unable to determine all the partition devices.";
-    *error = ErrorCode::kInstallDeviceOpenError;
+  if (!install_plan_->ParsePartitions(
+          partitions_, boot_control_, block_size_, error)) {
     return false;
   }
+
   LogPartitionInfo(partitions_);
   return true;
 }
