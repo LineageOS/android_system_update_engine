@@ -219,8 +219,8 @@ class FakeHardware : public HardwareInterface {
   const char* GetPartitionMountOptions(
       const std::string& partition_name) const override {
 #ifdef __ANDROID__
-    // TODO(b/181182967): This matches the declaration in hardware_android.cc
-    // but ideally shouldn't be duplicated.
+    // TODO(allight): This matches the declaration in hardware_android.cc but
+    // ideally shouldn't be duplicated.
     return "defcontext=u:object_r:postinstall_file:s0";
 #else
     return "";
