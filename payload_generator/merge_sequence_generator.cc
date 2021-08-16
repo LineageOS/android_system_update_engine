@@ -129,6 +129,8 @@ static bool ProcessXorOps(std::vector<CowMergeOperation>* sequence,
           CHECK_EQ(op.src_extent().num_blocks(),
                    op.dst_extent().num_blocks() + 1);
         }
+        CHECK_NE(op.src_extent().start_block(),
+                 std::numeric_limits<uint64_t>::max());
       });
   return true;
 }
