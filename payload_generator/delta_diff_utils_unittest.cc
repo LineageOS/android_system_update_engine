@@ -614,6 +614,9 @@ TEST_F(DeltaDiffUtilsTest, XorOpsSourceNotAligned) {
       &aop,
       reinterpret_cast<const uint8_t*>(patch_data.data()),
       patch_data.size());
+  for (const auto& op : aop.xor_ops) {
+    ASSERT_EQ(op.type(), CowMergeOperation::COW_XOR);
+  }
   ASSERT_EQ(aop.xor_ops.size(), 1UL) << "Only 1 block can possibly be XORed";
   ASSERT_EQ(aop.xor_ops[0].src_extent().num_blocks(), 1UL);
   ASSERT_EQ(aop.xor_ops[0].src_extent().start_block(), 51UL);
@@ -643,6 +646,9 @@ TEST_F(DeltaDiffUtilsTest, XorOpsTargetNotAligned) {
       &aop,
       reinterpret_cast<const uint8_t*>(patch_data.data()),
       patch_data.size());
+  for (const auto& op : aop.xor_ops) {
+    ASSERT_EQ(op.type(), CowMergeOperation::COW_XOR);
+  }
   ASSERT_EQ(aop.xor_ops.size(), 1UL) << "Only 1 block can possibly be XORed";
   ASSERT_EQ(aop.xor_ops[0].src_extent().num_blocks(), 1UL);
   ASSERT_EQ(aop.xor_ops[0].src_extent().start_block(), 51UL);
@@ -677,6 +683,9 @@ TEST_F(DeltaDiffUtilsTest, XorOpsStrided) {
       reinterpret_cast<const uint8_t*>(patch_data.data()),
       patch_data.size());
   ASSERT_EQ(aop.xor_ops.size(), 4UL);
+  for (const auto& op : aop.xor_ops) {
+    ASSERT_EQ(op.type(), CowMergeOperation::COW_XOR);
+  }
   for (const auto& op : aop.xor_ops) {
     ASSERT_EQ(op.src_offset(), 123UL + 456UL);
     LOG(INFO) << op.src_extent() << ", " << op.dst_extent();
