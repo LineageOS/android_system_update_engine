@@ -36,6 +36,7 @@
 #include <brillo/key_value_store.h>
 #include <brillo/secure_blob.h>
 
+#include "android-base/mapped_file.h"
 #include "update_engine/common/action.h"
 #include "update_engine/common/action_processor.h"
 #include "update_engine/common/constants.h"
@@ -356,6 +357,8 @@ std::string GetExclusionName(const std::string& str_to_convert);
 // |old_version|.
 ErrorCode IsTimestampNewer(const std::string& old_version,
                            const std::string& new_version);
+
+std::unique_ptr<android::base::MappedFile> GetReadonlyZeroBlock(size_t size);
 
 }  // namespace utils
 
