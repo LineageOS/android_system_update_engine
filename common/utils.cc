@@ -1040,6 +1040,11 @@ ErrorCode IsTimestampNewer(const std::string& old_version,
   return ErrorCode::kSuccess;
 }
 
+std::unique_ptr<android::base::MappedFile> GetReadonlyZeroBlock(size_t size) {
+  android::base::unique_fd fd{HANDLE_EINTR(open("/dev/zero", O_RDONLY))};
+  return android::base::MappedFile::FromFd(fd, 0, size, PROT_READ);
+}
+
 }  // namespace utils
 
 }  // namespace chromeos_update_engine
