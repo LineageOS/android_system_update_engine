@@ -155,6 +155,8 @@ static void AppendXorBlock(std::vector<CowMergeOperation>* ops,
                            size_t src_block,
                            size_t dst_block,
                            size_t src_offset) {
+  CHECK_NE(src_block, std::numeric_limits<uint64_t>::max());
+  CHECK_NE(dst_block, std::numeric_limits<uint64_t>::max());
   if (ShouldCreateNewOp(*ops, src_block, dst_block, src_offset)) {
     auto& op = ops->emplace_back();
     op.mutable_src_extent()->set_start_block(src_block);
@@ -162,6 +164,7 @@ static void AppendXorBlock(std::vector<CowMergeOperation>* ops,
     op.mutable_dst_extent()->set_start_block(dst_block);
     op.mutable_dst_extent()->set_num_blocks(1);
     op.set_src_offset(src_offset);
+    op.set_type(CowMergeOperation::COW_XOR);
   } else {
     auto& op = ops->back();
     auto& src_extent = *op.mutable_src_extent();
@@ -902,6 +905,7 @@ bool ReadExtentsToDiff(const string& old_part,
                                   bsdiff_delta.size(),
                                   src_extents.size())) {
           if (config.enable_vabc_xor) {
+            StoreExtents(src_extents, operation.mutable_src_extents());
             PopulateXorOps(&aop, bsdiff_delta);
           }
           operation.set_type(operation_type);
@@ -971,7 +975,11 @@ bool ReadExtentsToDiff(const string& old_part,
   // Embed extents in the operation. Replace (all variants), zero and discard
   // operations should not have source extents.
   if (!IsNoSourceOperation(operation.type())) {
-    StoreExtents(src_extents, operation.mutable_src_extents());
+    if (operation.src_extents_size() == 0) {
+      StoreExtents(src_extents, operation.mutable_src_extents());
+    }
+  } else {
+    operation.clear_src_extents();
   }
 
   *out_data = std::move(data_blob);

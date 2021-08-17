@@ -86,7 +86,9 @@ std::vector<Extent> ExtentsSublist(const std::vector<Extent>& extents,
                                    uint64_t block_offset,
                                    uint64_t block_count);
 
-bool operator==(const Extent& a, const Extent& b);
+bool operator==(const Extent& a, const Extent& b) noexcept;
+
+bool operator!=(const Extent& a, const Extent& b) noexcept;
 
 // TODO(zhangkelvin) This is ugly. Rewrite using C++20's coroutine once
 // that's available. Unfortunately with C++17 this is the best I could do.
@@ -126,6 +128,10 @@ struct BlockIterator {
 };
 
 std::ostream& operator<<(std::ostream& out, const Extent& extent);
+std::ostream& operator<<(std::ostream& out, const std::vector<Extent>& extent);
+std::ostream& operator<<(
+    std::ostream& out,
+    const google::protobuf::RepeatedPtrField<Extent>& extent);
 
 template <typename Container>
 size_t GetNthBlock(const Container& extents, const size_t n) {
