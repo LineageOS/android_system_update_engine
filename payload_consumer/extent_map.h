@@ -54,9 +54,14 @@ class ExtentMap {
   std::optional<T> Get(const Extent& extent) const {
     const auto it = map_.find(extent);
     if (it == map_.end()) {
-      LOG_IF(WARNING, set_.OverlapsWithExtent(extent))
-          << "Looking up a partially intersecting extent isn't supported by "
-             "this data structure.";
+      for (const auto& ext : set_.GetCandidateRange(extent)) {
+        if (ExtentRanges::ExtentsOverlap(ext, extent)) {
+          LOG(WARNING) << "Looking up a partially intersecting extent isn't "
+                          "supported by "
+                          "this data structure. Querying extent: "
+                       << extent << ", partial match in map: " << ext;
+        }
+      }
       return {};
     }
     return {it->second};
