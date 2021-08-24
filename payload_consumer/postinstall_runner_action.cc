@@ -202,8 +202,8 @@ void PostinstallRunnerAction::PerformPartitionPostinstall() {
   }
 
   LOG(INFO) << "Performing postinst (" << partition.postinstall_path << " at "
-            << abs_path << ") installed on device " << partition.target_path
-            << " and mountable device " << mountable_device;
+            << abs_path << ") installed on mountable device "
+            << mountable_device;
 
   // Logs the file format of the postinstall script we are about to run. This
   // will help debug when the postinstall script doesn't match the architecture
