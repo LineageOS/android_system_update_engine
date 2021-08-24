@@ -22,6 +22,7 @@
 #include <utility>
 
 #include "update_engine/common/utils.h"
+#include "update_engine/payload_generator/extent_utils.h"
 #include "update_engine/payload_generator/extent_ranges.h"
 #include "update_engine/update_metadata.pb.h"
 
@@ -35,7 +36,7 @@ template <typename T, typename Comparator = ExtentLess>
 class ExtentMap {
  public:
   bool AddExtent(const Extent& extent, T&& value) {
-    if (Get(extent)) {
+    if (set_.OverlapsWithExtent(extent)) {
       return false;
     }
     const auto& [it, inserted] = map_.insert({extent, std::forward<T>(value)});
