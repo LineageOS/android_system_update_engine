@@ -32,10 +32,15 @@ bool XORExtentWriter::WriteExtent(const void* bytes,
   for (const auto& xor_ext : xor_extents) {
     const auto merge_op_opt = xor_map_.Get(xor_ext);
     if (!merge_op_opt.has_value()) {
+      // If a file in the target build contains duplicate blocks, e.g.
+      // [120503-120514], [120503-120503], we can end up here. If that's the
+      // case then there's no bug, just some annoying edge cases.
       LOG(ERROR)
           << xor_ext
           << " isn't in XOR map but it's returned by GetIntersectingExtents(), "
-             "this is a bug inside GetIntersectingExtents";
+             "this is either a bug inside GetIntersectingExtents, or some "
+             "duplicate blocks are present in target build. OTA extent: "
+          << extent;
       return false;
     }
 
