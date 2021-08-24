@@ -37,6 +37,9 @@ namespace chromeos_update_engine {
 
 struct ExtentLess {
   bool operator()(const Extent& x, const Extent& y) const {
+    if (x.start_block() == y.start_block()) {
+      return x.num_blocks() < y.num_blocks();
+    }
     return x.start_block() < y.start_block();
   }
 };

@@ -119,4 +119,17 @@ TEST_F(ExtentMapTest, GetNonIntersectingExtents) {
   ASSERT_EQ(ret[2].num_blocks(), 2U);
 }
 
+TEST_F(ExtentMapTest, GetSameStartBlock) {
+  ASSERT_TRUE(map_.AddExtent(ExtentForRange(0, 5), 7));
+  ASSERT_TRUE(map_.AddExtent(ExtentForRange(10, 5), 12));
+
+  const auto ret = map_.Get(ExtentForRange(0, 10));
+  // ASSERT_FALSE(ret.has_value()) << ret.value() won't work, because when |ret|
+  // doesn't have value, the part after '<<' after still evaluated, resulting in
+  // undefined behavior.
+  if (ret.has_value()) {
+    FAIL() << ret.value();
+  }
+}
+
 }  // namespace chromeos_update_engine
