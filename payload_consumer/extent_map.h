@@ -22,6 +22,7 @@
 #include <utility>
 
 #include "update_engine/common/utils.h"
+#include "update_engine/payload_generator/extent_utils.h"
 #include "update_engine/payload_generator/extent_ranges.h"
 #include "update_engine/update_metadata.pb.h"
 
@@ -35,7 +36,7 @@ template <typename T, typename Comparator = ExtentLess>
 class ExtentMap {
  public:
   bool AddExtent(const Extent& extent, T&& value) {
-    if (Get(extent)) {
+    if (set_.OverlapsWithExtent(extent)) {
       return false;
     }
     const auto& [it, inserted] = map_.insert({extent, std::forward<T>(value)});
@@ -53,9 +54,14 @@ class ExtentMap {
   std::optional<T> Get(const Extent& extent) const {
     const auto it = map_.find(extent);
     if (it == map_.end()) {
-      LOG_IF(WARNING, set_.OverlapsWithExtent(extent))
-          << "Looking up a partially intersecting extent isn't supported by "
-             "this data structure.";
+      for (const auto& ext : set_.GetCandidateRange(extent)) {
+        if (ExtentRanges::ExtentsOverlap(ext, extent)) {
+          LOG(WARNING) << "Looking up a partially intersecting extent isn't "
+                          "supported by "
+                          "this data structure. Querying extent: "
+                       << extent << ", partial match in map: " << ext;
+        }
+      }
       return {};
     }
     return {it->second};
