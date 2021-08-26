@@ -544,6 +544,7 @@ cc_defaults {
         "liblzma",
         "libpayload_consumer",
         "libpuffdiff",
+        "libzucchini",
         "libverity_tree",
         "update_metadata-protos",
         "libpayload_extent_utils",
