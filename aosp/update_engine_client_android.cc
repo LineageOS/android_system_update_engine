@@ -202,6 +202,19 @@ int UpdateEngineClientAndroid::OnInit() {
     return ExitWhenIdle(1);
   }
 
+  // Other commands, such as |setShouldSwitchSlotOnReboot|, might rely on the
+  // follow behavior, so created callback before running these commands.
+  if (FLAGS_follow) {
+    // Register a callback object with the service.
+    callback_ = new UECallback(this);
+    bool bound;
+    if (!service_->bind(callback_, &bound).isOk() || !bound) {
+      LOG(ERROR) << "Failed to bind() the UpdateEngine daemon.";
+      return 1;
+    }
+    keep_running = true;
+  }
+
   if (FLAGS_suspend) {
     return ExitWhenIdle(service_->suspend());
   }
@@ -229,10 +242,15 @@ int UpdateEngineClientAndroid::OnInit() {
     if (should_switch) {
       status = service_->setShouldSwitchSlotOnReboot(
           android::String16(FLAGS_metadata.c_str(), FLAGS_metadata.size()));
+      if (!FLAGS_follow) {
+        return ExitWhenIdle(status);
+      }
     } else {
+      // resetShouldSwitchSlotOnReboot() is a synchronous call, no need to
+      // follow
       status = service_->resetShouldSwitchSlotOnReboot();
+      return ExitWhenIdle(status);
     }
-    return ExitWhenIdle(status);
   }
 
   if (FLAGS_verify) {
@@ -270,17 +288,6 @@ int UpdateEngineClientAndroid::OnInit() {
     if (!status.isOk()) {
       LOG(ERROR) << "Failed to call cleanupSuccessfulUpdate.";
       return ExitWhenIdle(status);
-    }
-    keep_running = true;
-  }
-
-  if (FLAGS_follow) {
-    // Register a callback object with the service.
-    callback_ = new UECallback(this);
-    bool bound;
-    if (!service_->bind(callback_, &bound).isOk() || !bound) {
-      LOG(ERROR) << "Failed to bind() the UpdateEngine daemon.";
-      return 1;
     }
     keep_running = true;
   }
