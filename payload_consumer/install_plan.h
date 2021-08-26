@@ -47,10 +47,30 @@ struct InstallPlan {
   void Dump() const;
   std::string ToString() const;
 
+ private:
   // Loads the |source_path| and |target_path| of all |partitions| based on the
   // |source_slot| and |target_slot| if available. Returns whether it succeeded
   // to load all the partitions for the valid slots.
   bool LoadPartitionsFromSlots(BootControlInterface* boot_control);
+  template <typename PartitinoUpdateArray>
+  static bool ParseManifestToInstallPlan(const PartitinoUpdateArray& partitions,
+                                         BootControlInterface* boot_control,
+                                         size_t block_size,
+                                         InstallPlan* install_plan,
+                                         ErrorCode* error);
+
+ public:
+  // Load all partitions in |partitions| into this install plan, will also
+  // populate |source_path|, |target_pathh|, fec information, partition sizes.
+  bool ParsePartitions(const std::vector<PartitionUpdate>& partitions,
+                       BootControlInterface* boot_control,
+                       size_t block_size,
+                       ErrorCode* error);
+  bool ParsePartitions(
+      const google::protobuf::RepeatedPtrField<PartitionUpdate>& partitions,
+      BootControlInterface* boot_control,
+      size_t block_size,
+      ErrorCode* error);
 
   bool is_resume{false};
   std::string download_url;  // url to download from
