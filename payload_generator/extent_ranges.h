@@ -53,7 +53,14 @@ class ExtentRanges {
  public:
   typedef std::set<Extent, ExtentLess> ExtentSet;
 
-  ExtentRanges() : blocks_(0) {}
+  ExtentRanges() = default;
+  // When |merge_touching_extents| is set to false, extents that are only
+  // touching but not overlapping won't be merged. This slightly decreases
+  // space/time efficiency, but should not impact correctness.
+  // Only intended usecase is for VABC XOR.
+  // E.g. [5-9] and [10-14] will be merged iff |merge_touching_extents| is true
+  explicit ExtentRanges(bool merge_touching_extents)
+      : merge_touching_extents_(merge_touching_extents) {}
   void AddBlock(uint64_t block);
   void SubtractBlock(uint64_t block);
   void AddExtent(Extent extent);
@@ -102,7 +109,8 @@ class ExtentRanges {
 
  private:
   ExtentSet extent_set_;
-  uint64_t blocks_;
+  uint64_t blocks_ = 0;
+  const bool merge_touching_extents_ = true;
 };
 
 // Filters out from the passed list of extents |extents| all the blocks in the
