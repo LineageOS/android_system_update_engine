@@ -32,6 +32,7 @@
 
 #include <base/files/file_path.h>
 #include <base/posix/eintr_wrapper.h>
+#include <base/strings/string_number_conversions.h>
 #include <base/time/time.h>
 #include <brillo/key_value_store.h>
 #include <brillo/secure_blob.h>
@@ -478,6 +479,8 @@ struct Range {
   T t1_;
   T t2_;
 };
+
+std::string HexEncode(const brillo::Blob& blob) noexcept;
 
 }  // namespace chromeos_update_engine
 

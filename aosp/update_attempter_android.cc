@@ -426,38 +426,11 @@ bool UpdateAttempterAndroid::ResetStatus(brillo::ErrorPtr* error) {
     }
 
     case UpdateStatus::UPDATED_NEED_REBOOT: {
-      bool ret_value = true;
-
-      // Update the boot flags so the current slot has higher priority.
-      if (!boot_control_->SetActiveBootSlot(GetCurrentSlot()))
-        ret_value = false;
-
-      // Mark the current slot as successful again, since marking it as active
-      // may reset the successful bit. We ignore the result of whether marking
-      // the current slot as successful worked.
-      if (!boot_control_->MarkBootSuccessfulAsync(Bind([](bool successful) {})))
-        ret_value = false;
-
-      // Resets the warm reset property since we won't switch the slot.
-      hardware_->SetWarmReset(false);
-
-      // Resets the vbmeta digest.
-      hardware_->SetVbmetaDigestForInactiveSlot(true /* reset */);
-
-      // Remove update progress for DeltaPerformer and remove snapshots.
-      if (!boot_control_->GetDynamicPartitionControl()->ResetUpdate(prefs_))
-        ret_value = false;
-
-      ClearMetricsPrefs();
-
-      if (!ret_value) {
-        return LogAndSetError(
-            error, FROM_HERE, "Failed to reset the status to ");
+      const bool ret_value = resetShouldSwitchSlotOnReboot(error);
+      if (ret_value) {
+        LOG(INFO) << "Reset status successful";
       }
-
-      SetStatusAndNotify(UpdateStatus::IDLE);
-      LOG(INFO) << "Reset status successful";
-      return true;
+      return ret_value;
     }
 
     default:
@@ -721,6 +694,7 @@ void UpdateAttempterAndroid::OnVerifyProgressUpdate(double progress) {
 
 void UpdateAttempterAndroid::ScheduleProcessingStart() {
   LOG(INFO) << "Scheduling an action processor start.";
+  processor_->set_delegate(this);
   brillo::MessageLoop::current()->PostTask(
       FROM_HERE,
       Bind([](ActionProcessor* processor) { processor->StartProcessing(); },
@@ -788,7 +762,6 @@ void UpdateAttempterAndroid::SetStatusAndNotify(UpdateStatus status) {
 
 void UpdateAttempterAndroid::BuildUpdateActions(HttpFetcher* fetcher) {
   CHECK(!processor_->IsRunning());
-  processor_->set_delegate(this);
 
   // Actions:
   auto update_boot_flags_action =
@@ -870,6 +843,12 @@ void UpdateAttempterAndroid::CollectAndReportUpdateMetricsOnUpdateFinished(
     if (p.type == InstallPayloadType::kDelta)
       payload_type = kPayloadTypeDelta;
     payload_size += p.size;
+  }
+  // In some cases, e.g. after calling |setShouldSwitchSlotOnReboot()|,  this
+  // function will be triggered, but payload_size in this case might be 0, if so
+  // skip reporting any metrics.
+  if (payload_size == 0) {
+    return;
   }
 
   metrics::AttemptResult attempt_result =
@@ -1169,13 +1148,67 @@ void UpdateAttempterAndroid::CleanupSuccessfulUpdate(
 
 bool UpdateAttempterAndroid::setShouldSwitchSlotOnReboot(
     const std::string& metadata_filename, brillo::ErrorPtr* error) {
+  LOG(INFO) << "setShouldSwitchSlotOnReboot(" << metadata_filename << ")";
   if (processor_->IsRunning()) {
     return LogAndSetError(
         error, FROM_HERE, "Already processing an update, cancel it first.");
   }
-  // TODO(187321613) Implement this
-  return LogAndSetError(
-      error, FROM_HERE, "setShouldSwitchSlotOnReboot is not implemented yet.");
+  DeltaArchiveManifest manifest;
+  TEST_AND_RETURN_FALSE(
+      VerifyPayloadParseManifest(metadata_filename, &manifest, error));
+
+  if (!boot_control_->GetDynamicPartitionControl()->PreparePartitionsForUpdate(
+          GetCurrentSlot(),
+          GetTargetSlot(),
+          manifest,
+          false /* should update */,
+          nullptr)) {
+    return LogAndSetError(
+        error, FROM_HERE, "Failed to PreparePartitionsForUpdate");
+  }
+  InstallPlan install_plan_;
+  install_plan_.source_slot = GetCurrentSlot();
+  install_plan_.target_slot = GetTargetSlot();
+  // Don't do verity computation, just hash the partitions
+  install_plan_.write_verity = false;
+  // Don't run postinstall, we just need PostinstallAction to switch the slots.
+  install_plan_.run_post_install = false;
+  install_plan_.is_resume = true;
+
+  CHECK_NE(install_plan_.source_slot, UINT32_MAX);
+  CHECK_NE(install_plan_.target_slot, UINT32_MAX);
+
+  ErrorCode error_code;
+  if (!install_plan_.ParsePartitions(manifest.partitions(),
+                                     boot_control_,
+                                     manifest.block_size(),
+                                     &error_code)) {
+    return LogAndSetError(error,
+                          FROM_HERE,
+                          "Failed to LoadPartitionsFromSlots " +
+                              utils::ErrorCodeToString(error_code));
+  }
+
+  auto install_plan_action = std::make_unique<InstallPlanAction>(install_plan_);
+  auto filesystem_verifier_action = std::make_unique<FilesystemVerifierAction>(
+      boot_control_->GetDynamicPartitionControl());
+  auto postinstall_runner_action =
+      std::make_unique<PostinstallRunnerAction>(boot_control_, hardware_);
+  SetStatusAndNotify(UpdateStatus::VERIFYING);
+  filesystem_verifier_action->set_delegate(this);
+  postinstall_runner_action->set_delegate(this);
+
+  // Bond them together. We have to use the leaf-types when calling
+  // BondActions().
+  BondActions(install_plan_action.get(), filesystem_verifier_action.get());
+  BondActions(filesystem_verifier_action.get(),
+              postinstall_runner_action.get());
+
+  processor_->EnqueueAction(std::move(install_plan_action));
+  processor_->EnqueueAction(std::move(filesystem_verifier_action));
+  processor_->EnqueueAction(std::move(postinstall_runner_action));
+  ScheduleProcessingStart();
+  return true;
 }
 
 bool UpdateAttempterAndroid::resetShouldSwitchSlotOnReboot(
@@ -1184,11 +1217,27 @@ bool UpdateAttempterAndroid::resetShouldSwitchSlotOnReboot(
     return LogAndSetError(
         error, FROM_HERE, "Already processing an update, cancel it first.");
   }
-  // TODO(187321613) Implement this
-  return LogAndSetError(
-      error,
-      FROM_HERE,
-      "resetShouldSwitchSlotOnReboot is not implemented yet.");
+  // Update the boot flags so the current slot has higher priority.
+  if (!boot_control_->SetActiveBootSlot(GetCurrentSlot())) {
+    return LogAndSetError(error, FROM_HERE, "Failed to SetActiveBootSlot");
+  }
+
+  // Mark the current slot as successful again, since marking it as active
+  // may reset the successful bit. We ignore the result of whether marking
+  // the current slot as successful worked.
+  if (!boot_control_->MarkBootSuccessfulAsync(Bind([](bool successful) {}))) {
+    return LogAndSetError(
+        error, FROM_HERE, "Failed to MarkBootSuccessfulAsync");
+  }
+
+  // Resets the warm reset property since we won't switch the slot.
+  hardware_->SetWarmReset(false);
+
+  // Resets the vbmeta digest.
+  hardware_->SetVbmetaDigestForInactiveSlot(true /* reset */);
+  LOG(INFO) << "Slot switch cancelled.";
+  SetStatusAndNotify(UpdateStatus::IDLE);
+  return true;
 }
 
 void UpdateAttempterAndroid::ScheduleCleanupPreviousUpdate() {
