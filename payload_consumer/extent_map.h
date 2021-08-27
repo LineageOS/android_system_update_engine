@@ -89,7 +89,7 @@ class ExtentMap {
  private:
   // Get a range of exents that potentially intersect with parameter |extent|
   std::map<Extent, T, Comparator> map_;
-  ExtentRanges set_;
+  ExtentRanges set_{false};
 };
 }  // namespace chromeos_update_engine
 
