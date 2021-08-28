@@ -210,7 +210,7 @@ void ExtentRanges::SubtractRepeatedExtents(
 }
 
 bool ExtentRanges::OverlapsWithExtent(const Extent& extent) const {
-  for (const auto& entry : extent_set_) {
+  for (const auto& entry : GetCandidateRange(extent)) {
     if (ExtentsOverlap(entry, extent)) {
       return true;
     }
