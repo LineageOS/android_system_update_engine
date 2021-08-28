@@ -376,4 +376,18 @@ TEST(ExtentRangesTest, OverlapsWithExtentSameStart) {
   ASSERT_TRUE(ranges.OverlapsWithExtent(ExtentForRange(8, 4)));
 }
 
+TEST(ExtentRangesTest, OverlapsWithExtent) {
+  ExtentRanges ranges;
+  ranges.AddExtent(ExtentForRange(5, 5));
+  ranges.AddExtent(ExtentForRange(15, 5));
+  ASSERT_TRUE(ranges.OverlapsWithExtent(ExtentForRange(3, 10)));
+  ASSERT_TRUE(ranges.OverlapsWithExtent(ExtentForRange(17, 10)));
+  ASSERT_TRUE(ranges.OverlapsWithExtent(ExtentForRange(0, 10)));
+  ASSERT_FALSE(ranges.OverlapsWithExtent(ExtentForRange(10, 5)));
+  ASSERT_FALSE(ranges.OverlapsWithExtent(ExtentForRange(20, 5)));
+  ASSERT_TRUE(ranges.OverlapsWithExtent(ExtentForRange(7, 1)));
+  ASSERT_TRUE(ranges.OverlapsWithExtent(ExtentForRange(0, 100)));
+  ASSERT_TRUE(ranges.OverlapsWithExtent(ExtentForRange(19, 1)));
+}
+
 }  // namespace chromeos_update_engine
