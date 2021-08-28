@@ -34,8 +34,7 @@ class VABCPartitionWriter final : public PartitionWriterInterface {
   VABCPartitionWriter(const PartitionUpdate& partition_update,
                       const InstallPlan::Partition& install_part,
                       DynamicPartitionControlInterface* dynamic_control,
-                      size_t block_size,
-                      bool is_interactive);
+                      size_t block_size);
   [[nodiscard]] bool Init(const InstallPlan* install_plan,
                           bool source_may_exist,
                           size_t next_op_index) override;
@@ -72,11 +71,14 @@ class VABCPartitionWriter final : public PartitionWriterInterface {
 
   [[nodiscard]] bool FinishedInstallOps() override;
   int Close() override;
+  // Send merge sequence data to cow writer
+  static bool WriteMergeSequence(
+      const ::google::protobuf::RepeatedPtrField<CowMergeOperation>& merge_ops,
+      android::snapshot::ICowWriter* cow_writer);
 
  private:
   std::unique_ptr<android::snapshot::ISnapshotWriter> cow_writer_;
 
-  bool OpenCurrentECCPartition();
   [[nodiscard]] std::unique_ptr<ExtentWriter> CreateBaseExtentWriter();
 
   const PartitionUpdate& partition_update_;
@@ -85,7 +87,6 @@ class VABCPartitionWriter final : public PartitionWriterInterface {
   // Path to source partition
   std::string source_path_;
 
-  const bool interactive_;
   const size_t block_size_;
   InstallOperationExecutor executor_;
   VerifiedSourceFd verified_source_fd_;
