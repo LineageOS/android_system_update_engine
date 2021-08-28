@@ -35,11 +35,8 @@ std::unique_ptr<PartitionWriterInterface> CreatePartitionWriter(
     LOG(INFO)
         << "Virtual AB Compression Enabled, using VABC Partition Writer for `"
         << install_part.name << '`';
-    return std::make_unique<VABCPartitionWriter>(partition_update,
-                                                 install_part,
-                                                 dynamic_control,
-                                                 block_size,
-                                                 is_interactive);
+    return std::make_unique<VABCPartitionWriter>(
+        partition_update, install_part, dynamic_control, block_size);
   } else {
     LOG(INFO) << "Virtual AB Compression disabled, using Partition Writer for `"
               << install_part.name << '`';
