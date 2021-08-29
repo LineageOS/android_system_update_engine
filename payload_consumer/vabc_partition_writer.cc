@@ -30,6 +30,9 @@
 #include "update_engine/payload_consumer/install_plan.h"
 #include "update_engine/payload_consumer/partition_writer.h"
 #include "update_engine/payload_consumer/snapshot_extent_writer.h"
+#include "update_engine/payload_generator/extent_ranges.h"
+#include "update_engine/payload_generator/extent_utils.h"
+#include "update_engine/update_metadata.pb.h"
 
 namespace chromeos_update_engine {
 // Expected layout of COW file:
@@ -56,16 +59,17 @@ namespace chromeos_update_engine {
 // label 3, Which contains all operation 2's data, but none of operation 3's
 // data.
 
+using android::snapshot::ICowWriter;
+using ::google::protobuf::RepeatedPtrField;
+
 VABCPartitionWriter::VABCPartitionWriter(
     const PartitionUpdate& partition_update,
     const InstallPlan::Partition& install_part,
     DynamicPartitionControlInterface* dynamic_control,
-    size_t block_size,
-    bool is_interactive)
+    size_t block_size)
     : partition_update_(partition_update),
       install_part_(install_part),
       dynamic_control_(dynamic_control),
-      interactive_(is_interactive),
       block_size_(block_size),
       executor_(block_size),
       verified_source_fd_(block_size, install_part.source_path) {}
@@ -101,8 +105,14 @@ bool VABCPartitionWriter::Init(const InstallPlan* install_plan,
   }
 
   // ==============================================
+  if (!partition_update_.merge_operations().empty()) {
+    TEST_AND_RETURN_FALSE(WriteMergeSequence(
+        partition_update_.merge_operations(), cow_writer_.get()));
+  }
 
   // TODO(zhangkelvin) Rewrite this in C++20 coroutine once that's available.
+  // TODO(177104308) Don't write all COPY ops up-front if merge sequence is
+  // written
   auto converted = ConvertToCowOperations(partition_update_.operations(),
                                           partition_update_.merge_operations());
 
@@ -114,14 +124,42 @@ bool VABCPartitionWriter::Init(const InstallPlan* install_plan,
     TEST_AND_RETURN_FALSE_ERRNO(
         source_fd->Open(install_part_.source_path.c_str(), O_RDONLY));
     WriteAllCowOps(block_size_, converted, cow_writer_.get(), source_fd);
+    cow_writer_->AddLabel(0);
   }
   return true;
+}
+
+bool VABCPartitionWriter::WriteMergeSequence(
+    const RepeatedPtrField<CowMergeOperation>& merge_sequence,
+    ICowWriter* cow_writer) {
+  std::vector<uint32_t> blocks_merge_order;
+  for (const auto& merge_op : merge_sequence) {
+    const auto& dst_extent = merge_op.dst_extent();
+    // In place copy are basically noops, they do not need to be "merged" at
+    // all, don't include them in merge sequence.
+    if (merge_op.type() == CowMergeOperation::COW_COPY &&
+        merge_op.src_extent() == merge_op.dst_extent()) {
+      continue;
+    }
+    // libsnapshot doesn't like us include REPLACE blocks in merge sequence,
+    // since we don't support XOR ops at this CL, skip them! Remove once we
+    // write XOR ops.
+    if (merge_op.type() == CowMergeOperation::COW_XOR) {
+      continue;
+    }
+    // libsnapshot prefers blocks in reverse order
+    for (int i = dst_extent.num_blocks() - 1; i >= 0; i--) {
+      blocks_merge_order.push_back(dst_extent.start_block() + i);
+    }
+  }
+  return cow_writer->AddSequenceData(blocks_merge_order.size(),
+                                     blocks_merge_order.data());
 }
 
 bool VABCPartitionWriter::WriteAllCowOps(
     size_t block_size,
     const std::vector<CowOperation>& converted,
-    android::snapshot::ICowWriter* cow_writer,
+    ICowWriter* cow_writer,
     FileDescriptorPtr source_fd) {
   std::vector<uint8_t> buffer(block_size);
 
