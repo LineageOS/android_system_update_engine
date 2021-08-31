@@ -19,6 +19,7 @@
 
 #include <map>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <brillo/secure_blob.h>
@@ -99,16 +100,17 @@ bool DeltaReadFile(std::vector<AnnotatedOperation>* aops,
 // fills in |out_op|. If there's no change in old and new files, it creates a
 // MOVE or SOURCE_COPY operation. If there is a change, the smallest of the
 // operations allowed in the given |version| (REPLACE, REPLACE_BZ, BSDIFF,
-// SOURCE_BSDIFF, or PUFFDIFF) wins.
+// SOURCE_BSDIFF, PUFFDIFF or ZUCCHINI) wins.
 // |new_extents| must not be empty. |old_deflates| and |new_deflates| are all
 // the deflate locations in |old_part| and |new_part|. Returns true on success.
+// TODO(197361113) Move logic to calculate deflates inside puffin.
 bool ReadExtentsToDiff(const std::string& old_part,
                        const std::string& new_part,
                        const std::vector<Extent>& old_extents,
                        const std::vector<Extent>& new_extents,
                        const std::vector<puffin::BitExtent>& old_deflates,
                        const std::vector<puffin::BitExtent>& new_deflates,
-                       const PayloadGenerationConfig& version,
+                       const PayloadGenerationConfig& config,
                        brillo::Blob* out_data,
                        AnnotatedOperation* out_op);
 
@@ -157,6 +159,55 @@ inline bool PopulateXorOps(AnnotatedOperation* aop,
                            const brillo::Blob& patch_data) {
   return PopulateXorOps(aop, patch_data.data(), patch_data.size());
 }
+
+// A utility class that tries different algorithms and pick the patch with the
+// smallest size.
+class BestDiffGenerator {
+ public:
+  BestDiffGenerator(const brillo::Blob& old_data,
+                    const brillo::Blob& new_data,
+                    const std::vector<Extent>& src_extents,
+                    const std::vector<Extent>& dst_extents,
+                    const std::vector<puffin::BitExtent>& old_deflates,
+                    const std::vector<puffin::BitExtent>& new_deflates,
+                    const PayloadGenerationConfig& config)
+      : old_data_(old_data),
+        new_data_(new_data),
+        src_extents_(src_extents),
+        dst_extents_(dst_extents),
+        old_deflates_(old_deflates),
+        new_deflates_(new_deflates),
+        config_(config) {}
+
+  // Tries different algorithms and compares their patch sizes with the
+  // compressed full operation data in |data_blob|. If the size is smaller,
+  // updates the operation type in |aop| and bytes in |data_blob|.
+  bool GenerateBestDiffOperation(AnnotatedOperation* aop,
+                                 brillo::Blob* data_blob);
+
+  bool GenerateBestDiffOperation(
+      const std::vector<std::pair<InstallOperation_Type, size_t>>&
+          diff_candidates,
+      AnnotatedOperation* aop,
+      brillo::Blob* data_blob);
+
+ private:
+  bool TryBsdiffAndUpdateOperation(InstallOperation_Type operation_type,
+                                   AnnotatedOperation* aop,
+                                   brillo::Blob* data_blob);
+  bool TryPuffdiffAndUpdateOperation(AnnotatedOperation* aop,
+                                     brillo::Blob* data_blob);
+  bool TryZucchiniAndUpdateOperation(AnnotatedOperation* aop,
+                                     brillo::Blob* data_blob);
+
+  const brillo::Blob& old_data_;
+  const brillo::Blob& new_data_;
+  const std::vector<Extent>& src_extents_;
+  const std::vector<Extent>& dst_extents_;
+  const std::vector<puffin::BitExtent>& old_deflates_;
+  const std::vector<puffin::BitExtent>& new_deflates_;
+  const PayloadGenerationConfig& config_;
+};
 
 }  // namespace diff_utils
 
