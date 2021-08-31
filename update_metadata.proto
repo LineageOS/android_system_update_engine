@@ -187,6 +187,9 @@ message InstallOperation {
 
     // On minor version 5 or newer, these operations are supported:
     PUFFDIFF = 9;  // The data is in puffdiff format.
+
+    // On minor version 8 or newer, these operations are supported:
+    ZUCCHINI = 11;
   }
   required Type type = 1;
 

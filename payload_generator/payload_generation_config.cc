@@ -238,7 +238,8 @@ bool PayloadVersion::Validate() const {
                         minor == kBrotliBsdiffMinorPayloadVersion ||
                         minor == kPuffdiffMinorPayloadVersion ||
                         minor == kVerityMinorPayloadVersion ||
-                        minor == kPartialUpdateMinorPayloadVersion);
+                        minor == kPartialUpdateMinorPayloadVersion ||
+                        minor == kZucchiniMinorPayloadVersion);
   return true;
 }
 
@@ -269,6 +270,9 @@ bool PayloadVersion::OperationAllowed(InstallOperation::Type operation) const {
 
     case InstallOperation::PUFFDIFF:
       return minor >= kPuffdiffMinorPayloadVersion;
+
+    case InstallOperation::ZUCCHINI:
+      return minor >= kZucchiniMinorPayloadVersion;
 
     case InstallOperation::MOVE:
     case InstallOperation::BSDIFF:
