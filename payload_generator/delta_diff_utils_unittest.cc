@@ -306,6 +306,123 @@ TEST_F(DeltaDiffUtilsTest, SourceBsdiffTest) {
   ASSERT_EQ(InstallOperation::SOURCE_BSDIFF, op.type());
 }
 
+TEST_F(DeltaDiffUtilsTest, BrotliBsdiffTest) {
+  // Makes sure SOURCE_BSDIFF operations are emitted whenever src_ops_allowed
+  // is true. It is the same setup as BsdiffSmallTest, which checks
+  // that the operation is well-formed.
+  brillo::Blob data_blob(kBlockSize);
+  test_utils::FillWithData(&data_blob);
+
+  // The old file is on a different block than the new one.
+  vector<Extent> old_extents = {ExtentForRange(1, 1)};
+  vector<Extent> new_extents = {ExtentForRange(2, 1)};
+
+  ASSERT_TRUE(WriteExtents(old_part_.path, old_extents, kBlockSize, data_blob));
+  // Modify one byte in the new file.
+  data_blob[0]++;
+  ASSERT_TRUE(WriteExtents(new_part_.path, new_extents, kBlockSize, data_blob));
+
+  brillo::Blob data;
+  AnnotatedOperation aop;
+  ASSERT_TRUE(diff_utils::ReadExtentsToDiff(
+      old_part_.path,
+      new_part_.path,
+      old_extents,
+      new_extents,
+      {},  // old_deflates
+      {},  // new_deflates
+      {.version = PayloadVersion(kBrilloMajorPayloadVersion,
+                                 kBrotliBsdiffMinorPayloadVersion)},
+      &data,
+      &aop));
+  auto& op = aop.op;
+  ASSERT_FALSE(data.empty());
+  ASSERT_TRUE(op.has_type());
+  ASSERT_EQ(InstallOperation::BROTLI_BSDIFF, op.type());
+}
+
+TEST_F(DeltaDiffUtilsTest, GenerateBestDiffOperation_Zucchini) {
+  // Makes sure SOURCE_BSDIFF operations are emitted whenever src_ops_allowed
+  // is true. It is the same setup as BsdiffSmallTest, which checks
+  // that the operation is well-formed.
+  brillo::Blob dst_data_blob(kBlockSize);
+  test_utils::FillWithData(&dst_data_blob);
+
+  // The old file is on a different block than the new one.
+  vector<Extent> old_extents = {ExtentForRange(1, 1)};
+  vector<Extent> new_extents = {ExtentForRange(2, 1)};
+
+  ASSERT_TRUE(
+      WriteExtents(old_part_.path, old_extents, kBlockSize, dst_data_blob));
+  // Modify one byte in the new file.
+  brillo::Blob src_data_blob = dst_data_blob;
+  src_data_blob[0]++;
+  ASSERT_TRUE(
+      WriteExtents(new_part_.path, new_extents, kBlockSize, src_data_blob));
+
+  brillo::Blob data = dst_data_blob;  // Fake the full operation
+  AnnotatedOperation aop;
+
+  diff_utils::BestDiffGenerator best_diff_generator(
+      src_data_blob,
+      dst_data_blob,
+      old_extents,
+      new_extents,
+      {},
+      {},
+      {.version = PayloadVersion(kBrilloMajorPayloadVersion,
+                                 kZucchiniMinorPayloadVersion)});
+  ASSERT_TRUE(best_diff_generator.GenerateBestDiffOperation(
+      {{InstallOperation::ZUCCHINI, 1024 * 1024}}, &aop, &data));
+
+  auto& op = aop.op;
+  ASSERT_FALSE(data.empty());
+  ASSERT_TRUE(op.has_type());
+  ASSERT_EQ(InstallOperation::ZUCCHINI, op.type());
+}
+
+TEST_F(DeltaDiffUtilsTest, GenerateBestDiffOperation_FullOperationBetter) {
+  // Makes sure SOURCE_BSDIFF operations are emitted whenever src_ops_allowed
+  // is true. It is the same setup as BsdiffSmallTest, which checks
+  // that the operation is well-formed.
+  brillo::Blob dst_data_blob(kBlockSize);
+  test_utils::FillWithData(&dst_data_blob);
+
+  // The old file is on a different block than the new one.
+  vector<Extent> old_extents = {ExtentForRange(1, 1)};
+  vector<Extent> new_extents = {ExtentForRange(2, 1)};
+
+  ASSERT_TRUE(
+      WriteExtents(old_part_.path, old_extents, kBlockSize, dst_data_blob));
+  // Modify one byte in the new file.
+  brillo::Blob src_data_blob = dst_data_blob;
+  src_data_blob[0]++;
+  ASSERT_TRUE(
+      WriteExtents(new_part_.path, new_extents, kBlockSize, src_data_blob));
+
+  brillo::Blob data(1);
+  test_utils::FillWithData(&data);  // Fake the full operation
+  AnnotatedOperation aop;
+  aop.op.set_type(InstallOperation::REPLACE_XZ);
+
+  diff_utils::BestDiffGenerator best_diff_generator(
+      src_data_blob,
+      dst_data_blob,
+      old_extents,
+      new_extents,
+      {},
+      {},
+      {.version = PayloadVersion(kBrilloMajorPayloadVersion,
+                                 kZucchiniMinorPayloadVersion)});
+  ASSERT_TRUE(best_diff_generator.GenerateBestDiffOperation(
+      {{InstallOperation::ZUCCHINI, 1024 * 1024}}, &aop, &data));
+
+  auto& op = aop.op;
+  ASSERT_EQ(1u, data.size());
+  ASSERT_TRUE(op.has_type());
+  ASSERT_EQ(InstallOperation::REPLACE_XZ, op.type());
+}
+
 TEST_F(DeltaDiffUtilsTest, PreferReplaceTest) {
   brillo::Blob data_blob(kBlockSize);
   vector<Extent> extents = {ExtentForRange(1, 1)};
