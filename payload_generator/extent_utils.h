@@ -145,6 +145,11 @@ size_t GetNthBlock(const Container& extents, const size_t n) {
   return std::numeric_limits<size_t>::max();
 }
 
+constexpr bool ExtentContains(const Extent& extent, size_t block) {
+  return extent.start_block() <= block &&
+         block < extent.start_block() + extent.num_blocks();
+}
+
 }  // namespace chromeos_update_engine
 
 #endif  // UPDATE_ENGINE_PAYLOAD_GENERATOR_EXTENT_UTILS_H_
