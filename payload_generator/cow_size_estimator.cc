@@ -150,6 +150,7 @@ bool CowDryRun(
       case InstallOperation::BROTLI_BSDIFF:
       case InstallOperation::PUFFDIFF:
       case InstallOperation::BSDIFF:
+      case InstallOperation::ZUCCHINI:
         // We might do something special by adding CowBsdiff to CowWriter.
         // For now proceed the same way as normal REPLACE operation.
         TEST_AND_RETURN_FALSE(
