@@ -228,18 +228,19 @@ bool InstallOperationExecutor::ExecuteZeroOrDiscardOperation(
   using Access = base::MemoryMappedFile::Access;
   using Region = base::MemoryMappedFile::Region;
   writer->Init(operation.dst_extents(), block_size_);
-  for (const auto& extent : operation.dst_extents()) {
-    // Mmap a region of /dev/zero, as we don't need any actual memory to store
-    // these 0s, so mmap a region of "free memory".
-    base::File dev_zero(base::FilePath("/dev/zero"),
-                        base::File::FLAG_OPEN | base::File::FLAG_READ);
-    MemoryMappedFile buffer;
-    TEST_AND_RETURN_FALSE_ERRNO(buffer.Initialize(
-        std::move(dev_zero),
-        Region{0, static_cast<size_t>(extent.num_blocks() * block_size_)},
-        Access::READ_ONLY));
-    writer->Write(buffer.data(), buffer.length());
-  }
+  // Mmap a region of /dev/zero, as we don't need any actual memory to store
+  // these 0s, so mmap a region of "free memory".
+  base::File dev_zero(base::FilePath("/dev/zero"),
+                      base::File::FLAG_OPEN | base::File::FLAG_READ);
+  MemoryMappedFile buffer;
+  TEST_AND_RETURN_FALSE_ERRNO(buffer.Initialize(
+      std::move(dev_zero),
+      Region{
+          0,
+          static_cast<size_t>(utils::BlocksInExtents(operation.dst_extents()) *
+                              block_size_)},
+      Access::READ_ONLY));
+  writer->Write(buffer.data(), buffer.length());
   return true;
 }
 
