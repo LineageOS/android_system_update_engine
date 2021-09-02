@@ -389,12 +389,13 @@ MetadataParseResult DeltaPerformer::ParsePayloadMetadata(
   return MetadataParseResult::kSuccess;
 }
 
-#define OP_DURATION_HISTOGRAM(_op_name, _start_time)                         \
-  LOCAL_HISTOGRAM_CUSTOM_TIMES(                                              \
-      "UpdateEngine.DownloadAction.InstallOperation::" _op_name ".Duration", \
-      (base::TimeTicks::Now() - _start_time),                                \
-      base::TimeDelta::FromMilliseconds(10),                                 \
-      base::TimeDelta::FromMinutes(5),                                       \
+#define OP_DURATION_HISTOGRAM(_op_name, _start_time)                        \
+  LOCAL_HISTOGRAM_CUSTOM_TIMES(                                             \
+      "UpdateEngine.DownloadAction.InstallOperation::" + string(_op_name) + \
+          ".Duration",                                                      \
+      (base::TimeTicks::Now() - _start_time),                               \
+      base::TimeDelta::FromMilliseconds(10),                                \
+      base::TimeDelta::FromMinutes(5),                                      \
       20);
 
 // Wrapper around write. Returns true if all requested bytes
@@ -546,6 +547,7 @@ bool DeltaPerformer::Write(const void* bytes, size_t count, ErrorCode* error) {
     base::TimeTicks op_start_time = base::TimeTicks::Now();
 
     bool op_result;
+    const string op_name = InstallOperationTypeName(op.type());
     switch (op.type()) {
       case InstallOperation::REPLACE:
       case InstallOperation::REPLACE_BZ:
@@ -564,17 +566,15 @@ bool DeltaPerformer::Write(const void* bytes, size_t count, ErrorCode* error) {
         break;
       case InstallOperation::SOURCE_BSDIFF:
       case InstallOperation::BROTLI_BSDIFF:
-        op_result = PerformSourceBsdiffOperation(op, error);
-        OP_DURATION_HISTOGRAM("SOURCE_BSDIFF", op_start_time);
-        break;
       case InstallOperation::PUFFDIFF:
-        op_result = PerformPuffDiffOperation(op, error);
-        OP_DURATION_HISTOGRAM("PUFFDIFF", op_start_time);
+      case InstallOperation::ZUCCHINI:
+        op_result = PerformDiffOperation(op, error);
+        OP_DURATION_HISTOGRAM(op_name, op_start_time);
         break;
       default:
         op_result = false;
     }
-    if (!HandleOpResult(op_result, InstallOperationTypeName(op.type()), error))
+    if (!HandleOpResult(op_result, op_name.c_str(), error))
       return false;
 
     next_operation_num_++;
@@ -824,8 +824,8 @@ bool DeltaPerformer::ExtentsToBsdiffPositionsString(
   return true;
 }
 
-bool DeltaPerformer::PerformSourceBsdiffOperation(
-    const InstallOperation& operation, ErrorCode* error) {
+bool DeltaPerformer::PerformDiffOperation(const InstallOperation& operation,
+                                          ErrorCode* error) {
   // Since we delete data off the beginning of the buffer as we use it,
   // the data we need should be exactly at the beginning of the buffer.
   TEST_AND_RETURN_FALSE(buffer_offset_ == operation.data_offset());
@@ -835,19 +835,7 @@ bool DeltaPerformer::PerformSourceBsdiffOperation(
   if (operation.has_dst_length())
     TEST_AND_RETURN_FALSE(operation.dst_length() % block_size_ == 0);
 
-  TEST_AND_RETURN_FALSE(partition_writer_->PerformSourceBsdiffOperation(
-      operation, error, buffer_.data(), buffer_.size()));
-  DiscardBuffer(true, buffer_.size());
-  return true;
-}
-
-bool DeltaPerformer::PerformPuffDiffOperation(const InstallOperation& operation,
-                                              ErrorCode* error) {
-  // Since we delete data off the beginning of the buffer as we use it,
-  // the data we need should be exactly at the beginning of the buffer.
-  TEST_AND_RETURN_FALSE(buffer_offset_ == operation.data_offset());
-  TEST_AND_RETURN_FALSE(buffer_.size() >= operation.data_length());
-  TEST_AND_RETURN_FALSE(partition_writer_->PerformPuffDiffOperation(
+  TEST_AND_RETURN_FALSE(partition_writer_->PerformDiffOperation(
       operation, error, buffer_.data(), buffer_.size()));
   DiscardBuffer(true, buffer_.size());
   return true;

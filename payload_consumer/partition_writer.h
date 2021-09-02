@@ -76,15 +76,10 @@ class PartitionWriter : public PartitionWriterInterface {
 
   [[nodiscard]] bool PerformSourceCopyOperation(
       const InstallOperation& operation, ErrorCode* error) override;
-  [[nodiscard]] bool PerformSourceBsdiffOperation(
-      const InstallOperation& operation,
-      ErrorCode* error,
-      const void* data,
-      size_t count) override;
-  [[nodiscard]] bool PerformPuffDiffOperation(const InstallOperation& operation,
-                                              ErrorCode* error,
-                                              const void* data,
-                                              size_t count) override;
+  [[nodiscard]] bool PerformDiffOperation(const InstallOperation& operation,
+                                          ErrorCode* error,
+                                          const void* data,
+                                          size_t count) override;
 
   // |DeltaPerformer| calls this when all Install Ops are sent to partition
   // writer. No |Perform*Operation| methods will be called in the future, and
