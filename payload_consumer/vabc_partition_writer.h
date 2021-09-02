@@ -52,15 +52,10 @@ class VABCPartitionWriter final : public PartitionWriterInterface {
                                              const void* data,
                                              size_t count) override;
 
-  [[nodiscard]] bool PerformSourceBsdiffOperation(
-      const InstallOperation& operation,
-      ErrorCode* error,
-      const void* data,
-      size_t count) override;
-  [[nodiscard]] bool PerformPuffDiffOperation(const InstallOperation& operation,
-                                              ErrorCode* error,
-                                              const void* data,
-                                              size_t count) override;
+  [[nodiscard]] bool PerformDiffOperation(const InstallOperation& operation,
+                                          ErrorCode* error,
+                                          const void* data,
+                                          size_t count) override;
 
   void CheckpointUpdateProgress(size_t next_op_index) override;
 

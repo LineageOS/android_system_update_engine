@@ -267,10 +267,8 @@ class DeltaPerformer : public FileWriter {
   bool PerformZeroOrDiscardOperation(const InstallOperation& operation);
   bool PerformSourceCopyOperation(const InstallOperation& operation,
                                   ErrorCode* error);
-  bool PerformSourceBsdiffOperation(const InstallOperation& operation,
-                                    ErrorCode* error);
-  bool PerformPuffDiffOperation(const InstallOperation& operation,
-                                ErrorCode* error);
+  bool PerformDiffOperation(const InstallOperation& operation,
+                            ErrorCode* error);
 
   // Extracts the payload signature message from the current |buffer_| if the
   // offset matches the one specified by the manifest. Returns whether the
