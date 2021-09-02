@@ -221,7 +221,7 @@ bool VABCPartitionWriter::PerformReplaceOperation(const InstallOperation& op,
   return executor_.ExecuteReplaceOperation(op, std::move(writer), data, count);
 }
 
-bool VABCPartitionWriter::PerformSourceBsdiffOperation(
+bool VABCPartitionWriter::PerformDiffOperation(
     const InstallOperation& operation,
     ErrorCode* error,
     const void* data,
@@ -231,21 +231,7 @@ bool VABCPartitionWriter::PerformSourceBsdiffOperation(
   TEST_AND_RETURN_FALSE(source_fd != nullptr);
 
   auto writer = CreateBaseExtentWriter();
-  return executor_.ExecuteSourceBsdiffOperation(
-      operation, std::move(writer), source_fd, data, count);
-}
-
-bool VABCPartitionWriter::PerformPuffDiffOperation(
-    const InstallOperation& operation,
-    ErrorCode* error,
-    const void* data,
-    size_t count) {
-  FileDescriptorPtr source_fd =
-      verified_source_fd_.ChooseSourceFD(operation, error);
-  TEST_AND_RETURN_FALSE(source_fd != nullptr);
-
-  auto writer = CreateBaseExtentWriter();
-  return executor_.ExecutePuffDiffOperation(
+  return executor_.ExecuteDiffOperation(
       operation, std::move(writer), source_fd, data, count);
 }
 

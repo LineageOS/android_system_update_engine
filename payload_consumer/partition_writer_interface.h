@@ -62,12 +62,7 @@ class PartitionWriterInterface {
 
   [[nodiscard]] virtual bool PerformSourceCopyOperation(
       const InstallOperation& operation, ErrorCode* error) = 0;
-  [[nodiscard]] virtual bool PerformSourceBsdiffOperation(
-      const InstallOperation& operation,
-      ErrorCode* error,
-      const void* data,
-      size_t count) = 0;
-  [[nodiscard]] virtual bool PerformPuffDiffOperation(
+  [[nodiscard]] virtual bool PerformDiffOperation(
       const InstallOperation& operation,
       ErrorCode* error,
       const void* data,

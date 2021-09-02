@@ -258,31 +258,16 @@ bool PartitionWriter::PerformSourceCopyOperation(
       optimized, writer.get(), source_fd);
 }
 
-bool PartitionWriter::PerformSourceBsdiffOperation(
-    const InstallOperation& operation,
-    ErrorCode* error,
-    const void* data,
-    size_t count) {
+bool PartitionWriter::PerformDiffOperation(const InstallOperation& operation,
+                                           ErrorCode* error,
+                                           const void* data,
+                                           size_t count) {
   FileDescriptorPtr source_fd = ChooseSourceFD(operation, error);
   TEST_AND_RETURN_FALSE(source_fd != nullptr);
 
   auto writer = CreateBaseExtentWriter();
   writer->Init(operation.dst_extents(), block_size_);
-  return install_op_executor_.ExecuteSourceBsdiffOperation(
-      operation, std::move(writer), source_fd, data, count);
-}
-
-bool PartitionWriter::PerformPuffDiffOperation(
-    const InstallOperation& operation,
-    ErrorCode* error,
-    const void* data,
-    size_t count) {
-  FileDescriptorPtr source_fd = ChooseSourceFD(operation, error);
-  TEST_AND_RETURN_FALSE(source_fd != nullptr);
-
-  auto writer = CreateBaseExtentWriter();
-  writer->Init(operation.dst_extents(), block_size_);
-  return install_op_executor_.ExecutePuffDiffOperation(
+  return install_op_executor_.ExecuteDiffOperation(
       operation, std::move(writer), source_fd, data, count);
 }
 

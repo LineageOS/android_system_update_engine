@@ -170,36 +170,6 @@ class PuffinExtentStream : public puffin::StreamInterface {
   DISALLOW_COPY_AND_ASSIGN(PuffinExtentStream);
 };
 
-bool InstallOperationExecutor::ExecuteInstallOp(
-    const InstallOperation& op,
-    std::unique_ptr<ExtentWriter> writer,
-    FileDescriptorPtr source_fd,
-    const void* data,
-    size_t size) {
-  switch (op.type()) {
-    case InstallOperation::REPLACE:
-    case InstallOperation::REPLACE_BZ:
-    case InstallOperation::REPLACE_XZ:
-      return ExecuteReplaceOperation(op, std::move(writer), data, size);
-    case InstallOperation::ZERO:
-    case InstallOperation::DISCARD:
-      return ExecuteZeroOrDiscardOperation(op, writer.get());
-    case InstallOperation::SOURCE_COPY:
-      return ExecuteSourceCopyOperation(op, writer.get(), source_fd);
-    case InstallOperation::SOURCE_BSDIFF:
-    case InstallOperation::BROTLI_BSDIFF:
-      return ExecuteSourceBsdiffOperation(
-          op, std::move(writer), source_fd, data, size);
-    case InstallOperation::PUFFDIFF:
-      return ExecutePuffDiffOperation(
-          op, std::move(writer), source_fd, data, size);
-      break;
-    default:
-      return false;
-  }
-  return false;
-}
-
 bool InstallOperationExecutor::ExecuteReplaceOperation(
     const InstallOperation& operation,
     std::unique_ptr<ExtentWriter> writer,
@@ -254,17 +224,38 @@ bool InstallOperationExecutor::ExecuteSourceCopyOperation(
       source_fd, operation.src_extents(), writer, block_size_, nullptr);
 }
 
+bool InstallOperationExecutor::ExecuteDiffOperation(
+    const InstallOperation& operation,
+    std::unique_ptr<ExtentWriter> writer,
+    FileDescriptorPtr source_fd,
+    const void* data,
+    size_t count) {
+  TEST_AND_RETURN_FALSE(source_fd != nullptr);
+  switch (operation.type()) {
+    case InstallOperation::SOURCE_BSDIFF:
+    case InstallOperation::BSDIFF:
+    case InstallOperation::BROTLI_BSDIFF:
+      return ExecuteSourceBsdiffOperation(
+          operation, std::move(writer), source_fd, data, count);
+    case InstallOperation::PUFFDIFF:
+      return ExecutePuffDiffOperation(
+          operation, std::move(writer), source_fd, data, count);
+    case InstallOperation::ZUCCHINI:
+      return ExecuteZucchiniOperation(
+          operation, std::move(writer), source_fd, data, count);
+    default:
+      LOG(ERROR) << "Unexpected operation type when executing diff ops "
+                 << operation.type();
+      return false;
+  }
+}
+
 bool InstallOperationExecutor::ExecuteSourceBsdiffOperation(
     const InstallOperation& operation,
     std::unique_ptr<ExtentWriter> writer,
     FileDescriptorPtr source_fd,
     const void* data,
     size_t count) {
-  TEST_AND_RETURN_FALSE(operation.type() == InstallOperation::SOURCE_BSDIFF ||
-                        operation.type() == InstallOperation::BROTLI_BSDIFF ||
-                        operation.type() == InstallOperation::BSDIFF);
-  TEST_AND_RETURN_FALSE(source_fd != nullptr);
-
   auto reader = std::make_unique<DirectExtentReader>();
   TEST_AND_RETURN_FALSE(
       reader->Init(source_fd, operation.src_extents(), block_size_));
@@ -290,9 +281,6 @@ bool InstallOperationExecutor::ExecutePuffDiffOperation(
     FileDescriptorPtr source_fd,
     const void* data,
     size_t count) {
-  TEST_AND_RETURN_FALSE(operation.type() == InstallOperation::PUFFDIFF);
-  TEST_AND_RETURN_FALSE(source_fd != nullptr);
-
   auto reader = std::make_unique<DirectExtentReader>();
   TEST_AND_RETURN_FALSE(
       reader->Init(source_fd, operation.src_extents(), block_size_));
@@ -314,4 +302,15 @@ bool InstallOperationExecutor::ExecutePuffDiffOperation(
                         kMaxCacheSize));
   return true;
 }
+
+bool InstallOperationExecutor::ExecuteZucchiniOperation(
+    const InstallOperation& operation,
+    std::unique_ptr<ExtentWriter> writer,
+    FileDescriptorPtr source_fd,
+    const void* data,
+    size_t count) {
+  LOG(ERROR) << "zucchini operation isn't supported";
+  return false;
+}
+
 }  // namespace chromeos_update_engine
