@@ -30,11 +30,6 @@ class InstallOperationExecutor {
   explicit InstallOperationExecutor(size_t block_size)
       : block_size_(block_size) {}
 
-  bool ExecuteInstallOp(const InstallOperation& op,
-                        std::unique_ptr<ExtentWriter> writer,
-                        FileDescriptorPtr source_fd,
-                        const void* data,
-                        size_t size);
   bool ExecuteReplaceOperation(const InstallOperation& operation,
                                std::unique_ptr<ExtentWriter> writer,
                                const void* data,
@@ -44,6 +39,14 @@ class InstallOperationExecutor {
   bool ExecuteSourceCopyOperation(const InstallOperation& operation,
                                   ExtentWriter* writer,
                                   FileDescriptorPtr source_fd);
+
+  bool ExecuteDiffOperation(const InstallOperation& operation,
+                            std::unique_ptr<ExtentWriter> writer,
+                            FileDescriptorPtr source_fd,
+                            const void* data,
+                            size_t count);
+
+ private:
   bool ExecuteSourceBsdiffOperation(const InstallOperation& operation,
                                     std::unique_ptr<ExtentWriter> writer,
                                     FileDescriptorPtr source_fd,
@@ -54,8 +57,12 @@ class InstallOperationExecutor {
                                 FileDescriptorPtr source_fd,
                                 const void* data,
                                 size_t count);
+  bool ExecuteZucchiniOperation(const InstallOperation& operation,
+                                std::unique_ptr<ExtentWriter> writer,
+                                FileDescriptorPtr source_fd,
+                                const void* data,
+                                size_t count);
 
- private:
   size_t block_size_;
 };
 
