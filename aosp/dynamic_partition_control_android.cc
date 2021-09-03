@@ -93,7 +93,7 @@ constexpr char kPostinstallFstabPrefix[] = "ro.postinstall.fstab.prefix";
 constexpr std::chrono::milliseconds kMapTimeout{1000};
 // Map timeout for dynamic partitions with snapshots. Since several devices
 // needs to be mapped, this timeout is longer than |kMapTimeout|.
-constexpr std::chrono::milliseconds kMapSnapshotTimeout{5000};
+constexpr std::chrono::milliseconds kMapSnapshotTimeout{10000};
 
 DynamicPartitionControlAndroid::~DynamicPartitionControlAndroid() {
   Cleanup();
