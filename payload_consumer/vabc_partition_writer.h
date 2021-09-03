@@ -17,6 +17,7 @@
 #ifndef UPDATE_ENGINE_VABC_PARTITION_WRITER_H_
 #define UPDATE_ENGINE_VABC_PARTITION_WRITER_H_
 
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -24,9 +25,11 @@
 #include <libsnapshot/snapshot_writer.h>
 
 #include "update_engine/common/cow_operation_convert.h"
+#include "update_engine/payload_consumer/extent_map.h"
 #include "update_engine/payload_consumer/install_operation_executor.h"
 #include "update_engine/payload_consumer/install_plan.h"
 #include "update_engine/payload_consumer/partition_writer.h"
+#include "update_engine/payload_generator/extent_ranges.h"
 
 namespace chromeos_update_engine {
 class VABCPartitionWriter final : public PartitionWriterInterface {
@@ -59,10 +62,11 @@ class VABCPartitionWriter final : public PartitionWriterInterface {
 
   void CheckpointUpdateProgress(size_t next_op_index) override;
 
-  static bool WriteAllCowOps(size_t block_size,
-                             const std::vector<CowOperation>& converted,
-                             android::snapshot::ICowWriter* cow_writer,
-                             FileDescriptorPtr source_fd);
+  [[nodiscard]] static bool WriteSourceCopyCowOps(
+      size_t block_size,
+      const std::vector<CowOperation>& converted,
+      android::snapshot::ICowWriter* cow_writer,
+      FileDescriptorPtr source_fd);
 
   [[nodiscard]] bool FinishedInstallOps() override;
   int Close() override;
@@ -72,19 +76,21 @@ class VABCPartitionWriter final : public PartitionWriterInterface {
       android::snapshot::ICowWriter* cow_writer);
 
  private:
+  bool IsXorEnabled() const noexcept { return xor_map_.size() > 0; }
   std::unique_ptr<android::snapshot::ISnapshotWriter> cow_writer_;
 
   [[nodiscard]] std::unique_ptr<ExtentWriter> CreateBaseExtentWriter();
 
   const PartitionUpdate& partition_update_;
   const InstallPlan::Partition& install_part_;
-  DynamicPartitionControlInterface* dynamic_control_;
+  DynamicPartitionControlInterface* const dynamic_control_;
   // Path to source partition
-  std::string source_path_;
+  const std::string source_path_;
 
   const size_t block_size_;
   InstallOperationExecutor executor_;
   VerifiedSourceFd verified_source_fd_;
+  ExtentMap<const CowMergeOperation*, ExtentLess> xor_map_;
 };
 
 }  // namespace chromeos_update_engine

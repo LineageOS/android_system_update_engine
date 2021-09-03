@@ -110,7 +110,7 @@ class ExtentRanges {
  private:
   ExtentSet extent_set_;
   uint64_t blocks_ = 0;
-  const bool merge_touching_extents_ = true;
+  bool merge_touching_extents_ = true;
 };
 
 // Filters out from the passed list of extents |extents| all the blocks in the

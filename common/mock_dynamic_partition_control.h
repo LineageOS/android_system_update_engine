@@ -50,12 +50,10 @@ class MockDynamicPartitionControl : public DynamicPartitionControlInterface {
               (const std::string&, const InstallOperation&, InstallOperation*),
               (override));
 
-  std::unique_ptr<android::snapshot::ISnapshotWriter> OpenCowWriter(
-      const std::string& unsuffixed_partition_name,
-      const std::optional<std::string>&,
-      bool is_append = false) override {
-    return nullptr;
-  }
+  MOCK_METHOD(std::unique_ptr<android::snapshot::ISnapshotWriter>,
+              OpenCowWriter,
+              (const std::string&, const std::optional<std::string>&, bool),
+              (override));
 
   MOCK_METHOD(
       bool,
