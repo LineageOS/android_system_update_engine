@@ -16,20 +16,26 @@
 
 #include "update_engine/payload_consumer/vabc_partition_writer.h"
 
+#include <algorithm>
+#include <map>
 #include <memory>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include <brillo/secure_blob.h>
 #include <libsnapshot/cow_writer.h>
 
 #include "update_engine/common/cow_operation_convert.h"
 #include "update_engine/common/utils.h"
-#include "update_engine/payload_consumer/extent_writer.h"
+#include "update_engine/payload_consumer/block_extent_writer.h"
+#include "update_engine/payload_consumer/extent_map.h"
+#include "update_engine/payload_consumer/extent_reader.h"
 #include "update_engine/payload_consumer/file_descriptor.h"
 #include "update_engine/payload_consumer/install_plan.h"
 #include "update_engine/payload_consumer/partition_writer.h"
 #include "update_engine/payload_consumer/snapshot_extent_writer.h"
+#include "update_engine/payload_consumer/xor_extent_writer.h"
 #include "update_engine/payload_generator/extent_ranges.h"
 #include "update_engine/payload_generator/extent_utils.h"
 #include "update_engine/update_metadata.pb.h"
@@ -62,6 +68,18 @@ namespace chromeos_update_engine {
 using android::snapshot::ICowWriter;
 using ::google::protobuf::RepeatedPtrField;
 
+// Compute XOR map, a map from dst extent to corresponding merge operation
+static ExtentMap<const CowMergeOperation*, ExtentLess> ComputeXorMap(
+    const RepeatedPtrField<CowMergeOperation>& merge_ops) {
+  ExtentMap<const CowMergeOperation*, ExtentLess> xor_map;
+  for (const auto& merge_op : merge_ops) {
+    if (merge_op.type() == CowMergeOperation::COW_XOR) {
+      xor_map.AddExtent(merge_op.dst_extent(), &merge_op);
+    }
+  }
+  return xor_map;
+}
+
 VABCPartitionWriter::VABCPartitionWriter(
     const PartitionUpdate& partition_update,
     const InstallPlan::Partition& install_part,
@@ -77,6 +95,7 @@ VABCPartitionWriter::VABCPartitionWriter(
 bool VABCPartitionWriter::Init(const InstallPlan* install_plan,
                                bool source_may_exist,
                                size_t next_op_index) {
+  xor_map_ = ComputeXorMap(partition_update_.merge_operations());
   TEST_AND_RETURN_FALSE(install_plan != nullptr);
   if (source_may_exist) {
     TEST_AND_RETURN_FALSE(verified_source_fd_.Open());
@@ -123,7 +142,8 @@ bool VABCPartitionWriter::Init(const InstallPlan* install_plan,
     auto source_fd = std::make_shared<EintrSafeFileDescriptor>();
     TEST_AND_RETURN_FALSE_ERRNO(
         source_fd->Open(install_part_.source_path.c_str(), O_RDONLY));
-    WriteAllCowOps(block_size_, converted, cow_writer_.get(), source_fd);
+    TEST_AND_RETURN_FALSE(WriteSourceCopyCowOps(
+        block_size_, converted, cow_writer_.get(), source_fd));
     cow_writer_->AddLabel(0);
   }
   return true;
@@ -141,12 +161,6 @@ bool VABCPartitionWriter::WriteMergeSequence(
         merge_op.src_extent() == merge_op.dst_extent()) {
       continue;
     }
-    // libsnapshot doesn't like us include REPLACE blocks in merge sequence,
-    // since we don't support XOR ops at this CL, skip them! Remove once we
-    // write XOR ops.
-    if (merge_op.type() == CowMergeOperation::COW_XOR) {
-      continue;
-    }
     // libsnapshot prefers blocks in reverse order
     for (int i = dst_extent.num_blocks() - 1; i >= 0; i--) {
       blocks_merge_order.push_back(dst_extent.start_block() + i);
@@ -156,7 +170,7 @@ bool VABCPartitionWriter::WriteMergeSequence(
                                      blocks_merge_order.data());
 }
 
-bool VABCPartitionWriter::WriteAllCowOps(
+bool VABCPartitionWriter::WriteSourceCopyCowOps(
     size_t block_size,
     const std::vector<CowOperation>& converted,
     ICowWriter* cow_writer,
@@ -229,8 +243,12 @@ bool VABCPartitionWriter::PerformDiffOperation(
   FileDescriptorPtr source_fd =
       verified_source_fd_.ChooseSourceFD(operation, error);
   TEST_AND_RETURN_FALSE(source_fd != nullptr);
+  TEST_AND_RETURN_FALSE(source_fd->IsOpen());
 
-  auto writer = CreateBaseExtentWriter();
+  std::unique_ptr<ExtentWriter> writer =
+      IsXorEnabled() ? std::make_unique<XORExtentWriter>(
+                           operation, source_fd, cow_writer_.get(), xor_map_)
+                     : CreateBaseExtentWriter();
   return executor_.ExecuteDiffOperation(
       operation, std::move(writer), source_fd, data, count);
 }
