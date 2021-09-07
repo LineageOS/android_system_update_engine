@@ -35,9 +35,9 @@ class InstallOperationExecutor {
                                const void* data,
                                size_t count);
   bool ExecuteZeroOrDiscardOperation(const InstallOperation& operation,
-                                     ExtentWriter* writer);
+                                     std::unique_ptr<ExtentWriter> writer);
   bool ExecuteSourceCopyOperation(const InstallOperation& operation,
-                                  ExtentWriter* writer,
+                                  std::unique_ptr<ExtentWriter> writer,
                                   FileDescriptorPtr source_fd);
 
   bool ExecuteDiffOperation(const InstallOperation& operation,
