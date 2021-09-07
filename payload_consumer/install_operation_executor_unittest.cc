@@ -151,7 +151,7 @@ TEST_F(InstallOperationExecutorTest, ZeroOrDiscardeOpTest) {
   *op.mutable_dst_extents()->Add() = ExtentForRange(2, 2);
   *op.mutable_dst_extents()->Add() = ExtentForRange(6, 2);
   auto writer = std::make_unique<DirectExtentWriter>(target_fd_);
-  ASSERT_TRUE(executor_.ExecuteZeroOrDiscardOperation(op, writer.get()));
+  ASSERT_TRUE(executor_.ExecuteZeroOrDiscardOperation(op, std::move(writer)));
   brillo::Blob actual_data;
   utils::ReadExtents(
       target_.path(),
@@ -177,7 +177,7 @@ TEST_F(InstallOperationExecutorTest, SourceCopyOpTest) {
 
   auto writer = std::make_unique<DirectExtentWriter>(target_fd_);
   ASSERT_TRUE(
-      executor_.ExecuteSourceCopyOperation(op, writer.get(), source_fd_));
+      executor_.ExecuteSourceCopyOperation(op, std::move(writer), source_fd_));
   brillo::Blob actual_data;
   utils::ReadExtents(
       target_.path(),
