@@ -191,7 +191,7 @@ bool InstallOperationExecutor::ExecuteReplaceOperation(
 }
 
 bool InstallOperationExecutor::ExecuteZeroOrDiscardOperation(
-    const InstallOperation& operation, ExtentWriter* writer) {
+    const InstallOperation& operation, std::unique_ptr<ExtentWriter> writer) {
   TEST_AND_RETURN_FALSE(operation.type() == InstallOperation::ZERO ||
                         operation.type() == InstallOperation::DISCARD);
   using base::MemoryMappedFile;
@@ -216,12 +216,12 @@ bool InstallOperationExecutor::ExecuteZeroOrDiscardOperation(
 
 bool InstallOperationExecutor::ExecuteSourceCopyOperation(
     const InstallOperation& operation,
-    ExtentWriter* writer,
+    std::unique_ptr<ExtentWriter> writer,
     FileDescriptorPtr source_fd) {
   TEST_AND_RETURN_FALSE(operation.type() == InstallOperation::SOURCE_COPY);
   TEST_AND_RETURN_FALSE(writer->Init(operation.dst_extents(), block_size_));
   return fd_utils::CommonHashExtents(
-      source_fd, operation.src_extents(), writer, block_size_, nullptr);
+      source_fd, operation.src_extents(), writer.get(), block_size_, nullptr);
 }
 
 bool InstallOperationExecutor::ExecuteDiffOperation(
