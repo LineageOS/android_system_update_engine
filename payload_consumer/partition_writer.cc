@@ -223,8 +223,8 @@ bool PartitionWriter::PerformZeroOrDiscardOperation(
                      "of this operation.";
     auto writer = CreateBaseExtentWriter();
     writer->Init(operation.dst_extents(), block_size_);
-    return install_op_executor_.ExecuteZeroOrDiscardOperation(operation,
-                                                              writer.get());
+    return install_op_executor_.ExecuteZeroOrDiscardOperation(
+        operation, std::move(writer));
   }
   return true;
 }
@@ -255,7 +255,7 @@ bool PartitionWriter::PerformSourceCopyOperation(
   auto writer = CreateBaseExtentWriter();
   writer->Init(optimized.dst_extents(), block_size_);
   return install_op_executor_.ExecuteSourceCopyOperation(
-      optimized, writer.get(), source_fd);
+      optimized, std::move(writer), source_fd);
 }
 
 bool PartitionWriter::PerformDiffOperation(const InstallOperation& operation,
