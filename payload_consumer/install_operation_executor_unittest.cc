@@ -31,11 +31,17 @@
 #include <brillo/secure_blob.h>
 #include <gtest/gtest.h>
 #include <update_engine/update_metadata.pb.h>
+#include <zucchini/buffer_view.h>
+#include <zucchini/patch_writer.h>
+#include <zucchini/zucchini.h>
+#include <puffin/brotli_util.h>
 
 #include "update_engine/common/utils.h"
 #include "update_engine/payload_consumer/extent_writer.h"
+#include "update_engine/payload_consumer/fake_extent_writer.h"
 #include "update_engine/payload_consumer/file_descriptor.h"
 #include "update_engine/payload_consumer/payload_constants.h"
+#include "update_engine/payload_generator/delta_diff_utils.h"
 #include "update_engine/payload_generator/extent_ranges.h"
 #include "update_engine/payload_generator/extent_utils.h"
 
@@ -57,18 +63,27 @@ class InstallOperationExecutorTest : public ::testing::Test {
   static constexpr size_t BLOCK_SIZE = 4096;
   void SetUp() override {
     // Fill source partition with arbitrary data.
-    std::array<uint8_t, BLOCK_SIZE> buffer{};
+    source_data_.resize(NUM_BLOCKS * BLOCK_SIZE);
+    target_data_.resize(NUM_BLOCKS * BLOCK_SIZE);
     for (size_t i = 0; i < NUM_BLOCKS; i++) {
       // Fill block with arbitrary data. We don't care about what data is being
       // written to source partition, so as long as each block is slightly
       // different.
-      std::fill(buffer.begin(), buffer.end(), i);
-      ASSERT_TRUE(utils::WriteAll(source_.fd(), buffer.data(), buffer.size()))
-          << "Failed to write to source partition file: " << strerror(errno);
-      std::fill(buffer.begin(), buffer.end(), NUM_BLOCKS + i);
-      ASSERT_TRUE(utils::WriteAll(target_.fd(), buffer.data(), buffer.size()))
-          << "Failed to write to target partition file: " << strerror(errno);
+      uint32_t offset = i * BLOCK_SIZE;
+      std::fill(source_data_.begin() + offset,
+                source_data_.begin() + offset + BLOCK_SIZE,
+                i);
+      std::fill(target_data_.begin() + offset,
+                target_data_.begin() + offset + BLOCK_SIZE,
+                NUM_BLOCKS + i);
     }
+
+    ASSERT_TRUE(
+        utils::WriteAll(source_.fd(), source_data_.data(), source_data_.size()))
+        << "Failed to write to source partition file: " << strerror(errno);
+    ASSERT_TRUE(
+        utils::WriteAll(target_.fd(), target_data_.data(), target_data_.size()))
+        << "Failed to write to target partition file: " << strerror(errno);
     fsync(source_.fd());
     fsync(target_.fd());
 
@@ -111,6 +126,9 @@ class InstallOperationExecutorTest : public ::testing::Test {
   ScopedTempFile target_{"target_partition.XXXXXXXX", true};
   FileDescriptorPtr source_fd_ = std::make_shared<EintrSafeFileDescriptor>();
   FileDescriptorPtr target_fd_ = std::make_shared<EintrSafeFileDescriptor>();
+  std::vector<uint8_t> source_data_;
+  std::vector<uint8_t> target_data_;
+
   InstallOperationExecutor executor_{BLOCK_SIZE};
 };
 
@@ -204,6 +222,42 @@ TEST_F(InstallOperationExecutorTest, SourceCopyOpTest) {
         << " is not copied correctly";
   }
   VerityUntouchedExtents(op);
+}
+
+TEST_F(InstallOperationExecutorTest, ZucchiniOpTest) {
+  InstallOperation op;
+  op.set_type(InstallOperation::ZUCCHINI);
+  *op.mutable_src_extents()->Add() = ExtentForRange(0, NUM_BLOCKS);
+  *op.mutable_dst_extents()->Add() = ExtentForRange(0, NUM_BLOCKS);
+
+  // Make a zucchini patch
+  std::vector<Extent> src_extents{ExtentForRange(0, NUM_BLOCKS)};
+  std::vector<Extent> dst_extents{ExtentForRange(0, NUM_BLOCKS)};
+  PayloadGenerationConfig config{
+      .version = PayloadVersion(kBrilloMajorPayloadVersion,
+                                kZucchiniMinorPayloadVersion)};
+  diff_utils::BestDiffGenerator best_diff_generator(
+      source_data_, target_data_, src_extents, dst_extents, {}, {}, config);
+  std::vector<uint8_t> patch_data = target_data_;  // Fake the full operation
+  AnnotatedOperation aop;
+  ASSERT_TRUE(best_diff_generator.GenerateBestDiffOperation(
+      {{InstallOperation::ZUCCHINI, 1024 * BLOCK_SIZE}}, &aop, &patch_data));
+  ASSERT_EQ(InstallOperation::ZUCCHINI, aop.op.type());
+
+  // Call the executor
+  ScopedTempFile patched{"patched.XXXXXXXX", true};
+  FileDescriptorPtr patched_fd = std::make_shared<EintrSafeFileDescriptor>();
+  patched_fd->Open(patched.path().c_str(), O_RDWR);
+  std::unique_ptr<ExtentWriter> writer(new DirectExtentWriter(patched_fd));
+  writer->Init(op.dst_extents(), BLOCK_SIZE);
+  ASSERT_TRUE(executor_.ExecuteDiffOperation(
+      op, std::move(writer), source_fd_, patch_data.data(), patch_data.size()));
+
+  // Compare the result
+  std::vector<uint8_t> patched_data;
+  ASSERT_TRUE(utils::ReadFile(patched.path(), &patched_data));
+  ASSERT_EQ(NUM_BLOCKS * BLOCK_SIZE, patched_data.size());
+  ASSERT_EQ(target_data_, patched_data);
 }
 
 TEST_F(InstallOperationExecutorTest, GetNthBlockTest) {
