@@ -15,18 +15,22 @@
 //
 
 #include "update_engine/payload_consumer/install_operation_executor.h"
-#include <memory>
-#include <utility>
-#include <vector>
 
 #include <fcntl.h>
 #include <glob.h>
 #include <linux/fs.h>
 
+#include <memory>
+#include <utility>
+#include <vector>
+
 #include <base/files/memory_mapped_file.h>
+#include <base/files/file_util.h>
 #include <bsdiff/bspatch.h>
+#include <puffin/brotli_util.h>
 #include <puffin/puffpatch.h>
-#include <sys/mman.h>
+#include <zucchini/patch_reader.h>
+#include <zucchini/zucchini.h>
 
 #include "update_engine/common/utils.h"
 #include "update_engine/payload_consumer/bzip_extent_writer.h"
@@ -36,7 +40,6 @@
 #include "update_engine/payload_consumer/file_descriptor.h"
 #include "update_engine/payload_consumer/file_descriptor_utils.h"
 #include "update_engine/payload_consumer/xz_extent_writer.h"
-#include "update_engine/payload_generator/delta_diff_generator.h"
 #include "update_engine/update_metadata.pb.h"
 
 namespace chromeos_update_engine {
@@ -309,8 +312,46 @@ bool InstallOperationExecutor::ExecuteZucchiniOperation(
     FileDescriptorPtr source_fd,
     const void* data,
     size_t count) {
-  LOG(ERROR) << "zucchini operation isn't supported";
-  return false;
+  uint64_t src_size =
+      utils::BlocksInExtents(operation.src_extents()) * block_size_;
+  brillo::Blob source_bytes(src_size);
+
+  // TODO(197361113) either make zucchini stream the read, or use memory mapped
+  // files.
+  auto reader = std::make_unique<DirectExtentReader>();
+  TEST_AND_RETURN_FALSE(
+      reader->Init(source_fd, operation.src_extents(), block_size_));
+  TEST_AND_RETURN_FALSE(reader->Seek(0));
+  TEST_AND_RETURN_FALSE(reader->Read(source_bytes.data(), src_size));
+
+  brillo::Blob zucchini_patch;
+  TEST_AND_RETURN_FALSE(puffin::BrotliDecode(
+      static_cast<const uint8_t*>(data), count, &zucchini_patch));
+  auto patch_reader = zucchini::EnsemblePatchReader::Create(
+      {zucchini_patch.data(), zucchini_patch.size()});
+  if (!patch_reader.has_value()) {
+    LOG(ERROR) << "Failed to parse the zucchini patch.";
+    return false;
+  }
+
+  auto dst_size = patch_reader->header().new_size;
+  TEST_AND_RETURN_FALSE(dst_size ==
+                        utils::BlocksInExtents(operation.dst_extents()) *
+                            block_size_);
+
+  brillo::Blob patched_data(dst_size);
+  auto status =
+      zucchini::ApplyBuffer({source_bytes.data(), source_bytes.size()},
+                            *patch_reader,
+                            {patched_data.data(), patched_data.size()});
+  if (status != zucchini::status::kStatusSuccess) {
+    LOG(ERROR) << "Failed to apply the zucchini patch: " << status;
+    return false;
+  }
+
+  TEST_AND_RETURN_FALSE(
+      writer->Write(patched_data.data(), patched_data.size()));
+  return true;
 }
 
 }  // namespace chromeos_update_engine
