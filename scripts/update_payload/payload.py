@@ -142,6 +142,14 @@ class Payload(object):
     self.payload_signature = None
     self.metadata_size = None
 
+  @property
+  def is_incremental(self):
+    return any([part.HasField("old_partition_info") for part in self.manifest.partitions])
+
+  @property
+  def is_partial(self):
+    return self.manifest.partial_update
+
   def _ReadHeader(self):
     """Reads and returns the payload header.
 
