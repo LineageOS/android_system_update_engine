@@ -38,6 +38,8 @@
 #  --disable_fec_computation  Disable the on device fec data computation for
 #                             incremental update. This feature is enabled by
 #                             default
+#  --force_minor_version      Override the minor version used for delta
+#                             generation.
 #
 #  Hash command arguments:
 #  --unsigned_payload    the input unsigned payload to generate the hash from
@@ -206,6 +208,8 @@ a subset of partitions on device."
     "Optional: Disables Virtual AB Compression when installing the OTA"
   DEFINE_string enable_vabc_xor "" \
     "Optional: Enable the use of Virtual AB Compression XOR feature"
+  DEFINE_string force_minor_version "" \
+    "Optional: Override the minor version for the delta generation."
 fi
 if [[ "${COMMAND}" == "hash" || "${COMMAND}" == "sign" ]]; then
   DEFINE_string unsigned_payload "" "Path to the input unsigned payload."
@@ -549,6 +553,9 @@ using payload minor version 2"
     # old updater.
     FORCE_MINOR_VERSION=$(read_option_uint "${ue_config}" \
       "PAYLOAD_MINOR_VERSION" 2)
+    if [[ -n "${FLAGS_force_minor_version}" ]]; then
+      FORCE_MINOR_VERSION="${FLAGS_force_minor_version}"
+    fi
     FORCE_MAJOR_VERSION=$(read_option_uint "${ue_config}" \
       "PAYLOAD_MAJOR_VERSION" 2)
 
