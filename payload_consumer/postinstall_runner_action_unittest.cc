@@ -347,7 +347,7 @@ TEST_F(PostinstallRunnerActionTest, RunAsRootRollbackTestWithDataSave) {
 TEST_F(PostinstallRunnerActionTest, RunAsRootCantMountTest) {
   RunPostinstallAction(
       "/dev/null", kPostinstallDefaultScript, false, false, false);
-  EXPECT_EQ(ErrorCode::kPostinstallRunnerError, processor_delegate_.code_);
+  EXPECT_EQ(ErrorCode::kPostInstallMountError, processor_delegate_.code_);
 
   // In case of failure, Postinstall should not signal a powerwash even if it
   // was requested.
@@ -356,12 +356,13 @@ TEST_F(PostinstallRunnerActionTest, RunAsRootCantMountTest) {
 }
 
 TEST_F(PostinstallRunnerActionTest, RunAsRootSkipOptionalPostinstallTest) {
+  ScopedLoopbackDeviceBinder loop(postinstall_image_, false, nullptr);
   InstallPlan::Partition part;
   part.name = "part";
   part.target_path = "/dev/null";
-  part.readonly_target_path = "/dev/null";
+  part.readonly_target_path = loop.dev();
   part.run_postinstall = true;
-  part.postinstall_path = kPostinstallDefaultScript;
+  part.postinstall_path = "non_existent_path";
   part.postinstall_optional = true;
   InstallPlan install_plan;
   install_plan.partitions = {part};
