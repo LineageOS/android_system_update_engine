@@ -37,8 +37,7 @@ const uint32_t kPartialUpdateMinorPayloadVersion = 7;
 const uint32_t kZucchiniMinorPayloadVersion = 8;
 
 const uint32_t kMinSupportedMinorPayloadVersion = kSourceMinorPayloadVersion;
-const uint32_t kMaxSupportedMinorPayloadVersion =
-    kPartialUpdateMinorPayloadVersion;
+const uint32_t kMaxSupportedMinorPayloadVersion = kZucchiniMinorPayloadVersion;
 
 const uint64_t kMaxPayloadHeaderSize = 24;
 
