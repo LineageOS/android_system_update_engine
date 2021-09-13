@@ -475,7 +475,6 @@ void FileDeltaProcessor::Run() {
 bool FileDeltaProcessor::MergeOperation(vector<AnnotatedOperation>* aops) {
   if (failed_)
     return false;
-  aops->reserve(aops->size() + file_aops_.size());
   std::move(file_aops_.begin(), file_aops_.end(), std::back_inserter(*aops));
   return true;
 }
