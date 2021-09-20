@@ -41,10 +41,13 @@ using testing::Return;
 using testing::Sequence;
 using utils::GetReadonlyZeroBlock;
 
+namespace {
+
 static constexpr auto& fake_part_name = "fake_part";
+static constexpr size_t FAKE_PART_SIZE = 4096 * 50;
 class VABCPartitionWriterTest : public ::testing::Test {
  public:
-  void SetUp() override {}
+  void SetUp() override { ftruncate(source_part_.fd, FAKE_PART_SIZE); }
 
  protected:
   void AddMergeOp(PartitionUpdate* partition,
@@ -68,34 +71,35 @@ class VABCPartitionWriterTest : public ::testing::Test {
   PartitionUpdate partition_update_;
   InstallPlan install_plan_;
   TemporaryFile source_part_;
-  InstallPlan::Partition install_part_{
-      .name = fake_part_name,
-      .source_path = source_part_.path,
-  };
+  InstallPlan::Partition install_part_{.name = fake_part_name,
+                                       .source_path = source_part_.path,
+                                       .source_size = FAKE_PART_SIZE};
 };
 
 TEST_F(VABCPartitionWriterTest, MergeSequenceWriteTest) {
   AddMergeOp(&partition_update_, {5, 1}, {10, 1}, CowMergeOperation::COW_COPY);
-  AddMergeOp(&partition_update_, {10, 1}, {15, 1}, CowMergeOperation::COW_XOR);
+  AddMergeOp(&partition_update_, {12, 2}, {13, 2}, CowMergeOperation::COW_XOR);
   AddMergeOp(&partition_update_, {15, 1}, {20, 1}, CowMergeOperation::COW_COPY);
   AddMergeOp(&partition_update_, {20, 1}, {25, 1}, CowMergeOperation::COW_COPY);
+  AddMergeOp(&partition_update_, {42, 5}, {40, 5}, CowMergeOperation::COW_XOR);
   VABCPartitionWriter writer_{
       partition_update_, install_part_, &dynamic_control_, kBlockSize};
   EXPECT_CALL(dynamic_control_, OpenCowWriter(fake_part_name, _, false))
-      .WillOnce(Invoke(
-          [](const std::string&, const std::optional<std::string>&, bool) {
-            auto cow_writer =
-                std::make_unique<android::snapshot::MockSnapshotWriter>(
-                    android::snapshot::CowOptions{});
-            auto expected_merge_sequence = {10, 15, 20, 25};
-            EXPECT_CALL(*cow_writer, Initialize()).WillOnce(Return(true));
-            EXPECT_CALL(*cow_writer, EmitSequenceData(_, _))
-                .With(Args<1, 0>(ElementsAreArray(expected_merge_sequence)))
-                .WillOnce(Return(true));
-            ON_CALL(*cow_writer, EmitCopy(_, _)).WillByDefault(Return(true));
-            ON_CALL(*cow_writer, EmitLabel(_)).WillByDefault(Return(true));
-            return cow_writer;
-          }));
+      .WillOnce(Invoke([](const std::string&,
+                          const std::optional<std::string>&,
+                          bool) {
+        auto cow_writer =
+            std::make_unique<android::snapshot::MockSnapshotWriter>(
+                android::snapshot::CowOptions{});
+        auto expected_merge_sequence = {10, 14, 13, 20, 25, 40, 41, 42, 43, 44};
+        EXPECT_CALL(*cow_writer, Initialize()).WillOnce(Return(true));
+        EXPECT_CALL(*cow_writer, EmitSequenceData(_, _))
+            .With(Args<1, 0>(ElementsAreArray(expected_merge_sequence)))
+            .WillOnce(Return(true));
+        ON_CALL(*cow_writer, EmitCopy(_, _)).WillByDefault(Return(true));
+        ON_CALL(*cow_writer, EmitLabel(_)).WillByDefault(Return(true));
+        return cow_writer;
+      }));
   ASSERT_TRUE(writer_.Init(&install_plan_, true, 0));
 }
 
@@ -197,5 +201,7 @@ TEST_F(VABCPartitionWriterTest, StreamXORBlockTest) {
   ASSERT_TRUE(writer_.PerformDiffOperation(
       *install_op, nullptr, patch_data.data(), patch_data.size()));
 }
+
+}  // namespace
 
 }  // namespace chromeos_update_engine
