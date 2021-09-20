@@ -97,7 +97,8 @@ bool VABCPartitionWriter::Init(const InstallPlan* install_plan,
                                size_t next_op_index) {
   xor_map_ = ComputeXorMap(partition_update_.merge_operations());
   TEST_AND_RETURN_FALSE(install_plan != nullptr);
-  if (source_may_exist) {
+  if (source_may_exist && install_part_.source_size > 0) {
+    TEST_AND_RETURN_FALSE(!install_part_.source_path.empty());
     TEST_AND_RETURN_FALSE(verified_source_fd_.Open());
   }
   std::optional<std::string> source_path;
@@ -155,15 +156,28 @@ bool VABCPartitionWriter::WriteMergeSequence(
   std::vector<uint32_t> blocks_merge_order;
   for (const auto& merge_op : merge_sequence) {
     const auto& dst_extent = merge_op.dst_extent();
+    const auto& src_extent = merge_op.src_extent();
     // In place copy are basically noops, they do not need to be "merged" at
     // all, don't include them in merge sequence.
     if (merge_op.type() == CowMergeOperation::COW_COPY &&
         merge_op.src_extent() == merge_op.dst_extent()) {
       continue;
     }
-    // libsnapshot prefers blocks in reverse order
-    for (int i = dst_extent.num_blocks() - 1; i >= 0; i--) {
-      blocks_merge_order.push_back(dst_extent.start_block() + i);
+    // libsnapshot prefers blocks in reverse order, so if this isn't a self
+    // overlapping OP, writing block in reverser order
+    // If this is a self-overlapping op and |dst_extent| comes after
+    // |src_extent|, we must write in reverse order for correctness.
+    // If this is self-overlapping op and |dst_extent| comes before
+    // |src_extent|, we must write in ascending order for correctness.
+    if (ExtentRanges::ExtentsOverlap(src_extent, dst_extent) &&
+        dst_extent.start_block() < src_extent.start_block()) {
+      for (size_t i = 0; i < dst_extent.num_blocks(); i++) {
+        blocks_merge_order.push_back(dst_extent.start_block() + i);
+      }
+    } else {
+      for (int i = dst_extent.num_blocks() - 1; i >= 0; i--) {
+        blocks_merge_order.push_back(dst_extent.start_block() + i);
+      }
     }
   }
   return cow_writer->AddSequenceData(blocks_merge_order.size(),
