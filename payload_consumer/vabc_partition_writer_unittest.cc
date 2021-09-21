@@ -50,10 +50,10 @@ class VABCPartitionWriterTest : public ::testing::Test {
   void SetUp() override { ftruncate(source_part_.fd, FAKE_PART_SIZE); }
 
  protected:
-  void AddMergeOp(PartitionUpdate* partition,
-                  std::array<size_t, 2> src_extent,
-                  std::array<size_t, 2> dst_extent,
-                  CowMergeOperation_Type type) {
+  CowMergeOperation* AddMergeOp(PartitionUpdate* partition,
+                                std::array<size_t, 2> src_extent,
+                                std::array<size_t, 2> dst_extent,
+                                CowMergeOperation_Type type) {
     auto merge_op = partition->add_merge_operations();
     auto src = merge_op->mutable_src_extent();
     src->set_start_block(src_extent[0]);
@@ -62,6 +62,7 @@ class VABCPartitionWriterTest : public ::testing::Test {
     dst->set_start_block(dst_extent[0]);
     dst->set_num_blocks(dst_extent[1]);
     merge_op->set_type(type);
+    return merge_op;
   }
 
   android::snapshot::CowOptions options_ = {
@@ -100,6 +101,29 @@ TEST_F(VABCPartitionWriterTest, MergeSequenceWriteTest) {
         ON_CALL(*cow_writer, EmitLabel(_)).WillByDefault(Return(true));
         return cow_writer;
       }));
+  ASSERT_TRUE(writer_.Init(&install_plan_, true, 0));
+}
+
+TEST_F(VABCPartitionWriterTest, MergeSequenceXorSameBlock) {
+  AddMergeOp(&partition_update_, {19, 4}, {19, 3}, CowMergeOperation::COW_XOR)
+      ->set_src_offset(1);
+  VABCPartitionWriter writer_{
+      partition_update_, install_part_, &dynamic_control_, kBlockSize};
+  EXPECT_CALL(dynamic_control_, OpenCowWriter(fake_part_name, _, false))
+      .WillOnce(Invoke(
+          [](const std::string&, const std::optional<std::string>&, bool) {
+            auto cow_writer =
+                std::make_unique<android::snapshot::MockSnapshotWriter>(
+                    android::snapshot::CowOptions{});
+            auto expected_merge_sequence = {19, 20, 21};
+            EXPECT_CALL(*cow_writer, Initialize()).WillOnce(Return(true));
+            EXPECT_CALL(*cow_writer, EmitSequenceData(_, _))
+                .With(Args<1, 0>(ElementsAreArray(expected_merge_sequence)))
+                .WillOnce(Return(true));
+            ON_CALL(*cow_writer, EmitCopy(_, _)).WillByDefault(Return(true));
+            ON_CALL(*cow_writer, EmitLabel(_)).WillByDefault(Return(true));
+            return cow_writer;
+          }));
   ASSERT_TRUE(writer_.Init(&install_plan_, true, 0));
 }
 

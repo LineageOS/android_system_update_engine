@@ -170,7 +170,7 @@ bool VABCPartitionWriter::WriteMergeSequence(
     // If this is self-overlapping op and |dst_extent| comes before
     // |src_extent|, we must write in ascending order for correctness.
     if (ExtentRanges::ExtentsOverlap(src_extent, dst_extent) &&
-        dst_extent.start_block() < src_extent.start_block()) {
+        dst_extent.start_block() <= src_extent.start_block()) {
       for (size_t i = 0; i < dst_extent.num_blocks(); i++) {
         blocks_merge_order.push_back(dst_extent.start_block() + i);
       }
