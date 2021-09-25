@@ -60,11 +60,14 @@ bool ProcessPartition(const chromeos_update_engine::PartitionUpdate& partition,
   android::snapshot::CowWriter cow_writer{
       {.block_size = static_cast<uint32_t>(block_size), .compression = "gz"}};
   TEST_AND_RETURN_FALSE(cow_writer.Initialize(output_fd));
-  TEST_AND_RETURN_FALSE(CowDryRun(target_img_fd,
+  TEST_AND_RETURN_FALSE(CowDryRun(nullptr,
+                                  target_img_fd,
                                   partition.operations(),
                                   partition.merge_operations(),
                                   block_size,
-                                  &cow_writer));
+                                  &cow_writer,
+                                  partition.new_partition_info().size(),
+                                  false));
   TEST_AND_RETURN_FALSE(cow_writer.Finalize());
   return true;
 }
