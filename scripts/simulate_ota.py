@@ -49,9 +49,13 @@ def is_sparse_image(filepath):
     return fp.read(4) == b'\x3A\xFF\x26\xED'
 
 
-def extract_img(zip_archive, img_name, output_path):
+def extract_img(zip_archive: zipfile.ZipFile, img_name, output_path):
   entry_name = "IMAGES/" + img_name + ".img"
-  extract_file(zip_archive, entry_name, output_path)
+  try:
+    extract_file(zip_archive, entry_name, output_path)
+  except (KeyError, FileNotFoundError) as e:
+    print("Faild to extract", img_name, "from IMAGES/ dir, trying RADIO/", e)
+    extract_file(zip_archive, "RADIO/" + img_name + ".img", output_path)
   if is_sparse_image(output_path):
     raw_img_path = output_path + ".raw"
     subprocess.check_output(["simg2img", output_path, raw_img_path])
@@ -99,7 +103,7 @@ def run_ota(source, target, payload_path, tempdir, output_dir):
   partition_names = [
       part.partition_name for part in payload.manifest.partitions
   ]
-  if (payload.manifest.partial_update):
+  if payload.manifest.partial_update:
     delta_generator_args.append("--is_partial_update")
   if payload.is_incremental:
     delta_generator_args.append("--old_partitions=" + ":".join(old_partitions))
