@@ -280,7 +280,9 @@ void VABCPartitionWriter::CheckpointUpdateProgress(size_t next_op_index) {
   // Add a hardcoded magic label to indicate end of all install ops. This label
   // is needed by filesystem verification, don't remove.
   TEST_AND_RETURN_FALSE(cow_writer_ != nullptr);
-  return cow_writer_->AddLabel(kEndOfInstallLabel);
+  TEST_AND_RETURN_FALSE(cow_writer_->AddLabel(kEndOfInstallLabel));
+  TEST_AND_RETURN_FALSE(cow_writer_->Finalize());
+  return cow_writer_->VerifyMergeOps();
 }
 
 VABCPartitionWriter::~VABCPartitionWriter() {
