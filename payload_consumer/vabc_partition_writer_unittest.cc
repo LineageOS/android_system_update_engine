@@ -144,9 +144,6 @@ TEST_F(VABCPartitionWriterTest, EmitBlockTest) {
             ON_CALL(*cow_writer, EmitCopy(_, _)).WillByDefault(Return(true));
             ON_CALL(*cow_writer, EmitLabel(_)).WillByDefault(Return(true));
             ON_CALL(*cow_writer, Initialize()).WillByDefault(Return(true));
-            EXPECT_CALL(*cow_writer, EmitSequenceData(_, _))
-                .Times(1)
-                .WillOnce(Return(true));
             EXPECT_CALL(*cow_writer, Initialize()).InSequence(s);
             EXPECT_CALL(*cow_writer, EmitCopy(10, 5)).InSequence(s);
             EXPECT_CALL(*cow_writer, EmitCopy(15, 10)).InSequence(s);
