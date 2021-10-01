@@ -592,28 +592,29 @@ bool DeltaReadPartition(vector<AnnotatedOperation>* aops,
     if (new_file_extents.empty())
       continue;
 
-    // We can't visit each dst image inode more than once, as that would
-    // duplicate work. Here, we avoid visiting each source image inode
-    // more than once. Technically, we could have multiple operations
-    // that read the same blocks from the source image for diffing, but
-    // we choose not to avoid complexity. Eventually we will move away
-    // from using a graph/cycle detection/etc to generate diffs, and at that
-    // time, it will be easy (non-complex) to have many operations read
-    // from the same source blocks. At that time, this code can die. -adlr
     FilesystemInterface::File old_file =
         GetOldFile(old_files_map, new_file.name);
-    auto old_file_extents =
-        FilterExtentRanges(old_file.extents, old_zero_blocks);
-    old_visited_blocks.AddExtents(old_file_extents);
+    old_visited_blocks.AddExtents(old_file.extents);
 
-    // TODO(b/177104308) Filtering |new_file_extents| might cause inconsistency
-    // with new_file.deflates. But we filter blocks across different InstallOps
-    // already. Investigate if computing deflates after these filtering produces
-    // better results.
+    // TODO(b/177104308) Filtering |new_file_extents| might confuse puffdiff, as
+    // we might filterout extents with deflate streams. PUFFDIFF is written with
+    // that in mind, so it will try to adapt to the filtered extents.
+    // Correctness is intact, but might yield larger patch sizes. From what we
+    // experimented, this has little impact on OTA size. Meanwhile, XOR ops
+    // depend on this. So filter out duplicate blocks from new file.
+    // TODO(b/194237829) |old_file.extents| is used instead of the de-duped
+    // |old_file_extents|. This is because zucchini diffing algorithm works
+    // better when given the full source file.
+    // Current logic:
+    // 1. src extent is completely unfiltered. It may contain
+    // duplicate blocks across files, within files, it may contain zero blocks,
+    // etc.
+    // 2. dst extent is completely filtered, no duplicate blocks or zero blocks
+    // whatsoever.
     file_delta_processors.emplace_back(old_part.path,
                                        new_part.path,
                                        config,
-                                       std::move(old_file_extents),
+                                       std::move(old_file.extents),
                                        RemoveDuplicateBlocks(new_file_extents),
                                        old_file.deflates,
                                        new_file.deflates,
