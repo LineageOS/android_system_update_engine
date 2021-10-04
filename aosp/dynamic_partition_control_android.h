@@ -114,6 +114,8 @@ class DynamicPartitionControlAndroid : public DynamicPartitionControlInterface {
 
   bool UpdateUsesSnapshotCompression() override;
 
+  std::optional<base::FilePath> GetSuperDevice();
+
  protected:
   // These functions are exposed for testing.
 
@@ -233,8 +235,6 @@ class DynamicPartitionControlAndroid : public DynamicPartitionControlInterface {
  private:
   friend class DynamicPartitionControlAndroidTest;
   friend class SnapshotPartitionTestP;
-
-  std::optional<base::FilePath> GetSuperDevice();
 
   bool MapPartitionInternal(const std::string& super_device,
                             const std::string& target_partition_name,
