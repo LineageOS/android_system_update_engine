@@ -534,4 +534,22 @@ std::string HexEncode(const brillo::Blob& blob) noexcept;
     }                                          \
   } while (0)
 
+#define TEST_OP(_x, _y, op)                                                \
+  do {                                                                     \
+    const auto& x = _x;                                                    \
+    const auto& y = _y;                                                    \
+    if (!(x op y)) {                                                       \
+      LOG(ERROR) << #_x " " #op " " #_y << " failed: " << x << " " #op " " \
+                 << y;                                                     \
+      return {};                                                           \
+    }                                                                      \
+  } while (0)
+
+#define TEST_EQ(_x, _y) TEST_OP(_x, _y, ==)
+#define TEST_NE(_x, _y) TEST_OP(_x, _y, !=)
+#define TEST_LE(_x, _y) TEST_OP(_x, _y, <=)
+#define TEST_GE(_x, _y) TEST_OP(_x, _y, >=)
+#define TEST_LT(_x, _y) TEST_OP(_x, _y, <)
+#define TEST_GT(_x, _y) TEST_OP(_x, _y, >)
+
 #endif  // UPDATE_ENGINE_COMMON_UTILS_H_
