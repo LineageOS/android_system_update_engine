@@ -234,6 +234,7 @@ bool InstallOperationExecutor::ExecuteDiffOperation(
     const void* data,
     size_t count) {
   TEST_AND_RETURN_FALSE(source_fd != nullptr);
+  TEST_AND_RETURN_FALSE(writer->Init(operation.dst_extents(), block_size_));
   switch (operation.type()) {
     case InstallOperation::SOURCE_BSDIFF:
     case InstallOperation::BSDIFF:
@@ -266,7 +267,6 @@ bool InstallOperationExecutor::ExecuteSourceBsdiffOperation(
       std::move(reader),
       utils::BlocksInExtents(operation.src_extents()) * block_size_);
 
-  TEST_AND_RETURN_FALSE(writer->Init(operation.dst_extents(), block_size_));
   auto dst_file = std::make_unique<BsdiffExtentFile>(
       std::move(writer),
       utils::BlocksInExtents(operation.dst_extents()) * block_size_);
@@ -291,7 +291,6 @@ bool InstallOperationExecutor::ExecutePuffDiffOperation(
       std::move(reader),
       utils::BlocksInExtents(operation.src_extents()) * block_size_));
 
-  TEST_AND_RETURN_FALSE(writer->Init(operation.dst_extents(), block_size_));
   puffin::UniqueStreamPtr dst_stream(new PuffinExtentStream(
       std::move(writer),
       utils::BlocksInExtents(operation.dst_extents()) * block_size_));
