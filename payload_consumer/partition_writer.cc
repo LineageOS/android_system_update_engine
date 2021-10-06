@@ -195,7 +195,6 @@ bool PartitionWriter::PerformReplaceOperation(const InstallOperation& operation,
                                               size_t count) {
   // Setup the ExtentWriter stack based on the operation type.
   std::unique_ptr<ExtentWriter> writer = CreateBaseExtentWriter();
-  writer->Init(operation.dst_extents(), block_size_);
   return install_op_executor_.ExecuteReplaceOperation(
       operation, std::move(writer), data, count);
 }
@@ -222,7 +221,6 @@ bool PartitionWriter::PerformZeroOrDiscardOperation(
     PLOG(WARNING) << "BlkIoctl failed. Falling back to write 0s for remainder "
                      "of this operation.";
     auto writer = CreateBaseExtentWriter();
-    writer->Init(operation.dst_extents(), block_size_);
     return install_op_executor_.ExecuteZeroOrDiscardOperation(
         operation, std::move(writer));
   }
@@ -253,7 +251,6 @@ bool PartitionWriter::PerformSourceCopyOperation(
   }
 
   auto writer = CreateBaseExtentWriter();
-  writer->Init(optimized.dst_extents(), block_size_);
   return install_op_executor_.ExecuteSourceCopyOperation(
       optimized, std::move(writer), source_fd);
 }
@@ -266,7 +263,6 @@ bool PartitionWriter::PerformDiffOperation(const InstallOperation& operation,
   TEST_AND_RETURN_FALSE(source_fd != nullptr);
 
   auto writer = CreateBaseExtentWriter();
-  writer->Init(operation.dst_extents(), block_size_);
   return install_op_executor_.ExecuteDiffOperation(
       operation, std::move(writer), source_fd, data, count);
 }
