@@ -247,8 +247,8 @@ bool DeltaPerformer::OpenCurrentPartition() {
       IsDynamicPartition(install_part.name, install_plan_->target_slot));
   // Open source fds if we have a delta payload, or for partitions in the
   // partial update.
-  bool source_may_exist = manifest_.partial_update() ||
-                          payload_->type == InstallPayloadType::kDelta;
+  const bool source_may_exist = manifest_.partial_update() ||
+                                payload_->type == InstallPayloadType::kDelta;
   const size_t partition_operation_num = GetPartitionOperationNum();
 
   TEST_AND_RETURN_FALSE(partition_writer_->Init(
@@ -1146,9 +1146,12 @@ ErrorCode DeltaPerformer::VerifyPayload(
   // Verifies the payload hash.
   TEST_AND_RETURN_VAL(ErrorCode::kDownloadPayloadVerificationError,
                       !payload_hash_calculator_.raw_hash().empty());
-  TEST_AND_RETURN_VAL(
-      ErrorCode::kPayloadHashMismatchError,
-      payload_hash_calculator_.raw_hash() == update_check_response_hash);
+  if (payload_hash_calculator_.raw_hash() != update_check_response_hash) {
+    LOG(ERROR) << "Actual hash: "
+               << HexEncode(payload_hash_calculator_.raw_hash())
+               << ", expected hash: " << HexEncode(update_check_response_hash);
+    return ErrorCode::kPayloadHashMismatchError;
+  }
 
   // NOLINTNEXTLINE(whitespace/braces)
   auto [payload_verifier, perform_verification] = CreatePayloadVerifier();
