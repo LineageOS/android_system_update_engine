@@ -346,6 +346,17 @@ bool BestDiffGenerator::TryPuffdiffAndUpdateOperation(AnnotatedOperation* aop,
 
 bool BestDiffGenerator::TryZucchiniAndUpdateOperation(AnnotatedOperation* aop,
                                                       brillo::Blob* data_blob) {
+  // zip files are ignored for now. We expect puffin to perform better on those.
+  // Investigate whether puffin over zucchini yields better results on those.
+  if (!deflate_utils::IsFileExtensions(
+          aop->name,
+          {".ko",
+           ".so",
+           ".art",
+           ".odex",
+           ".vdex" /*, ".capex",".jar", ".apk", ".apex"*/})) {
+    return true;
+  }
   zucchini::ConstBufferView src_bytes(old_data_.data(), old_data_.size());
   zucchini::ConstBufferView dst_bytes(new_data_.data(), new_data_.size());
 
