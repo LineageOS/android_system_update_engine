@@ -362,6 +362,8 @@ TEST_F(DeltaDiffUtilsTest, GenerateBestDiffOperation_Zucchini) {
 
   brillo::Blob data = dst_data_blob;  // Fake the full operation
   AnnotatedOperation aop;
+  // Zucchini is only enabled on files with certain extensions
+  aop.name = "data.so";
 
   diff_utils::BestDiffGenerator best_diff_generator(
       src_data_blob,

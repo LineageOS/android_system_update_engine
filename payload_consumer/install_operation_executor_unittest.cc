@@ -240,6 +240,8 @@ TEST_F(InstallOperationExecutorTest, ZucchiniOpTest) {
       source_data_, target_data_, src_extents, dst_extents, {}, {}, config);
   std::vector<uint8_t> patch_data = target_data_;  // Fake the full operation
   AnnotatedOperation aop;
+  // Zucchini is enabled only on files with certain extensions
+  aop.name = "test.so";
   ASSERT_TRUE(best_diff_generator.GenerateBestDiffOperation(
       {{InstallOperation::ZUCCHINI, 1024 * BLOCK_SIZE}}, &aop, &patch_data));
   ASSERT_EQ(InstallOperation::ZUCCHINI, aop.op.type());
