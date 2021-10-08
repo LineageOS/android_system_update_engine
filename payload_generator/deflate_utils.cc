@@ -113,14 +113,15 @@ bool IsBitExtentInExtent(const Extent& extent, const BitExtent& bit_extent) {
 
 // Returns whether the given file |name| has an extension listed in
 // |extensions|.
+
+}  // namespace
+
 bool IsFileExtensions(const string& name,
                       const std::initializer_list<string>& extensions) {
   return any_of(extensions.begin(), extensions.end(), [&name](const auto& ext) {
     return base::EndsWith(name, ext, base::CompareCase::INSENSITIVE_ASCII);
   });
 }
-
-}  // namespace
 
 ByteExtent ExpandToByteExtent(const BitExtent& extent) {
   uint64_t offset = extent.offset / 8;
