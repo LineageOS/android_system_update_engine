@@ -33,6 +33,7 @@
 #include <gtest/gtest.h>
 
 #include "update_engine/common/action.h"
+#include "update_engine/common/testing_constants.h"
 #include "update_engine/common/utils.h"
 #include "update_engine/update_metadata.pb.h"
 
