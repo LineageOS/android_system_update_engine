@@ -53,7 +53,6 @@ namespace chromeos_update_engine {
 
 // bytes
 const size_t kRootFSPartitionSize = static_cast<size_t>(2) * 1024 * 1024 * 1024;
-const size_t kBlockSize = 4096;  // bytes
 
 class PartitionProcessor : public base::DelegateSimpleThread::Delegate {
   bool IsDynamicPartition(const std::string& partition_name) {
