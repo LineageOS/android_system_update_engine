@@ -47,6 +47,7 @@
 #include "update_engine/common/hash_calculator.h"
 #include "update_engine/common/mock_download_action.h"
 #include "update_engine/common/test_utils.h"
+#include "update_engine/common/testing_constants.h"
 #include "update_engine/common/utils.h"
 #include "update_engine/payload_consumer/fake_file_descriptor.h"
 #include "update_engine/payload_consumer/mock_partition_writer.h"
@@ -67,9 +68,6 @@ using test_utils::kRandomString;
 using testing::_;
 using testing::Return;
 using ::testing::Sequence;
-
-extern const char* kUnittestPrivateKeyPath;
-extern const char* kUnittestPublicKeyPath;
 
 namespace {
 
