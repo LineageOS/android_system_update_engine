@@ -167,7 +167,6 @@ class DeltaPerformerTest : public ::testing::Test {
     install_plan_.target_slot = 1;
     EXPECT_CALL(mock_delegate_, ShouldCancel(_))
         .WillRepeatedly(testing::Return(false));
-    performer_.set_update_certificates_path("");
     // Set the public key corresponding to the unittest private key.
     string public_key_path = GetBuildArtifactsPath(kUnittestPublicKeyPath);
     EXPECT_TRUE(utils::FileExists(public_key_path.c_str()));
@@ -443,7 +442,8 @@ class DeltaPerformerTest : public ::testing::Test {
                             &mock_delegate_,
                             &install_plan_,
                             &payload_,
-                            false /* interactive*/};
+                            false /* interactive */,
+                            "" /* Update certs path */};
 };
 
 TEST_F(DeltaPerformerTest, FullPayloadWriteTest) {

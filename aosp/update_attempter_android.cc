@@ -775,7 +775,8 @@ void UpdateAttempterAndroid::BuildUpdateActions(HttpFetcher* fetcher) {
                                        boot_control_,
                                        hardware_,
                                        fetcher,  // passes ownership
-                                       true /* interactive */);
+                                       true /* interactive */,
+                                       update_certificates_path_);
   download_action->set_delegate(this);
   download_action->set_base_offset(base_offset_);
   auto filesystem_verifier_action = std::make_unique<FilesystemVerifierAction>(
