@@ -799,13 +799,13 @@ static void ApplyDeltaFile(bool full_kernel,
                                   &state->mock_delegate_,
                                   install_plan,
                                   &install_plan->payloads[0],
-                                  false /* interactive */);
+                                  false /* interactive */,
+                                  "");
   string public_key_path = signature_test == kSignatureGeneratedShellECKey
                                ? GetBuildArtifactsPath(kUnittestPublicKeyECPath)
                                : GetBuildArtifactsPath(kUnittestPublicKeyPath);
   ASSERT_TRUE(utils::FileExists(public_key_path.c_str()));
   (*performer)->set_public_key_path(public_key_path);
-  (*performer)->set_update_certificates_path("");
 
   ASSERT_EQ(
       static_cast<off_t>(state->image_size),
