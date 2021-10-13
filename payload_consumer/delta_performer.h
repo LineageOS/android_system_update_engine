@@ -65,19 +65,22 @@ class DeltaPerformer : public FileWriter {
   static const unsigned kProgressOperationsWeight;
   static const uint64_t kCheckpointFrequencySeconds;
 
-  DeltaPerformer(PrefsInterface* prefs,
-                 BootControlInterface* boot_control,
-                 HardwareInterface* hardware,
-                 DownloadActionDelegate* download_delegate,
-                 InstallPlan* install_plan,
-                 InstallPlan::Payload* payload,
-                 bool interactive)
+  DeltaPerformer(
+      PrefsInterface* prefs,
+      BootControlInterface* boot_control,
+      HardwareInterface* hardware,
+      DownloadActionDelegate* download_delegate,
+      InstallPlan* install_plan,
+      InstallPlan::Payload* payload,
+      bool interactive,
+      std::string update_certificates_path = constants::kUpdateCertificatesPath)
       : prefs_(prefs),
         boot_control_(boot_control),
         hardware_(hardware),
         download_delegate_(download_delegate),
         install_plan_(install_plan),
         payload_(payload),
+        update_certificates_path_(std::move(update_certificates_path)),
         interactive_(interactive) {
     CHECK(install_plan_);
   }
@@ -160,11 +163,6 @@ class DeltaPerformer : public FileWriter {
 
   void set_public_key_path(const std::string& public_key_path) {
     public_key_path_ = public_key_path;
-  }
-
-  void set_update_certificates_path(
-      const std::string& update_certificates_path) {
-    update_certificates_path_ = update_certificates_path;
   }
 
   // Return true if header parsing is finished and no errors occurred.
@@ -396,7 +394,7 @@ class DeltaPerformer : public FileWriter {
   std::string public_key_path_{constants::kUpdatePayloadPublicKeyPath};
 
   // The path to the zip file with X509 certificates.
-  std::string update_certificates_path_{constants::kUpdateCertificatesPath};
+  const std::string update_certificates_path_;
 
   // The number of bytes received so far, used for progress tracking.
   size_t total_bytes_received_{0};
