@@ -133,6 +133,11 @@ class UpdateAttempterAndroid
   // 3. When user called |ResetStatus()|
   bool ClearUpdateCompletedMarker();
 
+  void set_update_certificates_path(
+      const std::string& update_certificates_path) {
+    update_certificates_path_ = update_certificates_path;
+  }
+
  private:
   friend class UpdateAttempterAndroidTest;
 
@@ -273,6 +278,9 @@ class UpdateAttempterAndroid
   // Result of previous CleanupPreviousUpdateAction. Nullopt If
   // CleanupPreviousUpdateAction has not been executed.
   std::optional<ErrorCode> cleanup_previous_update_code_{std::nullopt};
+
+  // The path to the zip file with X509 certificates.
+  std::string update_certificates_path_{constants::kUpdateCertificatesPath};
 
   DISALLOW_COPY_AND_ASSIGN(UpdateAttempterAndroid);
 };
