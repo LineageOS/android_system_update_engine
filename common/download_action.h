@@ -77,7 +77,9 @@ class DownloadAction : public InstallPlanAction, public HttpFetcherDelegate {
                  BootControlInterface* boot_control,
                  HardwareInterface* hardware,
                  HttpFetcher* http_fetcher,
-                 bool interactive);
+                 bool interactive,
+                 std::string update_certs_path = constants::kUpdateCertificatesPath
+                 );
   ~DownloadAction() override;
 
   // InstallPlanAction overrides.
@@ -152,6 +154,9 @@ class DownloadAction : public InstallPlanAction, public HttpFetcherDelegate {
   // Offset of the payload in the download URL, used by UpdateAttempterAndroid.
   int64_t base_offset_{0};
 
+  // The path to the zip file with X509 certificates.
+  const std::string update_certificates_path_;
+
   DISALLOW_COPY_AND_ASSIGN(DownloadAction);
 };
 
@@ -161,4 +166,4 @@ static_assert(8 == sizeof(off_t), "off_t not 64 bit");
 
 }  // namespace chromeos_update_engine
 
-#endif  // UPDATE_ENGINE_COMMON_DOWNLOAD_ACTION_H_
+#endif // UPDATE_ENGINE_COMMON_DOWNLOAD_ACTION_H_
