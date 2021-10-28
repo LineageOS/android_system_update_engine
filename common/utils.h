@@ -361,6 +361,8 @@ ErrorCode IsTimestampNewer(const std::string& old_version,
 
 std::unique_ptr<android::base::MappedFile> GetReadonlyZeroBlock(size_t size);
 
+std::string_view GetReadonlyZeroString(size_t size);
+
 }  // namespace utils
 
 // Utility class to close a file descriptor
@@ -481,6 +483,7 @@ struct Range {
 };
 
 std::string HexEncode(const brillo::Blob& blob) noexcept;
+std::string HexEncode(const std::string_view blob) noexcept;
 
 }  // namespace chromeos_update_engine
 
