@@ -850,6 +850,7 @@ cc_test {
         "aosp/apex_handler_android_unittest.cc",
         "aosp/cleanup_previous_update_action_unittest.cc",
         "aosp/dynamic_partition_control_android_unittest.cc",
+        "aosp/update_attempter_android_integration_test.cc",
         "aosp/update_attempter_android_unittest.cc",
         "certificate_checker_unittest.cc",
         "common/http_fetcher_unittest.cc",

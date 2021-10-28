@@ -265,7 +265,7 @@ size_t DeltaPerformer::GetPartitionOperationNum() {
 namespace {
 
 void LogPartitionInfoHash(const PartitionInfo& info, const string& tag) {
-  string sha256 = brillo::data_encoding::Base64Encode(info.hash());
+  string sha256 = HexEncode(info.hash());
   LOG(INFO) << "PartitionInfo " << tag << " sha256: " << sha256
             << " size: " << info.size();
 }
@@ -892,6 +892,7 @@ DeltaPerformer::CreatePayloadVerifier() {
   if (public_key.empty()) {
     return {nullptr, false};
   }
+  LOG(INFO) << "Verifing using public key: " << public_key;
   return {PayloadVerifier::CreateInstance(public_key), true};
 }
 

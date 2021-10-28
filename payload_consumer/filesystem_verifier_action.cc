@@ -434,7 +434,7 @@ void FilesystemVerifierAction::FinishPartitionHashing() {
   InstallPlan::Partition& partition =
       install_plan_.partitions[partition_index_];
   LOG(INFO) << "Hash of " << partition.name << ": "
-            << Base64Encode(hasher_->raw_hash());
+            << HexEncode(hasher_->raw_hash());
 
   switch (verifier_step_) {
     case VerifierStep::kVerifyTargetHash:
