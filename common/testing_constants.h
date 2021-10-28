@@ -17,23 +17,22 @@
 #ifndef UPDATE_ENGINE_COMMON_TESTING_CONSTANTS_H_
 #define UPDATE_ENGINE_COMMON_TESTING_CONSTANTS_H_
 
-[[maybe_unused]]
-static constexpr auto&& kUnittestPrivateKeyPath = "unittest_key.pem";
-[[maybe_unused]]
-static constexpr auto&& kUnittestPublicKeyPath = "unittest_key.pub.pem";
-[[maybe_unused]]
-static constexpr auto&& kUnittestPrivateKey2Path = "unittest_key2.pem";
-[[maybe_unused]]
-static constexpr auto&& kUnittestPublicKey2Path = "unittest_key2.pub.pem";
-[[maybe_unused]]
-static constexpr auto&& kUnittestPrivateKeyRSA4096Path =
+[[maybe_unused]] static constexpr auto&& kUnittestPrivateKeyPath =
+    "unittest_key.pem";
+[[maybe_unused]] static constexpr auto&& kUnittestOTACertsPath = "otacerts.zip";
+[[maybe_unused]] static constexpr auto&& kUnittestPublicKeyPath =
+    "unittest_key.pub.pem";
+[[maybe_unused]] static constexpr auto&& kUnittestPrivateKey2Path =
+    "unittest_key2.pem";
+[[maybe_unused]] static constexpr auto&& kUnittestPublicKey2Path =
+    "unittest_key2.pub.pem";
+[[maybe_unused]] static constexpr auto&& kUnittestPrivateKeyRSA4096Path =
     "unittest_key_RSA4096.pem";
-[[maybe_unused]]
-static constexpr auto&& kUnittestPublicKeyRSA4096Path =
+[[maybe_unused]] static constexpr auto&& kUnittestPublicKeyRSA4096Path =
     "unittest_key_RSA4096.pub.pem";
-[[maybe_unused]]
-static constexpr auto&& kUnittestPrivateKeyECPath = "unittest_key_EC.pem";
-[[maybe_unused]]
-static constexpr auto&& kUnittestPublicKeyECPath = "unittest_key_EC.pub.pem";
+[[maybe_unused]] static constexpr auto&& kUnittestPrivateKeyECPath =
+    "unittest_key_EC.pem";
+[[maybe_unused]] static constexpr auto&& kUnittestPublicKeyECPath =
+    "unittest_key_EC.pub.pem";
 
 #endif  // UPDATE_ENGINE_COMMON_TESTING_CONSTANTS_H_
