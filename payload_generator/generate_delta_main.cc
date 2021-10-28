@@ -430,6 +430,10 @@ int Main(int argc, char** argv) {
               "Whether to use Virtual AB Compression XOR feature");
   DEFINE_string(
       apex_info_file, "", "Path to META/apex_info.pb found in target build");
+  DEFINE_string(compressor_types,
+                "bz2:brotli",
+                "Colon ':' separated list of compressors. Allowed valures are "
+                "bz2 and brotli.");
 
   brillo::FlagHelper::Init(
       argc,
@@ -547,6 +551,7 @@ int Main(int argc, char** argv) {
   }
 
   payload_config.enable_vabc_xor = FLAGS_enable_vabc_xor;
+  payload_config.ParseCompressorTypes(FLAGS_compressor_types);
 
   if (!FLAGS_new_partitions.empty()) {
     LOG_IF(FATAL, !FLAGS_new_image.empty() || !FLAGS_new_kernel.empty())

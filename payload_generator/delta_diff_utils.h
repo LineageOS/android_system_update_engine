@@ -192,6 +192,7 @@ class BestDiffGenerator {
       brillo::Blob* data_blob);
 
  private:
+  std::vector<bsdiff::CompressorType> GetUsableCompressorTypes() const;
   bool TryBsdiffAndUpdateOperation(InstallOperation_Type operation_type,
                                    AnnotatedOperation* aop,
                                    brillo::Blob* data_blob);

@@ -26,6 +26,7 @@
 #include <brillo/key_value_store.h>
 #include <brillo/secure_blob.h>
 
+#include "bsdiff/constants.h"
 #include "update_engine/payload_consumer/payload_constants.h"
 #include "update_engine/payload_generator/filesystem_interface.h"
 #include "update_engine/update_metadata.pb.h"
@@ -184,6 +185,8 @@ struct PayloadGenerationConfig {
   // Returns whether the PayloadGenerationConfig is valid.
   bool Validate() const;
 
+  void ParseCompressorTypes(const std::string& compressor_types);
+
   // Image information about the new image that's the target of this payload.
   ImageConfig target;
 
@@ -236,6 +239,9 @@ struct PayloadGenerationConfig {
 
   // Whether to enable VABC xor op
   bool enable_vabc_xor = false;
+
+  std::vector<bsdiff::CompressorType> compressors{
+      bsdiff::CompressorType::kBZ2, bsdiff::CompressorType::kBrotli};
 };
 
 }  // namespace chromeos_update_engine
