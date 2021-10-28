@@ -1045,9 +1045,23 @@ std::unique_ptr<android::base::MappedFile> GetReadonlyZeroBlock(size_t size) {
   return android::base::MappedFile::FromFd(fd, 0, size, PROT_READ);
 }
 
+std::string_view GetReadonlyZeroString(size_t size) {
+  // Reserve 512MB of Virtual Address Space. No actual memory will be used.
+  static auto zero_block = GetReadonlyZeroBlock(1024 * 1024 * 512);
+  if (size > zero_block->size()) {
+    auto larger_block = GetReadonlyZeroBlock(size);
+    zero_block = std::move(larger_block);
+  }
+  return {zero_block->data(), size};
+}
+
 }  // namespace utils
 
 std::string HexEncode(const brillo::Blob& blob) noexcept {
+  return base::HexEncode(blob.data(), blob.size());
+}
+
+std::string HexEncode(const std::string_view blob) noexcept {
   return base::HexEncode(blob.data(), blob.size());
 }
 
