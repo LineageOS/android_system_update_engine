@@ -354,7 +354,10 @@ bool BestDiffGenerator::TryZucchiniAndUpdateOperation(AnnotatedOperation* aop,
            ".so",
            ".art",
            ".odex",
-           ".vdex" /*, ".capex",".jar", ".apk", ".apex"*/})) {
+           ".vdex",
+           "<kernel>",
+           "<modem-partition>",
+           /*, ".capex",".jar", ".apk", ".apex"*/})) {
     return true;
   }
   zucchini::ConstBufferView src_bytes(old_data_.data(), old_data_.size());
