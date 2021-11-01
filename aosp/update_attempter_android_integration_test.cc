@@ -14,15 +14,18 @@
 // limitations under the License.
 //
 
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <utility>
 
 #include <sys/fcntl.h>
+#include <sys/sendfile.h>
 #include <unistd.h>
 
 #include <brillo/data_encoding.h>
 #include <brillo/message_loops/fake_message_loop.h>
+#include <bsdiff/bsdiff.h>
 #include <gtest/gtest.h>
 #include <liblp/builder.h>
 #include <fs_mgr.h>
@@ -39,6 +42,7 @@
 #include "update_engine/common/fake_hardware.h"
 #include "update_engine/common/test_utils.h"
 #include "update_engine/common/utils.h"
+#include "update_engine/payload_consumer/file_descriptor.h"
 #include "update_engine/payload_consumer/payload_constants.h"
 #include "update_engine/payload_consumer/install_plan.h"
 #include "update_engine/payload_generator/delta_diff_generator.h"
@@ -72,7 +76,26 @@ class UpdateAttempterAndroidIntegrationTest : public ::testing::Test,
     builder_->RemovePartition("fake_b");
     builder_->RemoveGroupAndPartitions("fake_group");
   }
+
+  // Fill partition |path| with arbitrary data.
+  void FillPartition(const std::string& path, const bool is_source) {
+    std::array<uint8_t, kBlockSize> data;
+    EintrSafeFileDescriptor fd;
+    fd.Open(path.c_str(), O_RDWR);
+    for (size_t i = 0; i < kFakePartitionSize / kBlockSize; i++) {
+      if (is_source) {
+        std::fill(data.begin(), data.end(), i);
+      } else {
+        std::fill(
+            data.begin(), data.end(), kFakePartitionSize / kBlockSize - i - 1);
+      }
+      fd.Write(data.data(), kBlockSize);
+    }
+  }
+
   void SetUp() override {
+    FillPartition(old_part_.path(), true);
+    FillPartition(new_part_.path(), false);
     ASSERT_TRUE(boot_control_.Init());
     if (!DynamicPartitionEnabled()) {
       return;
@@ -99,6 +122,7 @@ class UpdateAttempterAndroidIntegrationTest : public ::testing::Test,
     manifest_.mutable_dynamic_partition_metadata()->set_cow_version(
         android::snapshot::kCowVersionMajor);
   }
+
   void TearDown() override {
     if (!builder_ || !DynamicPartitionEnabled()) {
       return;
@@ -114,10 +138,23 @@ class UpdateAttempterAndroidIntegrationTest : public ::testing::Test,
 
   void CreateFakePartition() {
     // Create a fake partition for testing purposes
-    auto partition_a = builder_->AddPartition("fake_a", "fake_group", 0);
+    auto partition_a = builder_->AddPartition(
+        boot_control_.GetCurrentSlot() == 0 ? "fake_a" : "fake_b",
+        "fake_group",
+        0);
     ASSERT_NE(partition_a, nullptr);
     ASSERT_TRUE(builder_->ResizePartition(partition_a, kFakePartitionSize));
     ExportPartitionTable();
+    std::string source_part;
+    ASSERT_TRUE(
+        dynamic_control_->GetPartitionDevice("fake",
+                                             boot_control_.GetCurrentSlot(),
+                                             boot_control_.GetCurrentSlot(),
+                                             &source_part));
+    int out_fd = open(source_part.c_str(), O_RDWR);
+    ScopedFdCloser closer{&out_fd};
+    ASSERT_GE(out_fd, 0) << utils::ErrnoNumberAsString(errno);
+    ASSERT_TRUE(utils::SendFile(out_fd, old_part_.fd(), kFakePartitionSize));
   }
 
   void SendStatusUpdate(
@@ -166,13 +203,69 @@ class UpdateAttempterAndroidIntegrationTest : public ::testing::Test,
           total_blob_size, signature_blob_length, manifest);
     }
   }
+
+  // Generate blob data according to ops specified in the manifest.
+  // Also update |new_part_|'s content to match expectation of ops.
+  void HydratePayload(DeltaArchiveManifest* manifest) {
+    for (auto& partition : *manifest->mutable_partitions()) {
+      for (auto& op : *partition.mutable_operations()) {
+        if (op.type() == InstallOperation::REPLACE) {
+          ASSERT_GE(lseek64(blob_file_.fd(), op.data_offset(), SEEK_SET), 0);
+          ASSERT_TRUE(utils::SendFile(
+              new_part_.fd(), blob_file_.fd(), op.data_length()));
+        } else if (op.type() == InstallOperation::BROTLI_BSDIFF) {
+          brillo::Blob old_data;
+          ASSERT_TRUE(utils::ReadExtents(
+              old_part_.path(), op.src_extents(), &old_data, kBlockSize))
+              << "Failed to read source data: "
+              << utils::ErrnoNumberAsString(errno);
+          brillo::Blob new_data;
+          ASSERT_TRUE(utils::ReadExtents(
+              new_part_.path(), op.dst_extents(), &new_data, kBlockSize))
+              << "Failed to read target data: "
+              << utils::ErrnoNumberAsString(errno);
+          ScopedTempFile patch_file{"bspatch.XXXXXX", true};
+          ASSERT_EQ(bsdiff::bsdiff(old_data.data(),
+                                   old_data.size(),
+                                   new_data.data(),
+                                   new_data.size(),
+                                   patch_file.path().c_str(),
+                                   nullptr),
+                    0);
+          op.set_data_length(utils::FileSize(patch_file.fd()));
+          const auto offset = lseek64(blob_file_.fd(), 0, SEEK_CUR);
+          ASSERT_GE(offset, 0);
+          op.set_data_offset(offset);
+          brillo::Blob src_data_hash;
+          HashCalculator::RawHashOfData(old_data, &src_data_hash);
+          op.set_src_sha256_hash(src_data_hash.data(), src_data_hash.size());
+          utils::SendFile(blob_file_.fd(), patch_file.fd(), op.data_length());
+
+        } else if (op.type() == InstallOperation::ZERO) {
+          auto zero = utils::GetReadonlyZeroString(
+              utils::BlocksInExtents(op.dst_extents()) * kBlockSize);
+          for (const auto& ext : op.dst_extents()) {
+            utils::PWriteAll(new_part_.fd(),
+                             zero.data(),
+                             ext.num_blocks() * kBlockSize,
+                             ext.start_block() * kBlockSize);
+          }
+        } else if (op.type() == InstallOperation::SOURCE_COPY) {
+          brillo::Blob data;
+          ASSERT_TRUE(utils::ReadExtents(
+              old_part_.path(), op.src_extents(), &data, kBlockSize));
+          ASSERT_TRUE(utils::WriteExtents(
+              new_part_.path(), op.dst_extents(), data, kBlockSize));
+        } else {
+          FAIL() << "Unsupported install op type: " << op.type();
+        }
+      }
+    }
+  }
+
   void ApplyPayload(DeltaArchiveManifest* manifest) {
     ASSERT_FALSE(manifest->partitions().empty());
-    if (manifest->partitions().begin()->has_old_partition_info()) {
-      // Only create fake partition if the update is incremental
-      LOG(INFO) << "Creating fake partition";
-      ASSERT_NO_FATAL_FAILURE(CreateFakePartition());
-    }
+    ASSERT_NO_FATAL_FAILURE(HydratePayload(manifest));
     const auto private_key_path =
         test_utils::GetBuildArtifactsPath(kUnittestPrivateKeyPath);
     ASSERT_NO_FATAL_FAILURE(
@@ -183,6 +276,19 @@ class UpdateAttempterAndroidIntegrationTest : public ::testing::Test,
     auto partition = &manifest->mutable_partitions()->at(0);
     partition->mutable_new_partition_info()->set_size(kFakePartitionSize);
     partition->mutable_new_partition_info()->set_hash(hash.data(), hash.size());
+    const bool source_exist =
+        std::any_of(partition->operations().begin(),
+                    partition->operations().end(),
+                    [](const auto& op) { return op.src_extents_size() > 0; });
+    if (source_exist) {
+      HashCalculator::RawHashOfFile(old_part_.path(), &hash);
+      partition->mutable_old_partition_info()->set_size(kFakePartitionSize);
+      partition->mutable_old_partition_info()->set_hash(hash.data(),
+                                                        hash.size());
+      // Only create fake partition if the update is incremental
+      LOG(INFO) << "Creating fake partition";
+      ASSERT_NO_FATAL_FAILURE(CreateFakePartition());
+    }
     uint64_t metadata_size = 0;
     ASSERT_TRUE(PayloadFile::WritePayload(payload_file_.path(),
                                           blob_file_.path(),
@@ -210,6 +316,36 @@ class UpdateAttempterAndroidIntegrationTest : public ::testing::Test,
     ASSERT_EQ(error, nullptr);
     ASSERT_EQ(completion_code_, ErrorCode::kSuccess);
   }
+
+  // Compare contents of fake_b partition to |new_part_| and print difference
+  void DumpTargetPartitionDiff() {
+    dynamic_control_->MapAllPartitions();
+    auto partition_device =
+        dynamic_control_->GetPartitionDevice("fake",
+                                             1 - boot_control_.GetCurrentSlot(),
+                                             boot_control_.GetCurrentSlot(),
+                                             false);
+    if (!partition_device.has_value()) {
+      LOG(INFO) << "Failed to get target fake partition, skip diff report";
+      return;
+    }
+
+    EintrSafeFileDescriptor actual_part;
+    CHECK(actual_part.Open(partition_device->readonly_device_path.c_str(),
+                           O_RDONLY));
+    EintrSafeFileDescriptor expected_part;
+    CHECK(expected_part.Open(new_part_.path().c_str(), O_RDONLY));
+
+    std::array<uint8_t, kBlockSize> actual_block;
+    std::array<uint8_t, kBlockSize> expected_block;
+    for (size_t i = 0; i < kFakePartitionSize / kBlockSize; i++) {
+      actual_part.Read(actual_block.data(), actual_block.size());
+      expected_part.Read(expected_block.data(), expected_block.size());
+      if (actual_block != expected_block) {
+        LOG(ERROR) << "Block " << i << " differs.";
+      }
+    }
+  }
   // use 25MB max to avoid super not having enough space
   static constexpr size_t kFakePartitionSize = 1024 * 1024 * 25;
   static_assert(kFakePartitionSize % kBlockSize == 0);
@@ -219,9 +355,12 @@ class UpdateAttempterAndroidIntegrationTest : public ::testing::Test,
   std::string super_device_;
   FakeHardware hardware_;
   ScopedTempFile payload_file_;
-  ScopedTempFile blob_file_;
-  // Contains expected data for old and new partition
+  ScopedTempFile blob_file_{"blob_file.XXXXXX", true};
+  // Contains expected data for old partition. Will be copied to fake_a on test
+  // start.
   ScopedTempFile old_part_{"old_part.XXXXXX", true, kFakePartitionSize};
+  // Expected data for new partition, will be compared against actual data in
+  // fake_b once test finishes.
   ScopedTempFile new_part_{"new_part.XXXXXX", true, kFakePartitionSize};
   DaemonStateAndroid daemon_state_;
   MemoryPrefs prefs_;
@@ -259,6 +398,57 @@ TEST_F(UpdateAttempterAndroidIntegrationTest, NewPartitionTest) {
   }
 
   ApplyPayload(&manifest_);
+  if (completion_code_ == ErrorCode::kNewRootfsVerificationError) {
+    DumpTargetPartitionDiff();
+  }
+}
+
+TEST_F(UpdateAttempterAndroidIntegrationTest, XorOpsTest) {
+  if (!DynamicPartitionEnabled()) {
+    return;
+  }
+  auto partition = manifest_.add_partitions();
+  partition->set_partition_name("fake");
+  partition->set_estimate_cow_size(kFakePartitionSize);
+  {
+    auto op = partition->add_operations();
+    op->set_type(InstallOperation::BROTLI_BSDIFF);
+    *op->add_src_extents() = ExtentForRange(0, 10);
+    *op->add_dst_extents() = ExtentForRange(0, 10);
+  }
+  {
+    auto op = partition->add_operations();
+    op->set_type(InstallOperation::BROTLI_BSDIFF);
+    *op->add_src_extents() = ExtentForRange(10, 10);
+    *op->add_dst_extents() = ExtentForRange(10, 10);
+  }
+  {
+    auto op = partition->add_operations();
+    op->set_type(InstallOperation::SOURCE_COPY);
+    *op->add_src_extents() =
+        ExtentForRange(20, kFakePartitionSize / kBlockSize - 20);
+    *op->add_dst_extents() =
+        ExtentForRange(20, kFakePartitionSize / kBlockSize - 20);
+  }
+  {
+    auto op = partition->add_merge_operations();
+    op->set_type(CowMergeOperation::COW_XOR);
+    op->set_src_offset(123);
+    *op->mutable_src_extent() = ExtentForRange(2, 8);
+    *op->mutable_dst_extent() = ExtentForRange(0, 8);
+  }
+  {
+    auto op = partition->add_merge_operations();
+    op->set_type(CowMergeOperation::COW_XOR);
+    op->set_src_offset(456);
+    *op->mutable_src_extent() = ExtentForRange(10, 8);
+    *op->mutable_dst_extent() = ExtentForRange(12, 8);
+  }
+
+  ApplyPayload(&manifest_);
+  if (completion_code_ == ErrorCode::kNewRootfsVerificationError) {
+    DumpTargetPartitionDiff();
+  }
 }
 
 }  // namespace
