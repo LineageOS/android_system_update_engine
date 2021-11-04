@@ -25,6 +25,7 @@
 #include <brillo/strings/string_utils.h>
 #include <libsnapshot/cow_format.h>
 
+#include "bsdiff/constants.h"
 #include "update_engine/common/utils.h"
 #include "update_engine/payload_consumer/delta_performer.h"
 #include "update_engine/payload_generator/boot_img_filesystem.h"
@@ -324,6 +325,25 @@ bool PayloadGenerationConfig::Validate() const {
   TEST_AND_RETURN_FALSE(rootfs_partition_size % block_size == 0);
 
   return true;
+}
+
+void PayloadGenerationConfig::ParseCompressorTypes(
+    const std::string& compressor_types) {
+  auto types = brillo::string_utils::Split(compressor_types, ":");
+  CHECK_LE(types.size(), 2UL)
+      << "Only two compressor types are allowed: bz2 and brotli";
+  CHECK_GT(types.size(), 0UL) << "Please pass in at least 1 valid compressor. "
+                                 "Allowed values are bz2 and brotli.";
+  compressors.clear();
+  for (const auto& type : types) {
+    if (type == "bz2") {
+      compressors.emplace_back(bsdiff::CompressorType::kBZ2);
+    } else if (type == "brotli") {
+      compressors.emplace_back(bsdiff::CompressorType::kBrotli);
+    } else {
+      LOG(FATAL) << "Unknown compressor type: " << type;
+    }
+  }
 }
 
 }  // namespace chromeos_update_engine
