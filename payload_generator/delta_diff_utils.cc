@@ -45,6 +45,7 @@
 #include <base/threading/simple_thread.h>
 #include <brillo/data_encoding.h>
 #include <bsdiff/bsdiff.h>
+#include <bsdiff/constants.h>
 #include <bsdiff/control_entry.h>
 #include <bsdiff/patch_reader.h>
 #include <bsdiff/patch_writer_factory.h>
@@ -201,6 +202,11 @@ bool BestDiffGenerator::GenerateBestDiffOperation(AnnotatedOperation* aop,
   return GenerateBestDiffOperation(diff_candidates, aop, data_blob);
 }
 
+std::vector<bsdiff::CompressorType>
+BestDiffGenerator::GetUsableCompressorTypes() const {
+  return config_.compressors;
+}
+
 bool BestDiffGenerator::GenerateBestDiffOperation(
     const std::vector<std::pair<InstallOperation_Type, size_t>>&
         diff_candidates,
@@ -260,10 +266,8 @@ bool BestDiffGenerator::TryBsdiffAndUpdateOperation(
 
   std::unique_ptr<bsdiff::PatchWriterInterface> bsdiff_patch_writer;
   if (operation_type == InstallOperation::BROTLI_BSDIFF) {
-    bsdiff_patch_writer =
-        bsdiff::CreateBSDF2PatchWriter(patch.value(),
-                                       bsdiff::CompressorType::kBrotli,
-                                       kBrotliCompressionQuality);
+    bsdiff_patch_writer = bsdiff::CreateBSDF2PatchWriter(
+        patch.value(), GetUsableCompressorTypes(), kBrotliCompressionQuality);
   } else {
     bsdiff_patch_writer = bsdiff::CreateBsdiffPatchWriter(patch.value());
   }
@@ -328,6 +332,7 @@ bool BestDiffGenerator::TryPuffdiffAndUpdateOperation(AnnotatedOperation* aop,
                                            new_data_,
                                            src_deflates,
                                            dst_deflates,
+                                           GetUsableCompressorTypes(),
                                            temp_file.path(),
                                            &puffdiff_delta));
     TEST_AND_RETURN_FALSE(!puffdiff_delta.empty());
@@ -1142,7 +1147,7 @@ bool InitializePartitionInfo(const PartitionConfig& part, PartitionInfo* info) {
   const brillo::Blob& hash = hasher.raw_hash();
   info->set_hash(hash.data(), hash.size());
   LOG(INFO) << part.path << ": size=" << part.size
-            << " hash=" << brillo::data_encoding::Base64Encode(hash);
+            << " hash=" << HexEncode(hash);
   return true;
 }
 
