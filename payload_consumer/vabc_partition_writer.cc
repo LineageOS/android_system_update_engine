@@ -193,30 +193,36 @@ bool VABCPartitionWriter::WriteSourceCopyCowOps(
     const std::vector<CowOperation>& converted,
     ICowWriter* cow_writer,
     FileDescriptorPtr source_fd) {
-  std::vector<uint8_t> buffer(block_size);
-
   for (const auto& cow_op : converted) {
+    std::vector<uint8_t> buffer;
     switch (cow_op.op) {
       case CowOperation::CowCopy:
         if (cow_op.src_block == cow_op.dst_block) {
           continue;
         }
-        TEST_AND_RETURN_FALSE(
-            cow_writer->AddCopy(cow_op.dst_block, cow_op.src_block));
+        // Add blocks in reverse order, because snapused specifically prefers
+        // this ordering. Since we already eliminated all self-overlapping
+        // SOURCE_COPY during delta generation, this should be safe to do.
+        for (size_t i = cow_op.block_count; i > 0; i--) {
+          TEST_AND_RETURN_FALSE(cow_writer->AddCopy(cow_op.dst_block + i - 1,
+                                                    cow_op.src_block + i - 1));
+        }
         break;
       case CowOperation::CowReplace:
+        buffer.resize(block_size * cow_op.block_count);
         ssize_t bytes_read = 0;
         TEST_AND_RETURN_FALSE(utils::ReadAll(source_fd,
                                              buffer.data(),
-                                             block_size,
+                                             block_size * cow_op.block_count,
                                              cow_op.src_block * block_size,
                                              &bytes_read));
-        if (bytes_read <= 0 || static_cast<size_t>(bytes_read) != block_size) {
+        if (bytes_read <= 0 ||
+            static_cast<size_t>(bytes_read) != buffer.size()) {
           LOG(ERROR) << "source_fd->Read failed: " << bytes_read;
           return false;
         }
         TEST_AND_RETURN_FALSE(cow_writer->AddRawBlocks(
-            cow_op.dst_block, buffer.data(), block_size));
+            cow_op.dst_block, buffer.data(), buffer.size()));
         break;
     }
   }
