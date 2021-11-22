@@ -18,6 +18,7 @@
 
 #include <android-base/file.h>
 #include <android-base/mapped_file.h>
+#include <android-base/properties.h>
 #include <bsdiff/bsdiff.h>
 #include <gtest/gtest.h>
 #include <libsnapshot/cow_writer.h>
@@ -200,11 +201,20 @@ TEST_F(VABCPartitionWriterTest, StreamXORBlockTest) {
             std::make_unique<android::snapshot::MockSnapshotWriter>(
                 android::snapshot::CowOptions{});
         ON_CALL(*cow_writer, EmitLabel(_)).WillByDefault(Return(true));
-        auto expected_merge_sequence = {11, 10, 14, 13};
+        auto expected_merge_sequence = {10, 11, 13, 14};
+        auto expected_merge_sequence_rev = {11, 10, 14, 13};
+        const bool is_ascending = android::base::GetBoolProperty(
+            "ro.virtual_ab.userspace.snapshots.enabled", false);
         ON_CALL(*cow_writer, Initialize()).WillByDefault(Return(true));
-        EXPECT_CALL(*cow_writer, EmitSequenceData(_, _))
-            .With(Args<1, 0>(ElementsAreArray(expected_merge_sequence)))
-            .WillOnce(Return(true));
+        if (!is_ascending) {
+          EXPECT_CALL(*cow_writer, EmitSequenceData(_, _))
+              .With(Args<1, 0>(ElementsAreArray(expected_merge_sequence_rev)))
+              .WillOnce(Return(true));
+        } else {
+          EXPECT_CALL(*cow_writer, EmitSequenceData(_, _))
+              .With(Args<1, 0>(ElementsAreArray(expected_merge_sequence)))
+              .WillOnce(Return(true));
+        }
         EXPECT_CALL(*cow_writer, Initialize()).Times(1);
         EXPECT_CALL(*cow_writer, EmitCopy(_, _)).Times(0);
         EXPECT_CALL(*cow_writer, EmitRawBlocks(_, _, _)).WillOnce(Return(true));
