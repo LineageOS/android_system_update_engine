@@ -240,6 +240,9 @@ struct PayloadGenerationConfig {
   // Whether to enable VABC xor op
   bool enable_vabc_xor = false;
 
+  // Whether to enable LZ4diff ops
+  bool enable_lz4diff = false;
+
   std::vector<bsdiff::CompressorType> compressors{
       bsdiff::CompressorType::kBZ2, bsdiff::CompressorType::kBrotli};
 };
