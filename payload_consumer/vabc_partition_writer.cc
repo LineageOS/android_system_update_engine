@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include <android-base/properties.h>
 #include <brillo/secure_blob.h>
 #include <libsnapshot/cow_writer.h>
 
@@ -167,20 +168,41 @@ bool VABCPartitionWriter::WriteMergeSequence(
         merge_op.src_extent() == merge_op.dst_extent()) {
       continue;
     }
-    // libsnapshot prefers blocks in reverse order, so if this isn't a self
-    // overlapping OP, writing block in reverser order
+
+    const bool extent_overlap =
+        ExtentRanges::ExtentsOverlap(src_extent, dst_extent);
+    // TODO(193863443) Remove this check once this feature
+    // lands on all pixel devices.
+    const bool is_ascending = android::base::GetBoolProperty(
+        "ro.virtual_ab.userspace.snapshots.enabled", false);
+
     // If this is a self-overlapping op and |dst_extent| comes after
     // |src_extent|, we must write in reverse order for correctness.
+    //
     // If this is self-overlapping op and |dst_extent| comes before
     // |src_extent|, we must write in ascending order for correctness.
-    if (ExtentRanges::ExtentsOverlap(src_extent, dst_extent) &&
-        dst_extent.start_block() <= src_extent.start_block()) {
-      for (size_t i = 0; i < dst_extent.num_blocks(); i++) {
-        blocks_merge_order.push_back(dst_extent.start_block() + i);
+    //
+    // If this isn't a self overlapping op, write block in ascending order
+    // if userspace snapshots are enabled
+    if (extent_overlap) {
+      if (dst_extent.start_block() <= src_extent.start_block()) {
+        for (size_t i = 0; i < dst_extent.num_blocks(); i++) {
+          blocks_merge_order.push_back(dst_extent.start_block() + i);
+        }
+      } else {
+        for (int i = dst_extent.num_blocks() - 1; i >= 0; i--) {
+          blocks_merge_order.push_back(dst_extent.start_block() + i);
+        }
       }
     } else {
-      for (int i = dst_extent.num_blocks() - 1; i >= 0; i--) {
-        blocks_merge_order.push_back(dst_extent.start_block() + i);
+      if (is_ascending) {
+        for (size_t i = 0; i < dst_extent.num_blocks(); i++) {
+          blocks_merge_order.push_back(dst_extent.start_block() + i);
+        }
+      } else {
+        for (int i = dst_extent.num_blocks() - 1; i >= 0; i--) {
+          blocks_merge_order.push_back(dst_extent.start_block() + i);
+        }
       }
     }
   }
