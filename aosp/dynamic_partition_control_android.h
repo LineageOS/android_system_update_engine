@@ -108,6 +108,7 @@ class DynamicPartitionControlAndroid : public DynamicPartitionControlInterface {
                               const std::optional<std::string>&,
                               bool is_append = false) override;
 
+  bool MapAllPartitions() override;
   bool UnmapAllPartitions() override;
 
   bool IsDynamicPartition(const std::string& part_name, uint32_t slot) override;
@@ -226,8 +227,6 @@ class DynamicPartitionControlAndroid : public DynamicPartitionControlInterface {
       uint32_t target_slot,
       const DeltaArchiveManifest& manifest,
       bool delete_source);
-
-  bool MapAllPartitions() override;
 
   void SetSourceSlot(uint32_t slot) { source_slot_ = slot; }
   void SetTargetSlot(uint32_t slot) { target_slot_ = slot; }
