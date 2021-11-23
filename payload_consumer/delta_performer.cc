@@ -498,7 +498,10 @@ bool DeltaPerformer::Write(const void* bytes, size_t count, ErrorCode* error) {
     // |num_total_operations_| limit yet.
     if (next_operation_num_ >= acc_num_operations_[current_partition_]) {
       if (partition_writer_) {
-        TEST_AND_RETURN_FALSE(partition_writer_->FinishedInstallOps());
+        if (!partition_writer_->FinishedInstallOps()) {
+          *error = ErrorCode::kDownloadWriteError;
+          return false;
+        }
       }
       CloseCurrentPartition();
       // Skip until there are operations for current_partition_.
