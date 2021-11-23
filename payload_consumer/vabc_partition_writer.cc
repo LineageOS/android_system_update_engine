@@ -314,7 +314,8 @@ void VABCPartitionWriter::CheckpointUpdateProgress(size_t next_op_index) {
   TEST_AND_RETURN_FALSE(cow_writer_ != nullptr);
   TEST_AND_RETURN_FALSE(cow_writer_->AddLabel(kEndOfInstallLabel));
   TEST_AND_RETURN_FALSE(cow_writer_->Finalize());
-  return cow_writer_->VerifyMergeOps();
+  TEST_AND_RETURN_FALSE(cow_writer_->VerifyMergeOps());
+  return true;
 }
 
 VABCPartitionWriter::~VABCPartitionWriter() {
