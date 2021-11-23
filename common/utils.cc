@@ -397,6 +397,19 @@ off_t FileSize(const string& path) {
   return size;
 }
 
+bool SendFile(int out_fd, int in_fd, size_t count) {
+  off64_t offset = lseek(in_fd, 0, SEEK_CUR);
+  TEST_AND_RETURN_FALSE_ERRNO(offset >= 0);
+  constexpr size_t BUFFER_SIZE = 4096;
+  while (count > 0) {
+    const auto bytes_written =
+        sendfile(out_fd, in_fd, &offset, std::min(count, BUFFER_SIZE));
+    TEST_AND_RETURN_FALSE_ERRNO(bytes_written > 0);
+    count -= bytes_written;
+  }
+  return true;
+}
+
 void HexDumpArray(const uint8_t* const arr, const size_t length) {
   LOG(INFO) << "Logging array of length: " << length;
   const unsigned int bytes_per_line = 16;
@@ -892,6 +905,34 @@ bool GetMinorVersion(const brillo::KeyValueStore& store,
   return false;
 }
 
+bool ReadExtents(const std::string& path,
+                 const google::protobuf::RepeatedPtrField<Extent>& extents,
+                 brillo::Blob* out_data,
+                 size_t block_size) {
+  return ReadExtents(path,
+                     {extents.begin(), extents.end()},
+                     out_data,
+                     utils::BlocksInExtents(extents) * block_size,
+                     block_size);
+}
+
+bool WriteExtents(const std::string& path,
+                  const google::protobuf::RepeatedPtrField<Extent>& extents,
+                  const brillo::Blob& data,
+                  size_t block_size) {
+  EintrSafeFileDescriptor fd;
+  TEST_AND_RETURN_FALSE(fd.Open(path.c_str(), O_RDWR));
+  size_t bytes_written = 0;
+  for (const auto& ext : extents) {
+    TEST_AND_RETURN_FALSE_ERRNO(
+        fd.Seek(ext.start_block() * block_size, SEEK_SET));
+    TEST_AND_RETURN_FALSE_ERRNO(
+        fd.Write(data.data() + bytes_written, ext.num_blocks() * block_size));
+    bytes_written += ext.num_blocks() * block_size;
+  }
+  return true;
+}
+
 bool ReadExtents(const string& path,
                  const vector<Extent>& extents,
                  brillo::Blob* out_data,
@@ -906,7 +947,7 @@ bool ReadExtents(const string& path,
   for (const Extent& extent : extents) {
     ssize_t bytes_read_this_iteration = 0;
     ssize_t bytes = extent.num_blocks() * block_size;
-    TEST_AND_RETURN_FALSE(bytes_read + bytes <= out_data_size);
+    TEST_LE(bytes_read + bytes, out_data_size);
     TEST_AND_RETURN_FALSE(utils::PReadAll(fd,
                                           &data[bytes_read],
                                           bytes,
