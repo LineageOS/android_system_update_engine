@@ -216,7 +216,9 @@ bool BestDiffGenerator::GenerateBestDiffOperation(
   CHECK(data_blob);
 
   const auto& version = config_.version;
-  uint64_t input_bytes = utils::BlocksInExtents(src_extents_) * kBlockSize;
+  const uint64_t input_bytes = std::max(utils::BlocksInExtents(src_extents_),
+                                        utils::BlocksInExtents(dst_extents_)) *
+                               kBlockSize;
 
   for (auto [op_type, limit] : diff_candidates) {
     if (!version.OperationAllowed(op_type)) {
@@ -300,38 +302,15 @@ bool BestDiffGenerator::TryBsdiffAndUpdateOperation(
 
 bool BestDiffGenerator::TryPuffdiffAndUpdateOperation(AnnotatedOperation* aop,
                                                       brillo::Blob* data_blob) {
-  // Find all deflate positions inside the given extents and then put all
-  // deflates together because we have already read all the extents into
-  // one buffer.
-  vector<puffin::BitExtent> src_deflates;
-  TEST_AND_RETURN_FALSE(deflate_utils::FindAndCompactDeflates(
-      src_extents_, old_deflates_, &src_deflates));
-
-  vector<puffin::BitExtent> dst_deflates;
-  TEST_AND_RETURN_FALSE(deflate_utils::FindAndCompactDeflates(
-      dst_extents_, new_deflates_, &dst_deflates));
-
-  puffin::RemoveEqualBitExtents(
-      old_data_, new_data_, &src_deflates, &dst_deflates);
-
-  // See crbug.com/915559.
-  if (config_.version.minor <= kPuffdiffMinorPayloadVersion) {
-    TEST_AND_RETURN_FALSE(
-        puffin::RemoveDeflatesWithBadDistanceCaches(old_data_, &src_deflates));
-
-    TEST_AND_RETURN_FALSE(
-        puffin::RemoveDeflatesWithBadDistanceCaches(new_data_, &dst_deflates));
-  }
-
   // Only Puffdiff if both files have at least one deflate left.
-  if (!src_deflates.empty() && !dst_deflates.empty()) {
+  if (!old_deflates_.empty() && !new_deflates_.empty()) {
     brillo::Blob puffdiff_delta;
     ScopedTempFile temp_file("puffdiff-delta.XXXXXX");
     // Perform PuffDiff operation.
     TEST_AND_RETURN_FALSE(puffin::PuffDiff(old_data_,
                                            new_data_,
-                                           src_deflates,
-                                           dst_deflates,
+                                           old_deflates_,
+                                           new_deflates_,
                                            GetUsableCompressorTypes(),
                                            temp_file.path(),
                                            &puffdiff_delta));
@@ -1088,12 +1067,33 @@ bool ReadExtentsToDiff(const string& old_part,
       // No point in trying diff if zero blob size diff operation is
       // still worse than replace.
 
+      // Find all deflate positions inside the given extents and then put all
+      // deflates together because we have already read all the extents into
+      // one buffer.
+      vector<puffin::BitExtent> src_deflates;
+      TEST_AND_RETURN_FALSE(deflate_utils::FindAndCompactDeflates(
+          src_extents, old_deflates, &src_deflates));
+
+      vector<puffin::BitExtent> dst_deflates;
+      TEST_AND_RETURN_FALSE(deflate_utils::FindAndCompactDeflates(
+          dst_extents, new_deflates, &dst_deflates));
+
+      puffin::RemoveEqualBitExtents(
+          old_data, new_data, &src_deflates, &dst_deflates);
+      // See crbug.com/915559.
+      if (config.version.minor <= kPuffdiffMinorPayloadVersion) {
+        TEST_AND_RETURN_FALSE(puffin::RemoveDeflatesWithBadDistanceCaches(
+            old_data, &src_deflates));
+
+        TEST_AND_RETURN_FALSE(puffin::RemoveDeflatesWithBadDistanceCaches(
+            new_data, &dst_deflates));
+      }
       BestDiffGenerator best_diff_generator(old_data,
                                             new_data,
                                             src_extents,
                                             dst_extents,
-                                            old_deflates,
-                                            new_deflates,
+                                            std::move(src_deflates),
+                                            std::move(dst_deflates),
                                             config);
       TEST_AND_RETURN_FALSE(
           best_diff_generator.GenerateBestDiffOperation(&aop, &data_blob));
