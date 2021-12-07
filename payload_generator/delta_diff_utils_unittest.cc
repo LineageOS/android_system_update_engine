@@ -324,15 +324,19 @@ TEST_F(DeltaDiffUtilsTest, BrotliBsdiffTest) {
 
   brillo::Blob data;
   AnnotatedOperation aop;
+
+  std::vector<puffin::BitExtent> empty;
+  PayloadGenerationConfig config{
+      .version = PayloadVersion(kBrilloMajorPayloadVersion,
+                                kBrotliBsdiffMinorPayloadVersion)};
   ASSERT_TRUE(diff_utils::ReadExtentsToDiff(
       old_part_.path,
       new_part_.path,
       old_extents,
       new_extents,
-      {},  // old_deflates
-      {},  // new_deflates
-      {.version = PayloadVersion(kBrilloMajorPayloadVersion,
-                                 kBrotliBsdiffMinorPayloadVersion)},
+      empty,  // old_deflates
+      empty,  // new_deflates
+      config,
       &data,
       &aop));
   auto& op = aop.op;
@@ -365,15 +369,18 @@ TEST_F(DeltaDiffUtilsTest, GenerateBestDiffOperation_Zucchini) {
   // Zucchini is only enabled on files with certain extensions
   aop.name = "data.so";
 
+  std::vector<puffin::BitExtent> empty;
+  PayloadGenerationConfig config{
+      .version = PayloadVersion(kBrilloMajorPayloadVersion,
+                                kZucchiniMinorPayloadVersion)};
   diff_utils::BestDiffGenerator best_diff_generator(
       src_data_blob,
       dst_data_blob,
       old_extents,
       new_extents,
-      {},
-      {},
-      {.version = PayloadVersion(kBrilloMajorPayloadVersion,
-                                 kZucchiniMinorPayloadVersion)});
+      empty,
+      empty,
+      config);
   ASSERT_TRUE(best_diff_generator.GenerateBestDiffOperation(
       {{InstallOperation::ZUCCHINI, 1024 * 1024}}, &aop, &data));
 
@@ -407,15 +414,18 @@ TEST_F(DeltaDiffUtilsTest, GenerateBestDiffOperation_FullOperationBetter) {
   AnnotatedOperation aop;
   aop.op.set_type(InstallOperation::REPLACE_XZ);
 
+  std::vector<puffin::BitExtent> empty;
+  PayloadGenerationConfig config{
+      .version = PayloadVersion(kBrilloMajorPayloadVersion,
+                                kZucchiniMinorPayloadVersion)};
   diff_utils::BestDiffGenerator best_diff_generator(
       src_data_blob,
       dst_data_blob,
       old_extents,
       new_extents,
-      {},
-      {},
-      {.version = PayloadVersion(kBrilloMajorPayloadVersion,
-                                 kZucchiniMinorPayloadVersion)});
+      empty,
+      empty,
+      config);
   ASSERT_TRUE(best_diff_generator.GenerateBestDiffOperation(
       {{InstallOperation::ZUCCHINI, 1024 * 1024}}, &aop, &data));
 
@@ -439,15 +449,19 @@ TEST_F(DeltaDiffUtilsTest, PreferReplaceTest) {
 
   brillo::Blob data;
   AnnotatedOperation aop;
+
+  std::vector<puffin::BitExtent> empty;
+  PayloadGenerationConfig config{
+      .version = PayloadVersion(kMaxSupportedMajorPayloadVersion,
+                                kMaxSupportedMinorPayloadVersion)};
   ASSERT_TRUE(diff_utils::ReadExtentsToDiff(
       old_part_.path,
       new_part_.path,
       extents,
       extents,
-      {},  // old_deflates
-      {},  // new_deflates
-      {.version = PayloadVersion(kMaxSupportedMajorPayloadVersion,
-                                 kMaxSupportedMinorPayloadVersion)},
+      empty,  // old_deflates
+      empty,  // new_deflates
+      config,
       &data,
       &aop));
   auto& op = aop.op;
