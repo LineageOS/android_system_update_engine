@@ -26,6 +26,7 @@
 #include <libsnapshot/cow_format.h>
 
 #include "bsdiff/constants.h"
+#include "payload_consumer/payload_constants.h"
 #include "update_engine/common/utils.h"
 #include "update_engine/payload_consumer/delta_performer.h"
 #include "update_engine/payload_generator/boot_img_filesystem.h"
@@ -240,7 +241,8 @@ bool PayloadVersion::Validate() const {
                         minor == kPuffdiffMinorPayloadVersion ||
                         minor == kVerityMinorPayloadVersion ||
                         minor == kPartialUpdateMinorPayloadVersion ||
-                        minor == kZucchiniMinorPayloadVersion);
+                        minor == kZucchiniMinorPayloadVersion ||
+                        minor == kLZ4DIFFMinorPayloadVersion);
   return true;
 }
 
@@ -274,6 +276,9 @@ bool PayloadVersion::OperationAllowed(InstallOperation::Type operation) const {
 
     case InstallOperation::ZUCCHINI:
       return minor >= kZucchiniMinorPayloadVersion;
+    case InstallOperation::LZ4DIFF_BSDIFF:
+    case InstallOperation::LZ4DIFF_PUFFDIFF:
+      return minor >= kLZ4DIFFMinorPayloadVersion;
 
     case InstallOperation::MOVE:
     case InstallOperation::BSDIFF:

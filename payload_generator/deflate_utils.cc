@@ -323,12 +323,24 @@ bool PreprocessPartitionFiles(const PartitionConfig& part,
             &data,
             kBlockSize * utils::BlocksInExtents(file.extents),
             kBlockSize));
+        // |data| read from disk always has size multiple of kBlockSize. So it
+        // might contain trailing garbage data and confuse the gzip/zip
+        // processors. Trim them.
+        if (file.file_stat.st_size > 0 &&
+            static_cast<size_t>(file.file_stat.st_size) < data.size()) {
+          data.resize(file.file_stat.st_size);
+        }
         vector<puffin::BitExtent> deflates;
         if (is_zip) {
-          TEST_AND_RETURN_FALSE(
-              puffin::LocateDeflatesInZipArchive(data, &deflates));
+          if (!puffin::LocateDeflatesInZipArchive(data, &deflates)) {
+            LOG(ERROR) << "Failed to process deflate in zip " << file.name;
+            return false;
+          }
         } else if (is_gzip) {
-          TEST_AND_RETURN_FALSE(puffin::LocateDeflatesInGzip(data, &deflates));
+          if (!puffin::LocateDeflatesInGzip(data, &deflates)) {
+            LOG(ERROR) << "Failed to process deflate in gzip " << file.name;
+            return false;
+          }
         }
         // Shift the deflate's extent to the offset starting from the beginning
         // of the current partition; and the delta processor will align the
