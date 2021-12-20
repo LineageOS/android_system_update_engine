@@ -953,3 +953,20 @@ cc_binary_host {
         "update_metadata-protos",
     ],
 }
+
+cc_library_static {
+    name: "lz4diff-protos",
+    host_supported: true,
+    ramdisk_available: true,
+    recovery_available: true,
+
+    srcs: ["lz4diff/lz4diff.proto"],
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
+    proto: {
+        canonical_path_from_root: false,
+        export_proto_headers: true,
+    },
+}
