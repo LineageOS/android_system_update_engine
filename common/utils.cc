@@ -63,7 +63,6 @@ using base::Time;
 using base::TimeDelta;
 using std::min;
 using std::numeric_limits;
-using std::pair;
 using std::string;
 using std::vector;
 
