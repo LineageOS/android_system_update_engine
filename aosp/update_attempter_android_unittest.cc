@@ -63,6 +63,11 @@ using update_engine::UpdateStatus;
 
 namespace chromeos_update_engine {
 
+// Compare the value of builtin array for download source parameter.
+MATCHER_P(DownloadSourceMatcher, source_array, "") {
+  return std::equal(source_array, source_array + kNumDownloadSources, arg);
+}
+
 class UpdateAttempterAndroidTest : public ::testing::Test {
  protected:
   UpdateAttempterAndroidTest() = default;
@@ -96,6 +101,8 @@ class UpdateAttempterAndroidTest : public ::testing::Test {
   FakeClock* clock_;
   testing::NiceMock<MockMetricsReporter>* metrics_reporter_;
 };
+
+namespace {
 
 TEST_F(UpdateAttempterAndroidTest, UpdatePrefsSameBuildVersionOnInit) {
   std::string build_version =
@@ -208,18 +215,10 @@ TEST_F(UpdateAttempterAndroidTest, ReportMetricsForBytesDownloaded) {
 
   int64_t total_bytes[kNumDownloadSources] = {};
   total_bytes[kDownloadSourceHttpsServer] = 90;
-  EXPECT_CALL(*metrics_reporter_,
-              ReportSuccessfulUpdateMetrics(
-                  _,
-                  _,
-                  _,
-                  50,
-                  test_utils::DownloadSourceMatcher(total_bytes),
-                  80,
-                  _,
-                  _,
-                  _,
-                  _))
+  EXPECT_CALL(
+      *metrics_reporter_,
+      ReportSuccessfulUpdateMetrics(
+          _, _, _, 50, DownloadSourceMatcher(total_bytes), 80, _, _, _, _))
       .Times(1);
 
   // Adds a payload of 50 bytes to the InstallPlan.
@@ -248,5 +247,7 @@ TEST_F(UpdateAttempterAndroidTest, ReportMetricsForBytesDownloaded) {
   EXPECT_EQ(
       0, metrics_utils::GetPersistedValue(kPrefsTotalBytesDownloaded, &prefs_));
 }
+
+}  // namespace
 
 }  // namespace chromeos_update_engine
