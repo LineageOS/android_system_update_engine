@@ -23,6 +23,7 @@
 #include <sys/sendfile.h>
 #include <unistd.h>
 
+#include <android-base/strings.h>
 #include <brillo/data_encoding.h>
 #include <brillo/message_loops/fake_message_loop.h>
 #include <bsdiff/bsdiff.h>
@@ -153,7 +154,7 @@ class UpdateAttempterAndroidIntegrationTest : public ::testing::Test,
                                              &source_part));
     int out_fd = open(source_part.c_str(), O_RDWR);
     ScopedFdCloser closer{&out_fd};
-    ASSERT_GE(out_fd, 0) << utils::ErrnoNumberAsString(errno);
+    ASSERT_GE(out_fd, 0) << android::base::ErrnoNumberAsString(errno);
     ASSERT_TRUE(utils::SendFile(out_fd, old_part_.fd(), kFakePartitionSize));
   }
 
@@ -218,12 +219,12 @@ class UpdateAttempterAndroidIntegrationTest : public ::testing::Test,
           ASSERT_TRUE(utils::ReadExtents(
               old_part_.path(), op.src_extents(), &old_data, kBlockSize))
               << "Failed to read source data: "
-              << utils::ErrnoNumberAsString(errno);
+              << android::base::ErrnoNumberAsString(errno);
           brillo::Blob new_data;
           ASSERT_TRUE(utils::ReadExtents(
               new_part_.path(), op.dst_extents(), &new_data, kBlockSize))
               << "Failed to read target data: "
-              << utils::ErrnoNumberAsString(errno);
+              << android::base::ErrnoNumberAsString(errno);
           ScopedTempFile patch_file{"bspatch.XXXXXX", true};
           ASSERT_EQ(bsdiff::bsdiff(old_data.data(),
                                    old_data.size(),
