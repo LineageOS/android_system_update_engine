@@ -531,6 +531,7 @@ cc_defaults {
     defaults: [
         "libpayload_consumer_exports",
         "update_metadata-protos_exports",
+        "erofs-utils_export_defaults",
     ],
 
     header_libs: [
@@ -550,10 +551,15 @@ cc_defaults {
         "update_metadata-protos",
         "libpayload_extent_utils",
         "libcow_size_estimator",
+        "liberofs",
+        "lz4diff-protos",
     ],
     shared_libs: [
         "libbase",
         "libext2fs",
+        // LZ4 has to be a shared lib, as we want to override it with
+        // LD_LIBRARY_PRELOAD later
+        "liblz4",
     ],
 }
 
@@ -612,6 +618,7 @@ cc_library_static {
         "payload_generator/delta_diff_generator.cc",
         "payload_generator/delta_diff_utils.cc",
         "payload_generator/ext2_filesystem.cc",
+        "payload_generator/erofs_filesystem.cc",
         "payload_generator/extent_ranges.cc",
         "payload_generator/full_update_generator.cc",
         "payload_generator/mapfile_filesystem.cc",
