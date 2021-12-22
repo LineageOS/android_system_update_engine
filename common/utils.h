@@ -38,6 +38,7 @@
 #include <brillo/secure_blob.h>
 
 #include "android-base/mapped_file.h"
+#include "android-base/scopeguard.h"
 #include "google/protobuf/repeated_field.h"
 #include "update_engine/common/action.h"
 #include "update_engine/common/action_processor.h"
@@ -583,5 +584,26 @@ std::string HexEncode(const std::array<uint8_t, kSize> blob) noexcept {
 #define TEST_GE(_x, _y) TEST_OP(_x, _y, >=)
 #define TEST_LT(_x, _y) TEST_OP(_x, _y, <)
 #define TEST_GT(_x, _y) TEST_OP(_x, _y, >)
+
+// Macro for running a block of code before function exits.
+// Example:
+// DEFER {
+//     fclose(hc);
+//     hc = nullptr;
+//   };
+// It works by creating a new local variable struct holding the lambda, the
+// destructor of that struct will invoke the lambda.
+
+constexpr struct {
+  template <typename F>
+  constexpr auto operator<<(F&& f) const noexcept {
+    return android::base::make_scope_guard(std::forward<F>(f));
+  }
+} deferrer;
+
+#define TOKENPASTE(x, y) x##y
+#define DEFER                                                    \
+  auto TOKENPASTE(_deferred_lambda_call, __COUNTER__) = deferrer \
+                                                        << [&]() mutable
 
 #endif  // UPDATE_ENGINE_COMMON_UTILS_H_
