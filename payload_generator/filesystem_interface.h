@@ -31,10 +31,10 @@
 #include <string>
 #include <vector>
 
-#include <base/macros.h>
 #include <brillo/key_value_store.h>
 #include <puffin/utils.h>
 
+#include "update_engine/lz4diff/lz4diff_format.h"
 #include "update_engine/update_metadata.pb.h"
 
 namespace chromeos_update_engine {
@@ -72,6 +72,8 @@ class FilesystemInterface {
     // All the deflate locations in the file. These locations are not relative
     // to the extents. They are relative to the file system itself.
     std::vector<puffin::BitExtent> deflates;
+
+    CompressedFile compressed_file_info;
   };
 
   virtual ~FilesystemInterface() = default;

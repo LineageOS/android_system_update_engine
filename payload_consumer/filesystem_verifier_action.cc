@@ -36,7 +36,6 @@
 #include <brillo/streams/file_stream.h>
 
 #include "common/error_code.h"
-#include "payload_generator/delta_diff_generator.h"
 #include "update_engine/common/utils.h"
 #include "update_engine/payload_consumer/file_descriptor.h"
 
