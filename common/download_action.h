@@ -73,13 +73,13 @@ class DownloadAction : public InstallPlanAction, public HttpFetcherDelegate {
   // A good calling pattern is:
   // DownloadAction(prefs, boot_contol, hardware,
   //                new WhateverHttpFetcher, false);
-  DownloadAction(PrefsInterface* prefs,
-                 BootControlInterface* boot_control,
-                 HardwareInterface* hardware,
-                 HttpFetcher* http_fetcher,
-                 bool interactive,
-                 std::string update_certs_path = constants::kUpdateCertificatesPath
-                 );
+  DownloadAction(
+      PrefsInterface* prefs,
+      BootControlInterface* boot_control,
+      HardwareInterface* hardware,
+      HttpFetcher* http_fetcher,
+      bool interactive,
+      std::string update_certs_path = constants::kUpdateCertificatesPath);
   ~DownloadAction() override;
 
   // InstallPlanAction overrides.
@@ -166,4 +166,4 @@ static_assert(8 == sizeof(off_t), "off_t not 64 bit");
 
 }  // namespace chromeos_update_engine
 
-#endif // UPDATE_ENGINE_COMMON_DOWNLOAD_ACTION_H_
+#endif  // UPDATE_ENGINE_COMMON_DOWNLOAD_ACTION_H_

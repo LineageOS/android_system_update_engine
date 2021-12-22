@@ -20,10 +20,11 @@
 #include <functional>
 #include <map>
 #include <utility>
+#include <vector>
 
 #include "update_engine/common/utils.h"
-#include "update_engine/payload_generator/extent_utils.h"
 #include "update_engine/payload_generator/extent_ranges.h"
+#include "update_engine/payload_generator/extent_utils.h"
 #include "update_engine/update_metadata.pb.h"
 
 namespace chromeos_update_engine {
