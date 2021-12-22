@@ -32,6 +32,7 @@
 #include "update_engine/payload_generator/boot_img_filesystem.h"
 #include "update_engine/payload_generator/delta_diff_generator.h"
 #include "update_engine/payload_generator/delta_diff_utils.h"
+#include "update_engine/payload_generator/erofs_filesystem.h"
 #include "update_engine/payload_generator/ext2_filesystem.h"
 #include "update_engine/payload_generator/mapfile_filesystem.h"
 #include "update_engine/payload_generator/raw_filesystem.h"
@@ -74,6 +75,11 @@ bool PartitionConfig::OpenFilesystem() {
       TEST_AND_RETURN_FALSE(fs_interface->GetBlockSize() == kBlockSize);
       return true;
     }
+  }
+  fs_interface = ErofsFilesystem::CreateFromFile(path);
+  if (fs_interface) {
+    TEST_AND_RETURN_FALSE(fs_interface->GetBlockSize() == kBlockSize);
+    return true;
   }
 
   if (!mapfile_path.empty()) {
