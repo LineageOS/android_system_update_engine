@@ -737,6 +737,21 @@ genrule {
     ],
 }
 
+genrule {
+    name: "ue_unittest_erofs_imgs",
+    cmd: "$(in) $(location mkfs.erofs) $(location gen/erofs_empty.img) &&" +
+         "$(in) $(location mkfs.erofs) $(location gen/erofs.img) $(location delta_generator)",
+    srcs: ["sample_images/generate_test_erofs_images.sh"],
+    out: [
+        "gen/erofs.img",
+        "gen/erofs_empty.img",
+    ],
+    tools: [
+        "mkfs.erofs",
+        "delta_generator",
+    ],
+}
+
 filegroup {
     name: "update_engine_host_unittest_srcs",
     srcs: [
@@ -760,6 +775,7 @@ filegroup {
         "payload_generator/boot_img_filesystem_unittest.cc",
         "payload_generator/deflate_utils_unittest.cc",
         "payload_generator/delta_diff_utils_unittest.cc",
+        "payload_generator/erofs_filesystem_unittest.cc",
         "payload_generator/ext2_filesystem_unittest.cc",
         "payload_generator/extent_ranges_unittest.cc",
         "payload_generator/extent_utils_unittest.cc",
@@ -794,6 +810,7 @@ cc_test_host {
     data: [
         ":ue_unittest_delta_generator",
         ":ue_unittest_disk_imgs",
+        ":ue_unittest_erofs_imgs",
         ":ue_unittest_keys",
         "otacerts.zip",
         "unittest_key.pem",
@@ -838,6 +855,7 @@ cc_test {
         ":test_subprocess",
         ":ue_unittest_delta_generator",
         ":ue_unittest_disk_imgs",
+        ":ue_unittest_erofs_imgs",
         ":ue_unittest_keys",
         "otacerts.zip",
         "unittest_key.pem",
