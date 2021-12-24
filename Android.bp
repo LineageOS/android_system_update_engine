@@ -185,6 +185,7 @@ cc_defaults {
         "libpayload_extent_ranges",
         "libpayload_extent_utils",
         "libcow_operation_convert",
+        "lz4diff-protos",
     ],
     shared_libs: [
         "libbase",
@@ -617,6 +618,7 @@ cc_library_static {
         "payload_generator/deflate_utils.cc",
         "payload_generator/delta_diff_generator.cc",
         "payload_generator/delta_diff_utils.cc",
+        "lz4diff/lz4diff_compress.cc",
         "payload_generator/ext2_filesystem.cc",
         "payload_generator/erofs_filesystem.cc",
         "payload_generator/extent_ranges.cc",
@@ -769,6 +771,7 @@ filegroup {
         "common/prefs_unittest.cc",
         "common/terminator_unittest.cc",
         "common/test_utils.cc",
+        "lz4diff/lz4diff_compress_unittest.cc",
         "payload_generator/ab_generator_unittest.cc",
         "payload_generator/blob_file_writer_unittest.cc",
         "payload_generator/block_mapping_unittest.cc",
