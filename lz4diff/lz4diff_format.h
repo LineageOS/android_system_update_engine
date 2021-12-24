@@ -58,8 +58,12 @@ struct CompressedBlock {
 };
 
 struct CompressedFile {
+  // Extents in this array should be in range [0, file_size]. It represents
+  // which bytes inside this file are compressed. Useful for compressed file
+  // systems like EROFS.
   std::vector<CompressedBlock> blocks;
   CompressionAlgorithm algo;
+  // Whether the EROFS zero padding feature is enabled
   bool zero_padding_enabled{};
 };
 
