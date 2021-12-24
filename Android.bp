@@ -618,6 +618,7 @@ cc_library_static {
         "payload_generator/deflate_utils.cc",
         "payload_generator/delta_diff_generator.cc",
         "payload_generator/delta_diff_utils.cc",
+        "lz4diff/lz4diff.cc",
         "lz4diff/lz4diff_compress.cc",
         "payload_generator/ext2_filesystem.cc",
         "payload_generator/erofs_filesystem.cc",
