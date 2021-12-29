@@ -312,6 +312,12 @@ bool ReadExtents(const std::string& path,
                  ssize_t out_data_size,
                  size_t block_size);
 
+bool ReadExtents(FileDescriptorPtr path,
+                 const std::vector<Extent>& extents,
+                 brillo::Blob* out_data,
+                 ssize_t out_data_size,
+                 size_t block_size);
+
 bool WriteExtents(const std::string& path,
                   const google::protobuf::RepeatedPtrField<Extent>& extents,
                   const brillo::Blob& data,
@@ -329,6 +335,11 @@ constexpr bool ReadExtents(const std::string& path,
 }
 
 bool ReadExtents(const std::string& path,
+                 const google::protobuf::RepeatedPtrField<Extent>& extents,
+                 brillo::Blob* out_data,
+                 size_t block_size);
+
+bool ReadExtents(FileDescriptorPtr path,
                  const google::protobuf::RepeatedPtrField<Extent>& extents,
                  brillo::Blob* out_data,
                  size_t block_size);
