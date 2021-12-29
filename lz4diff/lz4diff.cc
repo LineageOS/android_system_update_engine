@@ -165,6 +165,8 @@ static bool TryPuffdiff(puffin::Buffer src,
 static void StoreSrcCompressedFileInfo(const CompressedFile& src_file_info,
                                        Lz4diffHeader* header) {
   *header->mutable_src_info()->mutable_algo() = src_file_info.algo;
+  header->mutable_src_info()->set_zero_padding_enabled(
+      src_file_info.zero_padding_enabled);
   auto& src_blocks = *header->mutable_src_info()->mutable_block_info();
   src_blocks.Clear();
   for (const auto& block : src_file_info.blocks) {
