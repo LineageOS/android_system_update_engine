@@ -24,6 +24,8 @@
 #include <unistd.h>
 
 #include <cmath>
+#include <fstream>
+#include <string>
 
 #include <base/files/file_path.h>
 #include <base/files/file_util.h>
@@ -45,6 +47,31 @@ namespace {
 // but must be kept in sync with the "bin/postinst_progress" defined in the
 // sample_images.sh file.
 const int kPostinstallStatusFd = 3;
+
+static constexpr bool Contains(std::string_view haystack,
+                               std::string_view needle) {
+  return haystack.find(needle) != std::string::npos;
+}
+
+static void LogBuildInfoForPartition(std::string_view mount_point) {
+  static constexpr std::array<std::string_view, 3> kBuildPropFiles{
+      "build.prop", "etc/build.prop", "system/build.prop"};
+  for (const auto& file : kBuildPropFiles) {
+    auto path = std::string(mount_point);
+    if (path.back() != '/') {
+      path.push_back('/');
+    }
+    path += file;
+    LOG(INFO) << "Trying to read " << path;
+    std::ifstream infile(path);
+    std::string line;
+    while (std::getline(infile, line)) {
+      if (Contains(line, "ro.build")) {
+        LOG(INFO) << line;
+      }
+    }
+  }
+}
 
 }  // namespace
 
@@ -193,6 +220,7 @@ void PostinstallRunnerAction::PerformPartitionPostinstall() {
       if (!MountPartition(partition)) {
         return CompletePostinstall(ErrorCode::kPostInstallMountError);
       }
+      LogBuildInfoForPartition(fs_mount_dir_);
       if (!utils::UnmountFilesystem(fs_mount_dir_)) {
         return CompletePartitionPostinstall(
             1, "Error unmounting the device " + mountable_device);
@@ -215,6 +243,7 @@ void PostinstallRunnerAction::PerformPartitionPostinstall() {
     CompletePostinstall(ErrorCode::kPostInstallMountError);
     return;
   }
+  LogBuildInfoForPartition(fs_mount_dir_);
   base::FilePath postinstall_path(partition.postinstall_path);
   if (postinstall_path.IsAbsolute()) {
     LOG(ERROR) << "Invalid absolute path passed to postinstall, use a relative"
