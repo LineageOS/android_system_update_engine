@@ -186,11 +186,13 @@ cc_defaults {
         "libpayload_extent_utils",
         "libcow_operation_convert",
         "lz4diff-protos",
+        "liblz4patch",
     ],
     shared_libs: [
         "libbase",
         "libcrypto",
         "libfec",
+        "liblz4",
         "libziparchive",
     ],
 }
@@ -460,6 +462,7 @@ cc_binary {
     shared_libs: [
         "libbase",
         "liblog",
+        "liblz4",
     ],
     static_libs: [
         "libpayload_consumer",
@@ -554,6 +557,7 @@ cc_defaults {
         "libcow_size_estimator",
         "liberofs",
         "lz4diff-protos",
+        "liblz4diff",
     ],
     shared_libs: [
         "libbase",
@@ -598,6 +602,51 @@ cc_library_static {
     ],
 }
 
+cc_defaults {
+    name: "liblz4diff_defaults",
+    static_libs: [
+        "lz4diff-protos",
+        "update_metadata-protos",
+        "libssl",
+        "libbsdiff",
+        "libpuffdiff",
+    ],
+    shared_libs: [
+        "liblz4",
+    ]
+}
+
+cc_library_static {
+    name: "liblz4diff",
+    host_supported: true,
+    defaults: ["ue_defaults", "liblz4diff_defaults"],
+    srcs: [
+        "lz4diff/lz4patch.cc",
+        "lz4diff/lz4diff_compress.cc",
+    ],
+}
+
+cc_library_static {
+    name: "liblz4patch",
+    host_supported: true,
+    recovery_available: true,
+    defaults: ["ue_defaults"],
+    static_libs: [
+        "lz4diff-protos",
+        "update_metadata-protos",
+        "libssl",
+        "libbspatch",
+        "libpuffpatch",
+    ],
+    shared_libs: [
+        "liblz4",
+    ],
+    srcs: [
+        "lz4diff/lz4patch.cc",
+        "lz4diff/lz4diff_compress.cc",
+    ],
+}
+
 cc_library_static {
     name: "libpayload_generator",
     defaults: [
@@ -618,8 +667,6 @@ cc_library_static {
         "payload_generator/deflate_utils.cc",
         "payload_generator/delta_diff_generator.cc",
         "payload_generator/delta_diff_utils.cc",
-        "lz4diff/lz4diff.cc",
-        "lz4diff/lz4diff_compress.cc",
         "payload_generator/ext2_filesystem.cc",
         "payload_generator/erofs_filesystem.cc",
         "payload_generator/extent_ranges.cc",

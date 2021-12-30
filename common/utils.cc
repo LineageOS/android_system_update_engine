@@ -567,7 +567,7 @@ bool MountFilesystem(const string& device,
                      const string& fs_mount_options) {
   vector<const char*> fstypes;
   if (type.empty()) {
-    fstypes = {"ext2", "ext3", "ext4", "squashfs"};
+    fstypes = {"ext2", "ext3", "ext4", "squashfs", "erofs"};
   } else {
     fstypes = {type.c_str()};
   }
@@ -931,17 +931,34 @@ bool WriteExtents(const std::string& path,
   }
   return true;
 }
+bool ReadExtents(const std::string& path,
+                 const vector<Extent>& extents,
+                 brillo::Blob* out_data,
+                 ssize_t out_data_size,
+                 size_t block_size) {
+  FileDescriptorPtr fd = std::make_shared<EintrSafeFileDescriptor>();
+  fd->Open(path.c_str(), O_RDONLY);
+  return ReadExtents(fd, extents, out_data, out_data_size, block_size);
+}
 
-bool ReadExtents(const string& path,
+bool ReadExtents(FileDescriptorPtr fd,
+                 const google::protobuf::RepeatedPtrField<Extent>& extents,
+                 brillo::Blob* out_data,
+                 size_t block_size) {
+  return ReadExtents(fd,
+                     {extents.begin(), extents.end()},
+                     out_data,
+                     utils::BlocksInExtents(extents) * block_size,
+                     block_size);
+}
+
+bool ReadExtents(FileDescriptorPtr fd,
                  const vector<Extent>& extents,
                  brillo::Blob* out_data,
                  ssize_t out_data_size,
                  size_t block_size) {
   brillo::Blob data(out_data_size);
   ssize_t bytes_read = 0;
-  int fd = open(path.c_str(), O_RDONLY);
-  TEST_AND_RETURN_FALSE_ERRNO(fd >= 0);
-  ScopedFdCloser fd_closer(&fd);
 
   for (const Extent& extent : extents) {
     ssize_t bytes_read_this_iteration = 0;
