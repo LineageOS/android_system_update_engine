@@ -1430,9 +1430,16 @@ FileDescriptorPtr DynamicPartitionControlAndroid::OpenCowFd(
     return nullptr;
   }
   if (!cow_writer->InitializeAppend(kEndOfInstallLabel)) {
+    LOG(ERROR) << "Failed to InitializeAppend(" << kEndOfInstallLabel << ")";
     return nullptr;
   }
-  return std::make_shared<CowWriterFileDescriptor>(std::move(cow_writer));
+  auto reader = cow_writer->OpenReader();
+  if (reader == nullptr) {
+    LOG(ERROR) << "ICowWriter::OpenReader() failed.";
+    return nullptr;
+  }
+  return std::make_shared<CowWriterFileDescriptor>(std::move(cow_writer),
+                                                   std::move(reader));
 }
 
 std::optional<base::FilePath> DynamicPartitionControlAndroid::GetSuperDevice() {
