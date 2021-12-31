@@ -297,6 +297,10 @@ bool Lz4Patch(std::string_view src_data,
   return true;
 }
 
+bool Lz4Patch(const Blob& src_data, const Blob& patch_data, Blob* output) {
+  return Lz4Patch(ToStringView(src_data), ToStringView(patch_data), output);
+}
+
 std::ostream& operator<<(std::ostream& out, const CompressionAlgorithm& info) {
   out << "Algo {type: " << info.Type_Name(info.type());
   if (info.level() != 0) {
