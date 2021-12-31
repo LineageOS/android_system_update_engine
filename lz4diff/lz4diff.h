@@ -30,7 +30,6 @@ bool Lz4Diff(std::string_view src,
              std::string_view dst,
              const CompressedFile& src_file_info,
              const CompressedFile& dst_file_info,
-             const bool zero_padding_enabled,
              Blob* output,
              InstallOperation::Type* op_type = nullptr) noexcept;
 
@@ -38,7 +37,6 @@ bool Lz4Diff(const Blob& src,
              const Blob& dst,
              const CompressedFile& src_file_info,
              const CompressedFile& dst_file_info,
-             const bool zero_padding_enabled,
              Blob* output,
              InstallOperation::Type* op_type = nullptr) noexcept;
 
