@@ -17,12 +17,14 @@
 #ifndef UPDATE_ENGINE_LZ4DIFF_LZ4PATCH_H_
 #define UPDATE_ENGINE_LZ4DIFF_LZ4PATCH_H_
 
+#include "lz4diff/lz4diff_compress.h"
 #include "lz4diff_format.h"
 
 namespace chromeos_update_engine {
 bool Lz4Patch(std::string_view src_data,
               std::string_view patch_data,
               Blob* output);
+bool Lz4Patch(const Blob& src_data, const Blob& patch_data, Blob* output);
 
 std::ostream& operator<<(std::ostream& out, const Lz4diffHeader&);
 
