@@ -31,9 +31,8 @@ namespace chromeos_update_engine {
 
 class CachedFileDescriptor : public FileDescriptor {
  public:
-  CachedFileDescriptor(FileDescriptorPtr fd, size_t cache_size) : fd_(fd) {
-    cache_.resize(cache_size);
-  }
+  CachedFileDescriptor(FileDescriptorPtr fd, size_t cache_size)
+      : fd_(fd), cache_(cache_size) {}
   ~CachedFileDescriptor() override = default;
 
   bool Open(const char* path, int flags, mode_t mode) override {

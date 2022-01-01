@@ -40,8 +40,7 @@ Blob TryCompressBlob(std::string_view blob,
     compressed_size += block.compressed_length;
   }
   CHECK_EQ(uncompressed_size, blob.size());
-  Blob output;
-  output.resize(utils::RoundUp(compressed_size, kBlockSize));
+  Blob output(utils::RoundUp(compressed_size, kBlockSize));
   auto hc = LZ4_createStreamHC();
   DEFER {
     if (hc) {
@@ -109,10 +108,6 @@ Blob TryCompressBlob(std::string_view blob,
                   output.data() + compressed_offset + block.compressed_length,
                   0);
       }
-    }
-    if (static_cast<uint64_t>(src_size) != block.uncompressed_length) {
-      LOG(WARNING) << "Recompress size mismatch: " << src_size << ", "
-                   << block.uncompressed_length;
     }
   }
   // Any trailing data will be copied to the output buffer.

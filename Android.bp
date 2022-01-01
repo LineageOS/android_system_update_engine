@@ -613,7 +613,7 @@ cc_defaults {
     ],
     shared_libs: [
         "liblz4",
-    ]
+    ],
 }
 
 cc_library_static {
@@ -621,7 +621,7 @@ cc_library_static {
     host_supported: true,
     defaults: ["ue_defaults", "liblz4diff_defaults"],
     srcs: [
-        "lz4diff/lz4patch.cc",
+        "lz4diff/lz4diff.cc",
         "lz4diff/lz4diff_compress.cc",
     ],
 }
@@ -789,11 +789,13 @@ genrule {
 
 genrule {
     name: "ue_unittest_erofs_imgs",
-    cmd: "$(in) $(location mkfs.erofs) $(location gen/erofs_empty.img) &&" +
-         "$(in) $(location mkfs.erofs) $(location gen/erofs.img) $(location delta_generator)",
+    cmd: "$(in) $(location mkfs.erofs) $(location gen/erofs_empty.img) && " +
+         "$(in) $(location mkfs.erofs) $(location gen/erofs.img) $(location delta_generator) && " +
+         "$(in) $(location mkfs.erofs) $(location gen/erofs_new.img) $(location delta_generator) lz4hc,7",
     srcs: ["sample_images/generate_test_erofs_images.sh"],
     out: [
         "gen/erofs.img",
+        "gen/erofs_new.img",
         "gen/erofs_empty.img",
     ],
     tools: [
@@ -820,6 +822,7 @@ filegroup {
         "common/terminator_unittest.cc",
         "common/test_utils.cc",
         "lz4diff/lz4diff_compress_unittest.cc",
+        "lz4diff/lz4diff_unittest.cc",
         "payload_generator/ab_generator_unittest.cc",
         "payload_generator/blob_file_writer_unittest.cc",
         "payload_generator/block_mapping_unittest.cc",
