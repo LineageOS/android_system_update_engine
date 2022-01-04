@@ -17,6 +17,7 @@
 #include "update_engine/payload_generator/merge_sequence_generator.h"
 
 #include <algorithm>
+#include <limits>
 
 #include "update_engine/payload_generator/delta_diff_generator.h"
 #include "update_engine/payload_generator/extent_ranges.h"
