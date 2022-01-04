@@ -19,7 +19,7 @@
 #include <string>
 #include <utility>
 
-#include <sys/fcntl.h>
+#include <fcntl.h>
 #include <sys/sendfile.h>
 #include <unistd.h>
 
