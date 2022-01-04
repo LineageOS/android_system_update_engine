@@ -212,6 +212,8 @@ a subset of partitions on device."
     "Optional: Override the minor version for the delta generation."
   DEFINE_string compressor_types "" \
     "Optional: allowed compressor types. Colon separated, allowe values are bz2 and brotli"
+  DEFINE_string enable_zucchini "" \
+    "Optional: Whether to enable zucchini diffing"
 fi
 if [[ "${COMMAND}" == "hash" || "${COMMAND}" == "sign" ]]; then
   DEFINE_string unsigned_payload "" "Path to the input unsigned payload."
@@ -722,6 +724,10 @@ cmd_generate() {
     if [[ -n "${FLAGS_compressor_types}" ]]; then
       GENERATOR_ARGS+=(
         --compressor_types="${FLAGS_compressor_types}" )
+    fi
+    if [[ -n "${FLAGS_enable_zucchini}" ]]; then
+      GENERATOR_ARGS+=(
+        --enable_zucchini="${FLAGS_enable_zucchini}" )
     fi
   fi
 
