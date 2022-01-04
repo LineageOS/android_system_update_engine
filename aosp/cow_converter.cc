@@ -14,6 +14,7 @@
 // limitations under the License.
 //
 
+#include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -21,7 +22,6 @@
 #include <cstdio>
 #include <memory>
 
-#include <sys/fcntl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 
