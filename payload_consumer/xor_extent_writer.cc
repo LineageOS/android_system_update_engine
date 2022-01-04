@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <optional>
+#include <vector>
 
 #include "update_engine/common/utils.h"
 #include "update_engine/payload_consumer/xor_extent_writer.h"
