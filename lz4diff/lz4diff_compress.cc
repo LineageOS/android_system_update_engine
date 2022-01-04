@@ -149,8 +149,8 @@ Blob TryDecompressBlob(std::string_view blob,
     }
     size_t inputmargin = 0;
     if (zero_padding_enabled) {
-      while (cluster[inputmargin] == 0 &&
-             inputmargin < std::min(kBlockSize, cluster.size())) {
+      while (inputmargin < std::min(kBlockSize, cluster.size()) &&
+             cluster[inputmargin] == 0) {
         inputmargin++;
       }
     }
