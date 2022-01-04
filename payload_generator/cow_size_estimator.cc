@@ -16,6 +16,7 @@
 
 #include "update_engine/payload_generator/cow_size_estimator.h"
 
+#include <algorithm>
 #include <functional>
 #include <string>
 #include <utility>
@@ -26,10 +27,10 @@
 
 #include "update_engine/common/cow_operation_convert.h"
 #include "update_engine/common/utils.h"
+#include "update_engine/payload_consumer/vabc_partition_writer.h"
 #include "update_engine/payload_generator/extent_ranges.h"
 #include "update_engine/payload_generator/extent_utils.h"
 #include "update_engine/update_metadata.pb.h"
-#include "update_engine/payload_consumer/vabc_partition_writer.h"
 
 namespace chromeos_update_engine {
 using android::snapshot::CowWriter;
