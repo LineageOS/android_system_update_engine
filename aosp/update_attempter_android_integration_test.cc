@@ -19,7 +19,7 @@
 #include <string>
 #include <utility>
 
-#include <sys/fcntl.h>
+#include <fcntl.h>
 #include <sys/sendfile.h>
 #include <unistd.h>
 
@@ -35,16 +35,16 @@
 #include "update_engine/aosp/daemon_state_android.h"
 #include "update_engine/aosp/update_attempter_android.h"
 #include "update_engine/common/constants.h"
-#include "update_engine/common/prefs.h"
-#include "update_engine/common/testing_constants.h"
-#include "update_engine/common/hash_calculator.h"
 #include "update_engine/common/fake_boot_control.h"
 #include "update_engine/common/fake_hardware.h"
+#include "update_engine/common/hash_calculator.h"
+#include "update_engine/common/prefs.h"
 #include "update_engine/common/test_utils.h"
+#include "update_engine/common/testing_constants.h"
 #include "update_engine/common/utils.h"
 #include "update_engine/payload_consumer/file_descriptor.h"
-#include "update_engine/payload_consumer/payload_constants.h"
 #include "update_engine/payload_consumer/install_plan.h"
+#include "update_engine/payload_consumer/payload_constants.h"
 #include "update_engine/payload_generator/delta_diff_generator.h"
 #include "update_engine/payload_generator/extent_ranges.h"
 #include "update_engine/payload_generator/payload_file.h"

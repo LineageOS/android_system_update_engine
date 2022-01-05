@@ -16,6 +16,7 @@
 
 #include <gtest/gtest.h>
 #include <optional>
+#include <vector>
 
 #include "update_engine/payload_consumer/extent_map.h"
 #include "update_engine/payload_generator/extent_ranges.h"

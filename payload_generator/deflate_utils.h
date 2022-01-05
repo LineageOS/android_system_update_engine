@@ -17,8 +17,10 @@
 #ifndef UPDATE_ENGINE_PAYLOAD_GENERATOR_DEFLATE_UTILS_H_
 #define UPDATE_ENGINE_PAYLOAD_GENERATOR_DEFLATE_UTILS_H_
 
-#include <puffin/puffdiff.h>
+#include <string>
 #include <vector>
+
+#include <puffin/puffdiff.h>
 
 #include "update_engine/payload_generator/filesystem_interface.h"
 #include "update_engine/payload_generator/payload_generation_config.h"
