@@ -62,6 +62,11 @@ class InstallOperationExecutor {
                                 FileDescriptorPtr source_fd,
                                 const void* data,
                                 size_t count);
+  bool ExecuteLz4diffOperation(const InstallOperation& operation,
+                               std::unique_ptr<ExtentWriter> writer,
+                               FileDescriptorPtr source_fd,
+                               const void* data,
+                               size_t count);
 
   size_t block_size_;
 };

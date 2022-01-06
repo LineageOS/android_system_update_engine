@@ -434,6 +434,10 @@ int Main(int argc, char** argv) {
                 "bz2:brotli",
                 "Colon ':' separated list of compressors. Allowed valures are "
                 "bz2 and brotli.");
+  DEFINE_bool(
+      enable_lz4diff,
+      false,
+      "Whether to enable LZ4diff feature when processing EROFS images.");
 
   brillo::FlagHelper::Init(
       argc,
@@ -551,6 +555,7 @@ int Main(int argc, char** argv) {
   }
 
   payload_config.enable_vabc_xor = FLAGS_enable_vabc_xor;
+  payload_config.enable_lz4diff = FLAGS_enable_lz4diff;
   payload_config.ParseCompressorTypes(FLAGS_compressor_types);
 
   if (!FLAGS_new_partitions.empty()) {
