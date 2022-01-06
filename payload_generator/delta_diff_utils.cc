@@ -17,6 +17,7 @@
 #include "update_engine/payload_generator/delta_diff_utils.h"
 
 #include <endian.h>
+#include <sys/user.h>
 #if defined(__clang__)
 // TODO(*): Remove these pragmas when b/35721782 is fixed.
 #pragma clang diagnostic push
@@ -69,6 +70,7 @@
 #include "update_engine/payload_generator/merge_sequence_generator.h"
 #include "update_engine/payload_generator/squashfs_filesystem.h"
 #include "update_engine/payload_generator/xz.h"
+#include "update_engine/lz4diff/lz4diff.h"
 
 using std::list;
 using std::map;
@@ -214,6 +216,25 @@ bool BestDiffGenerator::GenerateBestDiffOperation(
     brillo::Blob* data_blob) {
   CHECK(aop);
   CHECK(data_blob);
+  if (!old_block_info_.blocks.empty() && !new_block_info_.blocks.empty() &&
+      config_.enable_lz4diff &&
+      config_.version.OperationAllowed(InstallOperation::LZ4DIFF_BSDIFF) &&
+      config_.version.OperationAllowed(InstallOperation::LZ4DIFF_PUFFDIFF)) {
+    brillo::Blob patch;
+    InstallOperation::Type op_type;
+    if (Lz4Diff(old_data_,
+                new_data_,
+                old_block_info_,
+                new_block_info_,
+                &patch,
+                &op_type)) {
+      aop->op.set_type(op_type);
+      // LZ4DIFF is likely significantly better than BSDIFF/PUFFDIFF when
+      // working with EROFS. So no need to even try other diffing algorithms.
+      *data_blob = std::move(patch);
+      return true;
+    }
+  }
 
   const auto& version = config_.version;
   const uint64_t input_bytes = std::max(utils::BlocksInExtents(src_extents_),
@@ -227,8 +248,8 @@ bool BestDiffGenerator::GenerateBestDiffOperation(
 
     // Disable the specific diff algorithm when the data is too big.
     if (input_bytes > limit) {
-      LOG(INFO) << op_type << " ignored, data too big: " << input_bytes
-                << " bytes";
+      LOG(INFO) << op_type << " ignored, file " << aop->name
+                << " too big: " << input_bytes << " bytes";
       continue;
     }
 
@@ -290,6 +311,7 @@ bool BestDiffGenerator::TryBsdiffAndUpdateOperation(
                             data_blob->size(),
                             bsdiff_delta.size(),
                             src_extents_.size())) {
+    // VABC XOR won't work with compressed files just yet.
     if (config_.enable_vabc_xor) {
       StoreExtents(src_extents_, operation.mutable_src_extents());
       diff_utils::PopulateXorOps(aop, bsdiff_delta);
@@ -381,10 +403,8 @@ class FileDeltaProcessor : public base::DelegateSimpleThread::Delegate {
   FileDeltaProcessor(const string& old_part,
                      const string& new_part,
                      const PayloadGenerationConfig& config,
-                     const vector<Extent>& old_extents,
-                     const vector<Extent>& new_extents,
-                     const vector<puffin::BitExtent>& old_deflates,
-                     const vector<puffin::BitExtent>& new_deflates,
+                     const File& old_extents,
+                     const File& new_extents,
                      const string& name,
                      ssize_t chunk_blocks,
                      BlobFileWriter* blob_file)
@@ -393,9 +413,7 @@ class FileDeltaProcessor : public base::DelegateSimpleThread::Delegate {
         config_(config),
         old_extents_(old_extents),
         new_extents_(new_extents),
-        new_extents_blocks_(utils::BlocksInExtents(new_extents)),
-        old_deflates_(old_deflates),
-        new_deflates_(new_deflates),
+        new_extents_blocks_(utils::BlocksInExtents(new_extents.extents)),
         name_(name),
         chunk_blocks_(chunk_blocks),
         blob_file_(blob_file) {}
@@ -420,11 +438,9 @@ class FileDeltaProcessor : public base::DelegateSimpleThread::Delegate {
   const PayloadGenerationConfig& config_;
 
   // The block ranges of the old/new file within the src/tgt image
-  const vector<Extent> old_extents_;
-  const vector<Extent> new_extents_;
+  const File old_extents_;
+  const File new_extents_;
   const size_t new_extents_blocks_;
-  const vector<puffin::BitExtent> old_deflates_;
-  const vector<puffin::BitExtent> new_deflates_;
   const string name_;
   // Block limit of one aop.
   const ssize_t chunk_blocks_;
@@ -447,9 +463,6 @@ void FileDeltaProcessor::Run() {
                      new_part_,
                      old_extents_,
                      new_extents_,
-                     old_deflates_,
-                     new_deflates_,
-                     name_,
                      chunk_blocks_,
                      config_,
                      blob_file_)) {
@@ -609,13 +622,13 @@ bool DeltaReadPartition(vector<AnnotatedOperation>* aops,
     // etc.
     // 2. dst extent is completely filtered, no duplicate blocks or zero blocks
     // whatsoever.
+    auto filtered_new_file = new_file;
+    filtered_new_file.extents = RemoveDuplicateBlocks(new_file_extents);
     file_delta_processors.emplace_back(old_part.path,
                                        new_part.path,
                                        config,
-                                       std::move(old_file.extents),
-                                       RemoveDuplicateBlocks(new_file_extents),
-                                       old_file.deflates,
-                                       new_file.deflates,
+                                       std::move(old_file),
+                                       std::move(filtered_new_file),
                                        new_file.name,  // operation name
                                        hard_chunk_blocks,
                                        blob_file);
@@ -638,17 +651,18 @@ bool DeltaReadPartition(vector<AnnotatedOperation>* aops,
     // We use the soft_chunk_blocks limit for the <non-file-data> as we don't
     // really know the structure of this data and we should not expect it to
     // have redundancy between partitions.
-    file_delta_processors.emplace_back(
-        old_part.path,
-        new_part.path,
-        config,
-        std::move(old_unvisited),
-        RemoveDuplicateBlocks(new_unvisited),
-        vector<puffin::BitExtent>{},  // old_deflates,
-        vector<puffin::BitExtent>{},  // new_deflates
-        "<non-file-data>",            // operation name
-        soft_chunk_blocks,
-        blob_file);
+    File old_file;
+    old_file.extents = old_unvisited;
+    File new_file;
+    new_file.extents = RemoveDuplicateBlocks(new_unvisited);
+    file_delta_processors.emplace_back(old_part.path,
+                                       new_part.path,
+                                       config,
+                                       old_file,
+                                       new_file,
+                                       "<non-file-data>",  // operation name
+                                       soft_chunk_blocks,
+                                       blob_file);
   }
 
   size_t max_threads = GetMaxThreads();
@@ -764,14 +778,15 @@ bool DeltaMovedAndZeroBlocks(vector<AnnotatedOperation>* aops,
         aops->push_back({.name = "<zeros>", .op = operation});
       }
     } else {
+      File old_file;
+      File new_file;
+      new_file.name = "<zeros>";
+      new_file.extents = {extent};
       TEST_AND_RETURN_FALSE(DeltaReadFile(aops,
                                           "",
                                           new_part,
-                                          {},        // old_extents
-                                          {extent},  // new_extents
-                                          {},        // old_deflates
-                                          {},        // new_deflates
-                                          "<zeros>",
+                                          old_file,  // old_extents
+                                          new_file,  // new_extents
                                           chunk_blocks,
                                           config,
                                           blob_file));
@@ -823,17 +838,18 @@ bool DeltaMovedAndZeroBlocks(vector<AnnotatedOperation>* aops,
   return true;
 }
 
-bool DeltaReadFile(vector<AnnotatedOperation>* aops,
-                   const string& old_part,
-                   const string& new_part,
-                   const vector<Extent>& old_extents,
-                   const vector<Extent>& new_extents,
-                   const vector<puffin::BitExtent>& old_deflates,
-                   const vector<puffin::BitExtent>& new_deflates,
-                   const string& name,
+bool DeltaReadFile(std::vector<AnnotatedOperation>* aops,
+                   const std::string& old_part,
+                   const std::string& new_part,
+                   const File& old_file,
+                   const File& new_file,
                    ssize_t chunk_blocks,
                    const PayloadGenerationConfig& config,
                    BlobFileWriter* blob_file) {
+  const auto& old_extents = old_file.extents;
+  const auto& new_extents = new_file.extents;
+  const auto& name = new_file.name;
+
   brillo::Blob data;
 
   uint64_t total_blocks = utils::BlocksInExtents(new_extents);
@@ -860,13 +876,13 @@ bool DeltaReadFile(vector<AnnotatedOperation>* aops,
 
     // Now, insert into the list of operations.
     AnnotatedOperation aop;
-    aop.name = name;
+    aop.name = new_file.name;
     TEST_AND_RETURN_FALSE(ReadExtentsToDiff(old_part,
                                             new_part,
                                             old_extents_chunk,
                                             new_extents_chunk,
-                                            old_deflates,
-                                            new_deflates,
+                                            old_file,
+                                            new_file,
                                             config,
                                             &data,
                                             &aop));
@@ -1011,10 +1027,10 @@ bool PopulateXorOps(AnnotatedOperation* aop, const uint8_t* data, size_t size) {
 
 bool ReadExtentsToDiff(const string& old_part,
                        const string& new_part,
-                       const vector<Extent>& old_extents,
-                       const vector<Extent>& new_extents,
-                       const vector<puffin::BitExtent>& old_deflates,
-                       const vector<puffin::BitExtent>& new_deflates,
+                       const vector<Extent>& src_extents,
+                       const vector<Extent>& dst_extents,
+                       const File& old_file,
+                       const File& new_file,
                        const PayloadGenerationConfig& config,
                        brillo::Blob* out_data,
                        AnnotatedOperation* out_op) {
@@ -1023,18 +1039,16 @@ bool ReadExtentsToDiff(const string& old_part,
   InstallOperation& operation = aop.op;
 
   // We read blocks from old_extents and write blocks to new_extents.
-  uint64_t blocks_to_read = utils::BlocksInExtents(old_extents);
-  uint64_t blocks_to_write = utils::BlocksInExtents(new_extents);
+  const uint64_t blocks_to_read = utils::BlocksInExtents(src_extents);
+  const uint64_t blocks_to_write = utils::BlocksInExtents(dst_extents);
 
-  const vector<Extent>& src_extents = old_extents;
-  const vector<Extent>& dst_extents = new_extents;
   // All operations have dst_extents.
   StoreExtents(dst_extents, operation.mutable_dst_extents());
 
   // Read in bytes from new data.
   brillo::Blob new_data;
   TEST_AND_RETURN_FALSE(utils::ReadExtents(new_part,
-                                           new_extents,
+                                           dst_extents,
                                            &new_data,
                                            kBlockSize * blocks_to_write,
                                            kBlockSize));
@@ -1050,8 +1064,8 @@ bool ReadExtentsToDiff(const string& old_part,
       GenerateBestFullOperation(new_data, version, &data_blob, &op_type));
   operation.set_type(op_type);
 
-  brillo::Blob old_data;
   if (blocks_to_read > 0) {
+    brillo::Blob old_data;
     // Read old data.
     TEST_AND_RETURN_FALSE(utils::ReadExtents(old_part,
                                              src_extents,
@@ -1067,36 +1081,17 @@ bool ReadExtentsToDiff(const string& old_part,
       // No point in trying diff if zero blob size diff operation is
       // still worse than replace.
 
-      // Find all deflate positions inside the given extents and then put all
-      // deflates together because we have already read all the extents into
-      // one buffer.
-      vector<puffin::BitExtent> src_deflates;
-      TEST_AND_RETURN_FALSE(deflate_utils::FindAndCompactDeflates(
-          src_extents, old_deflates, &src_deflates));
-
-      vector<puffin::BitExtent> dst_deflates;
-      TEST_AND_RETURN_FALSE(deflate_utils::FindAndCompactDeflates(
-          dst_extents, new_deflates, &dst_deflates));
-
-      puffin::RemoveEqualBitExtents(
-          old_data, new_data, &src_deflates, &dst_deflates);
-      // See crbug.com/915559.
-      if (config.version.minor <= kPuffdiffMinorPayloadVersion) {
-        TEST_AND_RETURN_FALSE(puffin::RemoveDeflatesWithBadDistanceCaches(
-            old_data, &src_deflates));
-
-        TEST_AND_RETURN_FALSE(puffin::RemoveDeflatesWithBadDistanceCaches(
-            new_data, &dst_deflates));
-      }
       BestDiffGenerator best_diff_generator(old_data,
                                             new_data,
                                             src_extents,
                                             dst_extents,
-                                            std::move(src_deflates),
-                                            std::move(dst_deflates),
+                                            old_file,
+                                            new_file,
                                             config);
-      TEST_AND_RETURN_FALSE(
-          best_diff_generator.GenerateBestDiffOperation(&aop, &data_blob));
+      if (!best_diff_generator.GenerateBestDiffOperation(&aop, &data_blob)) {
+        LOG(INFO) << "Failed to generate diff for " << new_file.name;
+        return false;
+      }
     }
   }
 
@@ -1108,8 +1103,8 @@ bool ReadExtentsToDiff(const string& old_part,
   // parameters for those minor versions, the delta payloads will be invalid.
   if (operation.type() == InstallOperation::SOURCE_BSDIFF &&
       version.minor <= kOpSrcHashMinorPayloadVersion) {
-    operation.set_src_length(old_data.size());
-    operation.set_dst_length(new_data.size());
+    operation.set_src_length(blocks_to_read * kBlockSize);
+    operation.set_dst_length(blocks_to_write * kBlockSize);
   }
 
   // Embed extents in the operation. Replace (all variants), zero and discard

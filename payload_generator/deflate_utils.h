@@ -95,8 +95,13 @@ bool FindAndCompactDeflates(const std::vector<Extent>& extents,
 // Expands a BitExtents to a ByteExtent.
 puffin::ByteExtent ExpandToByteExtent(const puffin::BitExtent& extent);
 
-bool IsFileExtensions(const std::string& name,
-                      const std::initializer_list<std::string>& extensions);
+bool IsFileExtensions(
+    const std::string_view name,
+    const std::initializer_list<std::string_view>& extensions);
+
+bool DeflatePreprocessFileData(const std::string_view filename,
+                               const brillo::Blob& data,
+                               std::vector<puffin::BitExtent>* deflates);
 
 }  // namespace deflate_utils
 }  // namespace chromeos_update_engine
