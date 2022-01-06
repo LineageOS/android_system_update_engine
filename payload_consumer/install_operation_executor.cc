@@ -33,6 +33,8 @@
 #include <zucchini/zucchini.h>
 
 #include "update_engine/common/utils.h"
+#include "update_engine/lz4diff/lz4patch.h"
+#include "update_engine/lz4diff/lz4diff_compress.h"
 #include "update_engine/payload_consumer/bzip_extent_writer.h"
 #include "update_engine/payload_consumer/cached_file_descriptor.h"
 #include "update_engine/payload_consumer/extent_reader.h"
@@ -247,11 +249,31 @@ bool InstallOperationExecutor::ExecuteDiffOperation(
     case InstallOperation::ZUCCHINI:
       return ExecuteZucchiniOperation(
           operation, std::move(writer), source_fd, data, count);
+    case InstallOperation::LZ4DIFF_BSDIFF:
+    case InstallOperation::LZ4DIFF_PUFFDIFF:
+      return ExecuteLz4diffOperation(
+          operation, std::move(writer), source_fd, data, count);
     default:
       LOG(ERROR) << "Unexpected operation type when executing diff ops "
-                 << operation.type();
+                 << operation.Type_Name(operation.type());
       return false;
   }
+}
+
+bool InstallOperationExecutor::ExecuteLz4diffOperation(
+    const InstallOperation& operation,
+    std::unique_ptr<ExtentWriter> writer,
+    FileDescriptorPtr source_fd,
+    const void* data,
+    size_t count) {
+  brillo::Blob src_data;
+
+  brillo::Blob dst_data;
+  TEST_AND_RETURN_FALSE(utils::ReadExtents(
+      source_fd, operation.src_extents(), &src_data, block_size_));
+  TEST_AND_RETURN_FALSE(
+      Lz4Patch(ToStringView(src_data), ToStringView(data, count), &dst_data));
+  return writer->Write(dst_data.data(), dst_data.size());
 }
 
 bool InstallOperationExecutor::ExecuteSourceBsdiffOperation(

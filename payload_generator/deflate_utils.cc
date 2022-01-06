@@ -116,11 +116,20 @@ bool IsBitExtentInExtent(const Extent& extent, const BitExtent& bit_extent) {
 
 }  // namespace
 
-bool IsFileExtensions(const string& name,
-                      const std::initializer_list<string>& extensions) {
-  return any_of(extensions.begin(), extensions.end(), [&name](const auto& ext) {
-    return base::EndsWith(name, ext, base::CompareCase::INSENSITIVE_ASCII);
-  });
+constexpr base::StringPiece ToStringPiece(std::string_view s) {
+  return base::StringPiece(s.data(), s.length());
+}
+
+bool IsFileExtensions(
+    const std::string_view name,
+    const std::initializer_list<std::string_view>& extensions) {
+  return any_of(extensions.begin(),
+                extensions.end(),
+                [name = ToStringPiece(name)](const auto& ext) {
+                  return base::EndsWith(name,
+                                        ToStringPiece(ext),
+                                        base::CompareCase::INSENSITIVE_ASCII);
+                });
 }
 
 ByteExtent ExpandToByteExtent(const BitExtent& extent) {
@@ -180,8 +189,8 @@ bool ShiftBitExtentsOverExtents(const vector<Extent>& base_extents,
   // This check is needed to make sure the number of bytes in |over_extents|
   // does not exceed |base_extents|.
   auto last_extent = ExpandToByteExtent(over_extents->back());
-  TEST_AND_RETURN_FALSE(last_extent.offset + last_extent.length <=
-                        utils::BlocksInExtents(base_extents) * kBlockSize);
+  TEST_LE(last_extent.offset + last_extent.length,
+          utils::BlocksInExtents(base_extents) * kBlockSize);
 
   for (auto o_ext = over_extents->begin(); o_ext != over_extents->end();) {
     size_t gap_blocks = base_extents[0].start_block();
@@ -266,6 +275,28 @@ bool FindAndCompactDeflates(const vector<Extent>& extents,
   return true;
 }
 
+bool DeflatePreprocessFileData(const std::string_view filename,
+                               const brillo::Blob& data,
+                               vector<puffin::BitExtent>* deflates) {
+  bool is_zip = IsFileExtensions(
+      filename, {".apk", ".zip", ".jar", ".zvoice", ".apex", "capex"});
+  bool is_gzip = IsFileExtensions(filename, {".gz", ".gzip", ".tgz"});
+  if (is_zip) {
+    if (!puffin::LocateDeflatesInZipArchive(data, deflates)) {
+      LOG(ERROR) << "Failed to locate deflates in zip file " << filename;
+      deflates->clear();
+      return false;
+    }
+  } else if (is_gzip) {
+    if (!puffin::LocateDeflatesInGzip(data, deflates)) {
+      LOG(ERROR) << "Failed to locate deflates in gzip file " << filename;
+      deflates->clear();
+      return false;
+    }
+  }
+  return true;
+}
+
 bool PreprocessPartitionFiles(const PartitionConfig& part,
                               vector<FilesystemInterface::File>* result_files,
                               bool extract_deflates) {
@@ -331,16 +362,10 @@ bool PreprocessPartitionFiles(const PartitionConfig& part,
           data.resize(file.file_stat.st_size);
         }
         vector<puffin::BitExtent> deflates;
-        if (is_zip) {
-          if (!puffin::LocateDeflatesInZipArchive(data, &deflates)) {
-            LOG(ERROR) << "Failed to process deflate in zip " << file.name;
-            return false;
-          }
-        } else if (is_gzip) {
-          if (!puffin::LocateDeflatesInGzip(data, &deflates)) {
-            LOG(ERROR) << "Failed to process deflate in gzip " << file.name;
-            return false;
-          }
+        if (!DeflatePreprocessFileData(file.name, data, &deflates)) {
+          LOG(ERROR) << "Failed to preprocess deflate data in partition "
+                     << part.name;
+          return false;
         }
         // Shift the deflate's extent to the offset starting from the beginning
         // of the current partition; and the delta processor will align the
