@@ -571,6 +571,8 @@ bool DeltaPerformer::Write(const void* bytes, size_t count, ErrorCode* error) {
       case InstallOperation::BROTLI_BSDIFF:
       case InstallOperation::PUFFDIFF:
       case InstallOperation::ZUCCHINI:
+      case InstallOperation::LZ4DIFF_PUFFDIFF:
+      case InstallOperation::LZ4DIFF_BSDIFF:
         op_result = PerformDiffOperation(op, error);
         OP_DURATION_HISTOGRAM(op_name, op_start_time);
         break;
