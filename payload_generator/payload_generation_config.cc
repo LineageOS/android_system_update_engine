@@ -357,4 +357,20 @@ void PayloadGenerationConfig::ParseCompressorTypes(
   }
 }
 
+bool PayloadGenerationConfig::OperationEnabled(
+    InstallOperation::Type op) const noexcept {
+  if (!version.OperationAllowed(op)) {
+    return false;
+  }
+  switch (op) {
+    case InstallOperation::ZUCCHINI:
+      return enable_zucchini;
+    case InstallOperation::LZ4DIFF_BSDIFF:
+    case InstallOperation::LZ4DIFF_PUFFDIFF:
+      return enable_lz4diff;
+    default:
+      return true;
+  }
+}
+
 }  // namespace chromeos_update_engine
