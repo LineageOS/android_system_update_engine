@@ -217,9 +217,8 @@ bool BestDiffGenerator::GenerateBestDiffOperation(
   CHECK(aop);
   CHECK(data_blob);
   if (!old_block_info_.blocks.empty() && !new_block_info_.blocks.empty() &&
-      config_.enable_lz4diff &&
-      config_.version.OperationAllowed(InstallOperation::LZ4DIFF_BSDIFF) &&
-      config_.version.OperationAllowed(InstallOperation::LZ4DIFF_PUFFDIFF)) {
+      config_.OperationEnabled(InstallOperation::LZ4DIFF_BSDIFF) &&
+      config_.OperationEnabled(InstallOperation::LZ4DIFF_PUFFDIFF)) {
     brillo::Blob patch;
     InstallOperation::Type op_type;
     if (Lz4Diff(old_data_,
@@ -236,13 +235,12 @@ bool BestDiffGenerator::GenerateBestDiffOperation(
     }
   }
 
-  const auto& version = config_.version;
   const uint64_t input_bytes = std::max(utils::BlocksInExtents(src_extents_),
                                         utils::BlocksInExtents(dst_extents_)) *
                                kBlockSize;
 
   for (auto [op_type, limit] : diff_candidates) {
-    if (!version.OperationAllowed(op_type)) {
+    if (!config_.OperationEnabled(op_type)) {
       continue;
     }
 
@@ -255,7 +253,7 @@ bool BestDiffGenerator::GenerateBestDiffOperation(
 
     // Prefer BROTLI_BSDIFF as it gives smaller patch size.
     if (op_type == InstallOperation::SOURCE_BSDIFF &&
-        version.OperationAllowed(InstallOperation::BROTLI_BSDIFF)) {
+        config_.OperationEnabled(InstallOperation::BROTLI_BSDIFF)) {
       op_type = InstallOperation::BROTLI_BSDIFF;
     }
 
@@ -567,7 +565,7 @@ bool DeltaReadPartition(vector<AnnotatedOperation>* aops,
                                                 &new_visited_blocks,
                                                 &old_zero_blocks));
 
-  bool puffdiff_allowed = version.OperationAllowed(InstallOperation::PUFFDIFF);
+  bool puffdiff_allowed = config.OperationEnabled(InstallOperation::PUFFDIFF);
   map<string, FilesystemInterface::File> old_files_map;
   if (old_part.fs_interface) {
     vector<FilesystemInterface::File> old_files;
@@ -699,7 +697,6 @@ bool DeltaMovedAndZeroBlocks(vector<AnnotatedOperation>* aops,
                              ExtentRanges* old_visited_blocks,
                              ExtentRanges* new_visited_blocks,
                              ExtentRanges* old_zero_blocks) {
-  const auto& version = config.version;
   vector<BlockMapping::BlockId> old_block_ids;
   vector<BlockMapping::BlockId> new_block_ids;
   TEST_AND_RETURN_FALSE(MapPartitionBlocks(old_part,
@@ -765,7 +762,7 @@ bool DeltaMovedAndZeroBlocks(vector<AnnotatedOperation>* aops,
   size_t num_ops = aops->size();
   new_visited_blocks->AddExtents(new_zeros);
   for (const Extent& extent : new_zeros) {
-    if (version.OperationAllowed(InstallOperation::ZERO)) {
+    if (config.OperationEnabled(InstallOperation::ZERO)) {
       for (uint64_t offset = 0; offset < extent.num_blocks();
            offset += chunk_blocks) {
         uint64_t num_blocks =
