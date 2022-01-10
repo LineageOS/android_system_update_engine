@@ -447,11 +447,11 @@ def main():
   # List of commands to execute on exit.
   finalize_cmds = []
   # Commands to execute when canceling an update.
-  cancel_cmd = ['shell', 'su', '0', 'update_engine_client', '--cancel']
+  cancel_cmd = ['shell', 'update_engine_client', '--cancel']
   # List of commands to perform the update.
   cmds = []
 
-  help_cmd = ['shell', 'su', '0', 'update_engine_client', '--help']
+  help_cmd = ['shell', 'update_engine_client', '--help']
   use_omaha = 'omaha' in dut.adb_output(help_cmd)
 
   metadata_path = "/data/ota_package/metadata"
@@ -488,6 +488,9 @@ def main():
         dut.adb(["push", care_map_fp.name,
                 "/data/ota_package/" + CARE_MAP_ENTRY_NAME])
 
+  # Always enable performance mode, as we want the update to finish fast
+  cmds.append(['shell', 'update_engine_client', '--perf_mode=true'])
+
   if args.file:
     # Update via pushing a file to /data.
     device_ota_file = os.path.join(OTA_PACKAGE_PATH, 'debug.zip')
@@ -495,12 +498,12 @@ def main():
     if not args.no_push:
       data_local_tmp_file = '/data/local/tmp/debug.zip'
       cmds.append(['push', args.otafile, data_local_tmp_file])
-      cmds.append(['shell', 'su', '0', 'mv', data_local_tmp_file,
+      cmds.append(['shell', 'mv', data_local_tmp_file,
                    device_ota_file])
-      cmds.append(['shell', 'su', '0', 'chcon',
+      cmds.append(['shell', 'chcon',
                    'u:object_r:ota_package_file:s0', device_ota_file])
-    cmds.append(['shell', 'su', '0', 'chown', 'system:cache', device_ota_file])
-    cmds.append(['shell', 'su', '0', 'chmod', '0660', device_ota_file])
+    cmds.append(['shell', 'chown', 'system:cache', device_ota_file])
+    cmds.append(['shell', 'chmod', '0660', device_ota_file])
   else:
     # Update via sending the payload over the network with an "adb reverse"
     # command.
@@ -518,15 +521,15 @@ def main():
   if args.public_key:
     payload_key_dir = os.path.dirname(PAYLOAD_KEY_PATH)
     cmds.append(
-        ['shell', 'su', '0', 'mount', '-t', 'tmpfs', 'tmpfs', payload_key_dir])
+        ['shell', 'mount', '-t', 'tmpfs', 'tmpfs', payload_key_dir])
     # Allow adb push to payload_key_dir
-    cmds.append(['shell', 'su', '0', 'chcon', 'u:object_r:shell_data_file:s0',
+    cmds.append(['shell', 'chcon', 'u:object_r:shell_data_file:s0',
                  payload_key_dir])
     cmds.append(['push', args.public_key, PAYLOAD_KEY_PATH])
     # Allow update_engine to read it.
-    cmds.append(['shell', 'su', '0', 'chcon', '-R', 'u:object_r:system_file:s0',
+    cmds.append(['shell', 'chcon', '-R', 'u:object_r:system_file:s0',
                  payload_key_dir])
-    finalize_cmds.append(['shell', 'su', '0', 'umount', payload_key_dir])
+    finalize_cmds.append(['shell', 'umount', payload_key_dir])
 
   try:
     # The main update command using the configured payload_url.
@@ -536,7 +539,7 @@ def main():
     else:
       update_cmd = AndroidUpdateCommand(args.otafile, args.secondary,
                                         payload_url, args.extra_headers)
-    cmds.append(['shell', 'su', '0'] + update_cmd)
+    cmds.append(['shell'] + update_cmd)
 
     for cmd in cmds:
       dut.adb(cmd)
