@@ -243,8 +243,13 @@ struct PayloadGenerationConfig {
   // Whether to enable LZ4diff ops
   bool enable_lz4diff = false;
 
+  // Whether to enable zucchini ops
+  bool enable_zucchini = true;
+
   std::vector<bsdiff::CompressorType> compressors{
       bsdiff::CompressorType::kBZ2, bsdiff::CompressorType::kBrotli};
+
+  [[nodiscard]] bool OperationEnabled(InstallOperation::Type op) const noexcept;
 };
 
 }  // namespace chromeos_update_engine
