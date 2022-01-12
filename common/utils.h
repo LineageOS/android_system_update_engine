@@ -30,6 +30,7 @@
 #include <string>
 #include <vector>
 
+#include <android-base/strings.h>
 #include <base/files/file_path.h>
 #include <base/posix/eintr_wrapper.h>
 #include <base/strings/string_number_conversions.h>
@@ -140,8 +141,6 @@ off_t FileSize(const std::string& path);
 off_t FileSize(int fd);
 
 bool SendFile(int out_fd, int in_fd, size_t count);
-
-std::string ErrnoNumberAsString(int err);
 
 // Returns true if the file exists for sure. Returns false if it doesn't exist,
 // or an error occurs.
@@ -528,15 +527,14 @@ std::string HexEncode(const std::array<uint8_t, kSize> blob) noexcept {
 
 }  // namespace chromeos_update_engine
 
-#define TEST_AND_RETURN_FALSE_ERRNO(_x)                              \
-  do {                                                               \
-    bool _success = static_cast<bool>(_x);                           \
-    if (!_success) {                                                 \
-      std::string _msg =                                             \
-          chromeos_update_engine::utils::ErrnoNumberAsString(errno); \
-      LOG(ERROR) << #_x " failed: " << _msg;                         \
-      return false;                                                  \
-    }                                                                \
+#define TEST_AND_RETURN_FALSE_ERRNO(_x)                             \
+  do {                                                              \
+    bool _success = static_cast<bool>(_x);                          \
+    if (!_success) {                                                \
+      std::string _msg = android::base::ErrnoNumberAsString(errno); \
+      LOG(ERROR) << #_x " failed: " << _msg;                        \
+      return false;                                                 \
+    }                                                               \
   } while (0)
 
 #define TEST_AND_RETURN_FALSE(_x)          \
@@ -548,15 +546,14 @@ std::string HexEncode(const std::array<uint8_t, kSize> blob) noexcept {
     }                                      \
   } while (0)
 
-#define TEST_AND_RETURN_ERRNO(_x)                                    \
-  do {                                                               \
-    bool _success = static_cast<bool>(_x);                           \
-    if (!_success) {                                                 \
-      std::string _msg =                                             \
-          chromeos_update_engine::utils::ErrnoNumberAsString(errno); \
-      LOG(ERROR) << #_x " failed: " << _msg;                         \
-      return;                                                        \
-    }                                                                \
+#define TEST_AND_RETURN_ERRNO(_x)                                   \
+  do {                                                              \
+    bool _success = static_cast<bool>(_x);                          \
+    if (!_success) {                                                \
+      std::string _msg = android::base::ErrnoNumberAsString(errno); \
+      LOG(ERROR) << #_x " failed: " << _msg;                        \
+      return;                                                       \
+    }                                                               \
   } while (0)
 
 #define TEST_AND_RETURN(_x)                \

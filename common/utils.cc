@@ -38,6 +38,7 @@
 #include <utility>
 #include <vector>
 
+#include <android-base/strings.h>
 #include <base/callback.h>
 #include <base/files/file_path.h>
 #include <base/files/file_util.h>
@@ -487,12 +488,6 @@ string MakePartitionName(const string& disk_name, int partition_num) {
   partition_name += std::to_string(partition_num);
 
   return partition_name;
-}
-
-string ErrnoNumberAsString(int err) {
-  char buf[100];
-  buf[0] = '\0';
-  return strerror_r(err, buf, sizeof(buf));
 }
 
 bool FileExists(const char* path) {
