@@ -17,6 +17,7 @@
 #include "update_engine/payload_generator/payload_generation_config.h"
 
 #include <algorithm>
+#include <charconv>
 #include <map>
 #include <utility>
 
@@ -76,7 +77,7 @@ bool PartitionConfig::OpenFilesystem() {
       return true;
     }
   }
-  fs_interface = ErofsFilesystem::CreateFromFile(path);
+  fs_interface = ErofsFilesystem::CreateFromFile(path, erofs_compression_param);
   if (fs_interface) {
     TEST_AND_RETURN_FALSE(fs_interface->GetBlockSize() == kBlockSize);
     return true;
@@ -371,6 +372,37 @@ bool PayloadGenerationConfig::OperationEnabled(
     default:
       return true;
   }
+}
+
+CompressionAlgorithm PartitionConfig::ParseCompressionParam(
+    std::string_view param) {
+  CompressionAlgorithm algo;
+  auto algo_name = param;
+  const auto pos = param.find_first_of(',');
+  if (pos != std::string::npos) {
+    algo_name = param.substr(0, pos);
+  }
+  if (algo_name == "lz4") {
+    algo.set_type(CompressionAlgorithm::LZ4);
+    CHECK_EQ(pos, std::string::npos)
+        << "Invalid compression param " << param
+        << ", compression level not supported for lz4";
+  } else if (algo_name == "lz4hc") {
+    algo.set_type(CompressionAlgorithm::LZ4HC);
+    if (pos != std::string::npos) {
+      const auto level = param.substr(pos + 1);
+      int level_num = 0;
+      const auto [ptr, ec] =
+          std::from_chars(level.data(), level.data() + level.size(), level_num);
+      CHECK_EQ(ec, std::errc()) << "Failed to parse compression level " << level
+                                << ", compression param: " << param;
+      algo.set_level(level_num);
+    } else {
+      LOG(FATAL) << "Unrecognized compression type: " << algo_name
+                 << ", param: " << param;
+    }
+  }
+  return algo;
 }
 
 }  // namespace chromeos_update_engine
