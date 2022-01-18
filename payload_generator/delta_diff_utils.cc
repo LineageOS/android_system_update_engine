@@ -552,20 +552,40 @@ bool DeltaReadPartition(vector<AnnotatedOperation>* aops,
     new_visited_blocks.AddExtent(new_part.verity.fec_extent);
   }
 
-  ExtentRanges old_zero_blocks;
-  TEST_AND_RETURN_FALSE(DeltaMovedAndZeroBlocks(aops,
-                                                old_part.path,
-                                                new_part.path,
-                                                old_part.size / kBlockSize,
-                                                new_part.size / kBlockSize,
-                                                soft_chunk_blocks,
-                                                config,
-                                                blob_file,
-                                                &old_visited_blocks,
-                                                &new_visited_blocks,
-                                                &old_zero_blocks));
+  const bool puffdiff_allowed =
+      config.OperationEnabled(InstallOperation::PUFFDIFF);
 
-  bool puffdiff_allowed = config.OperationEnabled(InstallOperation::PUFFDIFF);
+  TEST_AND_RETURN_FALSE(new_part.fs_interface);
+  vector<FilesystemInterface::File> new_files;
+  TEST_AND_RETURN_FALSE(deflate_utils::PreprocessPartitionFiles(
+      new_part, &new_files, puffdiff_allowed));
+
+  ExtentRanges old_zero_blocks;
+  // Prematurely removing moved blocks will render compression info useless.
+  // Even if a single block inside a 100MB file is filtered out, the entire
+  // 100MB file can't be decompressed. In this case we will fallback to BSDIFF,
+  // which performs much worse than LZ4diff. It's better to let LZ4DIFF perform
+  // decompression, and let underlying BSDIFF to take care of moved blocks.
+  // TODO(b/206729162) Implement block filtering with compression block info
+  const auto no_compressed_files =
+      std::all_of(new_files.begin(), new_files.end(), [](const File& a) {
+        return a.compressed_file_info.blocks.empty();
+      });
+  if (!config.OperationEnabled(InstallOperation::LZ4DIFF_BSDIFF) ||
+      no_compressed_files) {
+    TEST_AND_RETURN_FALSE(DeltaMovedAndZeroBlocks(aops,
+                                                  old_part.path,
+                                                  new_part.path,
+                                                  old_part.size / kBlockSize,
+                                                  new_part.size / kBlockSize,
+                                                  soft_chunk_blocks,
+                                                  config,
+                                                  blob_file,
+                                                  &old_visited_blocks,
+                                                  &new_visited_blocks,
+                                                  &old_zero_blocks));
+  }
+
   map<string, FilesystemInterface::File> old_files_map;
   if (old_part.fs_interface) {
     vector<FilesystemInterface::File> old_files;
@@ -574,11 +594,6 @@ bool DeltaReadPartition(vector<AnnotatedOperation>* aops,
     for (const FilesystemInterface::File& file : old_files)
       old_files_map[file.name] = file;
   }
-
-  TEST_AND_RETURN_FALSE(new_part.fs_interface);
-  vector<FilesystemInterface::File> new_files;
-  TEST_AND_RETURN_FALSE(deflate_utils::PreprocessPartitionFiles(
-      new_part, &new_files, puffdiff_allowed));
 
   list<FileDeltaProcessor> file_delta_processors;
 
