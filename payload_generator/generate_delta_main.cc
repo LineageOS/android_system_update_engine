@@ -444,6 +444,11 @@ int Main(int argc, char** argv) {
       true,
       "Whether to enable zucchini feature when processing executable files.");
 
+  DEFINE_string(erofs_compression_param,
+                "",
+                "Compression parameter passed to mkfs.erofs's -z option. "
+                "Example: lz4 lz4hc,9");
+
   brillo::FlagHelper::Init(
       argc,
       argv,
@@ -594,6 +599,10 @@ int Main(int argc, char** argv) {
     payload_config.target.partitions.back().path = new_partitions[i];
     payload_config.target.partitions.back().disable_fec_computation =
         FLAGS_disable_fec_computation;
+    if (!FLAGS_erofs_compression_param.empty()) {
+      payload_config.target.partitions.back().erofs_compression_param =
+          PartitionConfig::ParseCompressionParam(FLAGS_erofs_compression_param);
+    }
     if (i < new_mapfiles.size())
       payload_config.target.partitions.back().mapfile_path = new_mapfiles[i];
   }

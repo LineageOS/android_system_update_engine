@@ -26,6 +26,8 @@ bool Lz4Patch(std::string_view src_data,
               Blob* output);
 bool Lz4Patch(const Blob& src_data, const Blob& patch_data, Blob* output);
 
+std::ostream& operator<<(std::ostream& out, const CompressionAlgorithm& info);
+
 std::ostream& operator<<(std::ostream& out, const Lz4diffHeader&);
 
 template <typename T>
