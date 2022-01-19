@@ -227,8 +227,8 @@ class BestDiffGenerator {
   bool TryZucchiniAndUpdateOperation(AnnotatedOperation* aop,
                                      brillo::Blob* data_blob);
 
-  brillo::Blob old_data_;
-  brillo::Blob new_data_;
+  const brillo::Blob& old_data_;
+  const brillo::Blob& new_data_;
   const std::vector<Extent>& src_extents_;
   const std::vector<Extent>& dst_extents_;
   std::vector<puffin::BitExtent> old_deflates_;

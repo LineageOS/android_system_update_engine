@@ -24,10 +24,15 @@ namespace chromeos_update_engine {
 
 class ErofsFilesystem final : public FilesystemInterface {
  public:
-  // Creates an Ext2Filesystem from a ext2 formatted filesystem stored in a
-  // file. The file doesn't need to be loop-back mounted.
+  // Creates an ErofsFilesystem from a erofs formatted filesystem stored in a
+  // file. The file doesn't need to be loop-back mounted. Since erofs-utils
+  // library functions are not concurrency safe(can't be used in multi-threaded
+  // context, can't even work with multiple EROFS images concurrently on 1
+  // thread), this function takes a global mutex.
   static std::unique_ptr<ErofsFilesystem> CreateFromFile(
-      const std::string& filename);
+      const std::string& filename,
+      const CompressionAlgorithm& algo =
+          PartitionConfig::GetDefaultCompressionParam());
   virtual ~ErofsFilesystem() = default;
 
   // FilesystemInterface overrides.
@@ -45,7 +50,9 @@ class ErofsFilesystem final : public FilesystemInterface {
   //    space.
   //  <metadata>: With the rest of ext2 metadata blocks, such as superblocks
   //    and bitmap tables.
-  static bool GetFiles(const std::string& filename, std::vector<File>* files);
+  static bool GetFiles(const std::string& filename,
+                       std::vector<File>* files,
+                       const CompressionAlgorithm& algo);
 
   bool GetFiles(std::vector<File>* files) const override;
 
