@@ -218,6 +218,8 @@ a subset of partitions on device."
     "Optional: Whether to enable lz4 diffing for EROFS"
   DEFINE_string liblz4_path "" \
     "Required if --enabled_lz4diff true is passed. Path to liblz4.so. delta_generator will use this copy of liblz4.so for compression. It is important that this copy of liblz4.so is the same as the one on source build."
+  DEFINE_string erofs_compression_param "" \
+    "Compression parameter passed to mkfs.erofs's -z option."
 fi
 if [[ "${COMMAND}" == "hash" || "${COMMAND}" == "sign" ]]; then
   DEFINE_string unsigned_payload "" "Path to the input unsigned payload."
@@ -740,6 +742,10 @@ cmd_generate() {
       fi
       GENERATOR_ARGS+=(
         --enable_lz4diff="${FLAGS_enable_lz4diff}" )
+    fi
+    if [[ -n "${FLAGS_erofs_compression_param}" ]]; then
+      GENERATOR_ARGS+=(
+        --erofs_compression_param="${FLAGS_erofs_compression_param}" )
     fi
   fi
 
