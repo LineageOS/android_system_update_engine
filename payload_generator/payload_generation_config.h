@@ -25,6 +25,7 @@
 
 #include <brillo/key_value_store.h>
 #include <brillo/secure_blob.h>
+#include <lz4diff/lz4diff.pb.h>
 
 #include "bsdiff/constants.h"
 #include "update_engine/payload_consumer/payload_constants.h"
@@ -83,6 +84,13 @@ struct VerityConfig {
 
 struct PartitionConfig {
   explicit PartitionConfig(std::string name) : name(name) {}
+  static CompressionAlgorithm ParseCompressionParam(std::string_view param);
+  static CompressionAlgorithm GetDefaultCompressionParam() {
+    CompressionAlgorithm algo;
+    algo.set_type(CompressionAlgorithm::LZ4HC);
+    algo.set_level(9);
+    return algo;
+  }
 
   // Returns whether the PartitionConfig is not an empty image and all the
   // fields are set correctly to a valid image file.
@@ -123,6 +131,12 @@ struct PartitionConfig {
 
   // Per-partition version, usually a number representing timestamp.
   std::string version;
+
+  // parameter passed to mkfs.erofs's -z option.
+  // In the format of "compressor,compression_level"
+  // Examples: lz4    lz4hc,9
+  // The default is usually lz4hc,9 for mkfs.erofs
+  CompressionAlgorithm erofs_compression_param = GetDefaultCompressionParam();
 };
 
 // The ImageConfig struct describes a pair of binaries kernel and rootfs and the

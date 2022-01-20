@@ -131,7 +131,7 @@ Blob TryDecompressBlob(std::string_view blob,
     compressed_size += block.compressed_length;
   }
   if (blob.size() < compressed_size) {
-    LOG(INFO) << "File is chunked. Skip lz4 decompress.Expected size : "
+    LOG(INFO) << "File is chunked. Skip lz4 decompress. Expected size: "
               << compressed_size << ", actual size: " << blob.size();
     return {};
   }

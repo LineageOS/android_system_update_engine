@@ -27,11 +27,13 @@
 
 #include "erofs_iterate.h"
 #include "lz4diff/lz4diff.pb.h"
-#include "payload_generator/filesystem_interface.h"
+#include "lz4diff/lz4patch.h"
+#include "lz4diff/lz4diff.h"
 #include "update_engine/common/utils.h"
 #include "update_engine/payload_generator/delta_diff_generator.h"
 #include "update_engine/payload_generator/extent_ranges.h"
 #include "update_engine/payload_generator/extent_utils.h"
+#include "update_engine/payload_generator/filesystem_interface.h"
 
 namespace chromeos_update_engine {
 
@@ -81,10 +83,6 @@ static void FillCompressedBlockInfo(FilesystemInterface::File* p_file,
   if (!file.is_compressed) {
     return;
   }
-  // TODO(b/206729162) Fill in compression algorithm info from input target
-  // files
-  file.compressed_file_info.algo.set_type(CompressionAlgorithm::LZ4HC);
-  file.compressed_file_info.algo.set_level(9);
 
   struct erofs_map_blocks block {};
   block.m_la = 0;
@@ -142,7 +140,7 @@ static void FillCompressedBlockInfo(FilesystemInterface::File* p_file,
 static_assert(kBlockSize == EROFS_BLKSIZ);
 
 std::unique_ptr<ErofsFilesystem> ErofsFilesystem::CreateFromFile(
-    const std::string& filename) {
+    const std::string& filename, const CompressionAlgorithm& algo) {
   // erofs-utils makes heavy use of global variables. Hence its functions aren't
   // thread safe. For example, it stores a global int holding file descriptors
   // to the opened EROFS image. It doesn't even support opening more than 1
@@ -171,9 +169,10 @@ std::unique_ptr<ErofsFilesystem> ErofsFilesystem::CreateFromFile(
   LOG(INFO) << "Parsed EROFS image of size " << st.st_size << " built in "
             << ctime(&time) << " " << filename;
   std::vector<File> files;
-  if (!ErofsFilesystem::GetFiles(filename, &files)) {
+  if (!ErofsFilesystem::GetFiles(filename, &files, algo)) {
     return nullptr;
   }
+  LOG(INFO) << "Using compression algo " << algo << " for " << filename;
   // private ctor doesn't work with make_unique
   return std::unique_ptr<ErofsFilesystem>(
       new ErofsFilesystem(filename, st.st_size, std::move(files)));
@@ -185,7 +184,8 @@ bool ErofsFilesystem::GetFiles(std::vector<File>* files) const {
 }
 
 bool ErofsFilesystem::GetFiles(const std::string& filename,
-                               std::vector<File>* files) {
+                               std::vector<File>* files,
+                               const CompressionAlgorithm& algo) {
   erofs_iterate_root_dir(&sbi, [&](struct erofs_iterate_dir_context* p_info) {
     const auto& info = *p_info;
     if (info.ctx.de_ftype != EROFS_FT_REG_FILE) {
@@ -226,6 +226,7 @@ bool ErofsFilesystem::GetFiles(const std::string& filename,
     file.file_stat.st_size = uncompressed_size;
     file.file_stat.st_ino = inode.nid;
     FillCompressedBlockInfo(&file, filename, &inode);
+    file.compressed_file_info.algo = algo;
 
     files->emplace_back(std::move(file));
     return 0;
