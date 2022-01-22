@@ -236,8 +236,9 @@ TEST_F(InstallOperationExecutorTest, ZucchiniOpTest) {
   PayloadGenerationConfig config{
       .version = PayloadVersion(kBrilloMajorPayloadVersion,
                                 kZucchiniMinorPayloadVersion)};
+  const FilesystemInterface::File empty;
   diff_utils::BestDiffGenerator best_diff_generator(
-      source_data_, target_data_, src_extents, dst_extents, {}, {}, config);
+      source_data_, target_data_, src_extents, dst_extents, empty, empty, config);
   std::vector<uint8_t> patch_data = target_data_;  // Fake the full operation
   AnnotatedOperation aop;
   // Zucchini is enabled only on files with certain extensions
