@@ -217,6 +217,10 @@ void PostinstallRunnerAction::PerformPartitionPostinstall() {
   LOG(INFO) << source_path << " has been mounted R/W " << mount_count << " times.";
 
   if (mount_count > 0) {
+    if (!utils::SetBlockDeviceReadOnly(mountable_device, false)) {
+      return CompletePartitionPostinstall(
+        1, "Error marking the device " + mountable_device + " writeable.");
+    }
     // Mount the target partition R/W
     LOG(INFO) << "Running backuptool scripts";
     utils::MountFilesystem(mountable_device, fs_mount_dir_, MS_NOATIME | MS_NODEV | MS_NODIRATIME,
