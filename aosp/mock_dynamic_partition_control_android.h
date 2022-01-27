@@ -94,7 +94,7 @@ class MockDynamicPartitionControlAndroid
                const std::optional<std::string>& source_path,
                bool is_append),
               (override));
-  MOCK_METHOD(FileDescriptorPtr,
+  MOCK_METHOD(std::unique_ptr<FileDescriptor>,
               OpenCowFd,
               (const std::string& unsuffixed_partition_name,
                const std::optional<std::string>& source_path,
