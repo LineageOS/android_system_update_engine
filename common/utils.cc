@@ -181,7 +181,7 @@ bool PWriteAll(int fd, const void* buf, size_t count, off_t offset) {
   return true;
 }
 
-bool WriteAll(const FileDescriptorPtr& fd, const void* buf, size_t count) {
+bool WriteAll(FileDescriptor* fd, const void* buf, size_t count) {
   const char* c_buf = static_cast<const char*>(buf);
   ssize_t bytes_written = 0;
   while (bytes_written < static_cast<ssize_t>(count)) {
@@ -218,7 +218,7 @@ bool PReadAll(
   return true;
 }
 
-bool ReadAll(const FileDescriptorPtr& fd,
+bool ReadAll(FileDescriptor* fd,
              void* buf,
              size_t count,
              off_t offset,
@@ -239,7 +239,7 @@ bool ReadAll(const FileDescriptorPtr& fd,
   return true;
 }
 
-bool PReadAll(const FileDescriptorPtr& fd,
+bool PReadAll(FileDescriptor* fd,
               void* buf,
               size_t count,
               off_t offset,

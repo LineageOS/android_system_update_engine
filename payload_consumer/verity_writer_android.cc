@@ -104,8 +104,8 @@ bool VerityWriterAndroid::Update(const uint64_t offset,
   return true;
 }
 
-bool VerityWriterAndroid::Finalize(FileDescriptorPtr read_fd,
-                                   FileDescriptorPtr write_fd) {
+bool VerityWriterAndroid::Finalize(FileDescriptor* read_fd,
+                                   FileDescriptor* write_fd) {
   const auto hash_tree_data_end =
       partition_->hash_tree_data_offset + partition_->hash_tree_data_size;
   if (total_offset_ < hash_tree_data_end) {
@@ -142,8 +142,8 @@ bool VerityWriterAndroid::Finalize(FileDescriptorPtr read_fd,
   return true;
 }
 
-bool VerityWriterAndroid::EncodeFEC(FileDescriptorPtr read_fd,
-                                    FileDescriptorPtr write_fd,
+bool VerityWriterAndroid::EncodeFEC(FileDescriptor* read_fd,
+                                    FileDescriptor* write_fd,
                                     uint64_t data_offset,
                                     uint64_t data_size,
                                     uint64_t fec_offset,
@@ -162,10 +162,6 @@ bool VerityWriterAndroid::EncodeFEC(FileDescriptorPtr read_fd,
       init_rs_char(FEC_PARAMS(fec_roots)), &free_rs_char);
   TEST_AND_RETURN_FALSE(rs_char != nullptr);
 
-  // Cache at most 1MB of fec data, in VABC, we need to re-open fd if we
-  // perform a read() operation after write(). So reduce the number of writes
-  // can save unnecessary re-opens.
-  write_fd = std::make_shared<CachedFileDescriptor>(write_fd, 1 * (1 << 20));
   for (size_t i = 0; i < rounds; i++) {
     // Encodes |block_size| number of rs blocks each round so that we can read
     // one block each time instead of 1 byte to increase random read
@@ -229,11 +225,10 @@ bool VerityWriterAndroid::EncodeFEC(const std::string& path,
                                     uint32_t fec_roots,
                                     uint32_t block_size,
                                     bool verify_mode) {
-  FileDescriptorPtr fd(new EintrSafeFileDescriptor());
-  TEST_AND_RETURN_FALSE(
-      fd->Open(path.c_str(), verify_mode ? O_RDONLY : O_RDWR));
-  return EncodeFEC(fd,
-                   fd,
+  EintrSafeFileDescriptor fd;
+  TEST_AND_RETURN_FALSE(fd.Open(path.c_str(), verify_mode ? O_RDONLY : O_RDWR));
+  return EncodeFEC(&fd,
+                   &fd,
                    data_offset,
                    data_size,
                    fec_offset,
