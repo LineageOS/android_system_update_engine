@@ -161,6 +161,11 @@ bool VerityWriterAndroid::EncodeFEC(FileDescriptor* read_fd,
   std::unique_ptr<void, decltype(&free_rs_char)> rs_char(
       init_rs_char(FEC_PARAMS(fec_roots)), &free_rs_char);
   TEST_AND_RETURN_FALSE(rs_char != nullptr);
+  // Cache at most 1MB of fec data, in VABC, we need to re-open fd if we
+  // perform a read() operation after write(). So reduce the number of writes
+  // can save unnecessary re-opens.
+  UnownedCachedFileDescriptor cache_fd(write_fd, 1 * (1 << 20));
+  write_fd = &cache_fd;
 
   for (size_t i = 0; i < rounds; i++) {
     // Encodes |block_size| number of rs blocks each round so that we can read
