@@ -36,7 +36,7 @@ class MockDynamicPartitionControl : public DynamicPartitionControlInterface {
   MOCK_METHOD(FeatureFlag, GetVirtualAbCompressionFeatureFlag, (), (override));
   MOCK_METHOD(FeatureFlag, GetVirtualAbFeatureFlag, (), (override));
   MOCK_METHOD(bool, FinishUpdate, (bool), (override));
-  MOCK_METHOD(FileDescriptorPtr,
+  MOCK_METHOD(std::unique_ptr<FileDescriptor>,
               OpenCowFd,
               (const std::string& unsuffixed_partition_name,
                const std::optional<std::string>& source_path,

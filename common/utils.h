@@ -68,12 +68,15 @@ bool WriteFile(const char* path, const void* data, size_t data_len);
 bool WriteAll(int fd, const void* buf, size_t count);
 bool PWriteAll(int fd, const void* buf, size_t count, off_t offset);
 
-bool WriteAll(const FileDescriptorPtr& fd, const void* buf, size_t count);
+bool WriteAll(FileDescriptor* fd, const void* buf, size_t count);
+
+constexpr bool WriteAll(const FileDescriptorPtr& fd,
+                        const void* buf,
+                        size_t count) {
+  return WriteAll(fd.get(), buf, count);
+}
 // WriteAll writes data at specified offset, but it modifies file position.
-bool WriteAll(const FileDescriptorPtr& fd,
-              const void* buf,
-              size_t count,
-              off_t off);
+bool WriteAll(FileDescriptorPtr* fd, const void* buf, size_t count, off_t off);
 
 // https://man7.org/linux/man-pages/man2/pread.2.html
 // PWriteAll writes data at specified offset, but it DOES NOT modify file
@@ -97,20 +100,37 @@ bool PReadAll(
     int fd, void* buf, size_t count, off_t offset, ssize_t* out_bytes_read);
 
 // Reads data at specified offset, this function does change file position.
-bool ReadAll(const FileDescriptorPtr& fd,
+
+bool ReadAll(FileDescriptor* fd,
              void* buf,
              size_t count,
              off_t offset,
              ssize_t* out_bytes_read);
 
+constexpr bool ReadAll(const FileDescriptorPtr& fd,
+                       void* buf,
+                       size_t count,
+                       off_t offset,
+                       ssize_t* out_bytes_read) {
+  return ReadAll(fd.get(), buf, count, offset, out_bytes_read);
+}
+
 // https://man7.org/linux/man-pages/man2/pread.2.html
 // Reads data at specified offset, this function DOES NOT change file position.
 // Behavior is similar to linux's pread syscall.
-bool PReadAll(const FileDescriptorPtr& fd,
+bool PReadAll(FileDescriptor* fd,
               void* buf,
               size_t count,
               off_t offset,
               ssize_t* out_bytes_read);
+
+constexpr bool PReadAll(const FileDescriptorPtr& fd,
+                        void* buf,
+                        size_t count,
+                        off_t offset,
+                        ssize_t* out_bytes_read) {
+  return PReadAll(fd.get(), buf, count, offset, out_bytes_read);
+}
 
 // Opens |path| for reading and appends its entire content to the container
 // pointed to by |out_p|. Returns true upon successfully reading all of the
