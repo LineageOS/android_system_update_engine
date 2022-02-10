@@ -70,6 +70,7 @@ class PostinstallRunnerAction : public InstallPlanAction {
 
   // exposed for testing purposes only
   void SetMountDir(std::string dir) { fs_mount_dir_ = std::move(dir); }
+  void EnsureUnmounted();
 
   void PerformPartitionPostinstall();
   [[nodiscard]] bool MountPartition(
