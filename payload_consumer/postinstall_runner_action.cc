@@ -91,7 +91,15 @@ PostinstallRunnerAction::PostinstallRunnerAction(
   fs_mount_dir_ = temp_dir.value();
 #endif  // __ANDROID__
   CHECK(!fs_mount_dir_.empty());
+  EnsureUnmounted();
   LOG(INFO) << "postinstall mount point: " << fs_mount_dir_;
+}
+
+void PostinstallRunnerAction::EnsureUnmounted() {
+  if (utils::IsMountpoint(fs_mount_dir_)) {
+    LOG(INFO) << "Found previously mounted filesystem at " << fs_mount_dir_;
+    utils::UnmountFilesystem(fs_mount_dir_);
+  }
 }
 
 void PostinstallRunnerAction::PerformAction() {
@@ -167,10 +175,7 @@ bool PostinstallRunnerAction::MountPartition(
   }
   // Double check that the fs_mount_dir is not busy with a previous mounted
   // filesystem from a previous crashed postinstall step.
-  if (utils::IsMountpoint(fs_mount_dir_)) {
-    LOG(INFO) << "Found previously mounted filesystem at " << fs_mount_dir_;
-    utils::UnmountFilesystem(fs_mount_dir_);
-  }
+  EnsureUnmounted();
 
 #ifdef __ANDROID__
   // In Chromium OS, the postinstall step is allowed to write to the block
