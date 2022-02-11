@@ -194,7 +194,15 @@ bool ImageConfig::LoadDynamicPartitionMetadata(
   }
   // We use "gz" compression by default for VABC.
   if (metadata->vabc_enabled()) {
-    metadata->set_vabc_compression_param("gz");
+    std::string compression_method;
+    if (store.GetString("virtual_ab_compression_method", &compression_method)) {
+      LOG(INFO) << "Using VABC compression method '" << compression_method
+                << "'";
+    } else {
+      LOG(INFO) << "No VABC compression method specified. Defaulting to 'gz'";
+      compression_method = "gz";
+    }
+    metadata->set_vabc_compression_param(compression_method);
     metadata->set_cow_version(android::snapshot::kCowVersionManifest);
   }
   dynamic_partition_metadata = std::move(metadata);
