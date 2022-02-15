@@ -86,8 +86,6 @@ bool DiscardPartitionTail(const FileDescriptorPtr& fd, uint64_t data_size) {
 
 }  // namespace
 
-using google::protobuf::RepeatedPtrField;
-
 // Opens path for read/write. On success returns an open FileDescriptor
 // and sets *err to 0. On failure, sets *err to errno and returns nullptr.
 FileDescriptorPtr OpenFile(const char* path,

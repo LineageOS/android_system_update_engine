@@ -1420,7 +1420,7 @@ DynamicPartitionControlAndroid::OpenCowWriter(
   return snapshot_->OpenSnapshotWriter(params, std::move(source_path));
 }  // namespace chromeos_update_engine
 
-FileDescriptorPtr DynamicPartitionControlAndroid::OpenCowFd(
+std::unique_ptr<FileDescriptor> DynamicPartitionControlAndroid::OpenCowFd(
     const std::string& unsuffixed_partition_name,
     const std::optional<std::string>& source_path,
     bool is_append) {
@@ -1430,9 +1430,16 @@ FileDescriptorPtr DynamicPartitionControlAndroid::OpenCowFd(
     return nullptr;
   }
   if (!cow_writer->InitializeAppend(kEndOfInstallLabel)) {
+    LOG(ERROR) << "Failed to InitializeAppend(" << kEndOfInstallLabel << ")";
     return nullptr;
   }
-  return std::make_shared<CowWriterFileDescriptor>(std::move(cow_writer));
+  auto reader = cow_writer->OpenReader();
+  if (reader == nullptr) {
+    LOG(ERROR) << "ICowWriter::OpenReader() failed.";
+    return nullptr;
+  }
+  return std::make_unique<CowWriterFileDescriptor>(std::move(cow_writer),
+                                                   std::move(reader));
 }
 
 std::optional<base::FilePath> DynamicPartitionControlAndroid::GetSuperDevice() {

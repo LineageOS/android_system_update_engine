@@ -29,7 +29,7 @@ namespace chromeos_update_engine {
 class BlockExtentWriter : public chromeos_update_engine::ExtentWriter {
  public:
   BlockExtentWriter() = default;
-  ~BlockExtentWriter();
+  ~BlockExtentWriter() = default;
   // Returns true on success.
   bool Init(const google::protobuf::RepeatedPtrField<Extent>& extents,
             uint32_t block_size) override;

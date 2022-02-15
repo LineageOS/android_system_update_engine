@@ -17,6 +17,7 @@
 #ifndef UPDATE_ENGINE_PAYLOAD_GENERATOR_EXTENT_UTILS_H_
 #define UPDATE_ENGINE_PAYLOAD_GENERATOR_EXTENT_UTILS_H_
 
+#include <limits>
 #include <string>
 #include <vector>
 

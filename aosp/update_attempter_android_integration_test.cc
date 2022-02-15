@@ -19,10 +19,11 @@
 #include <string>
 #include <utility>
 
-#include <sys/fcntl.h>
+#include <fcntl.h>
 #include <sys/sendfile.h>
 #include <unistd.h>
 
+#include <android-base/strings.h>
 #include <brillo/data_encoding.h>
 #include <brillo/message_loops/fake_message_loop.h>
 #include <bsdiff/bsdiff.h>
@@ -35,16 +36,16 @@
 #include "update_engine/aosp/daemon_state_android.h"
 #include "update_engine/aosp/update_attempter_android.h"
 #include "update_engine/common/constants.h"
-#include "update_engine/common/prefs.h"
-#include "update_engine/common/testing_constants.h"
-#include "update_engine/common/hash_calculator.h"
 #include "update_engine/common/fake_boot_control.h"
 #include "update_engine/common/fake_hardware.h"
+#include "update_engine/common/hash_calculator.h"
+#include "update_engine/common/prefs.h"
 #include "update_engine/common/test_utils.h"
+#include "update_engine/common/testing_constants.h"
 #include "update_engine/common/utils.h"
 #include "update_engine/payload_consumer/file_descriptor.h"
-#include "update_engine/payload_consumer/payload_constants.h"
 #include "update_engine/payload_consumer/install_plan.h"
+#include "update_engine/payload_consumer/payload_constants.h"
 #include "update_engine/payload_generator/delta_diff_generator.h"
 #include "update_engine/payload_generator/extent_ranges.h"
 #include "update_engine/payload_generator/payload_file.h"
@@ -153,7 +154,7 @@ class UpdateAttempterAndroidIntegrationTest : public ::testing::Test,
                                              &source_part));
     int out_fd = open(source_part.c_str(), O_RDWR);
     ScopedFdCloser closer{&out_fd};
-    ASSERT_GE(out_fd, 0) << utils::ErrnoNumberAsString(errno);
+    ASSERT_GE(out_fd, 0) << android::base::ErrnoNumberAsString(errno);
     ASSERT_TRUE(utils::SendFile(out_fd, old_part_.fd(), kFakePartitionSize));
   }
 
@@ -218,12 +219,12 @@ class UpdateAttempterAndroidIntegrationTest : public ::testing::Test,
           ASSERT_TRUE(utils::ReadExtents(
               old_part_.path(), op.src_extents(), &old_data, kBlockSize))
               << "Failed to read source data: "
-              << utils::ErrnoNumberAsString(errno);
+              << android::base::ErrnoNumberAsString(errno);
           brillo::Blob new_data;
           ASSERT_TRUE(utils::ReadExtents(
               new_part_.path(), op.dst_extents(), &new_data, kBlockSize))
               << "Failed to read target data: "
-              << utils::ErrnoNumberAsString(errno);
+              << android::base::ErrnoNumberAsString(errno);
           ScopedTempFile patch_file{"bspatch.XXXXXX", true};
           ASSERT_EQ(bsdiff::bsdiff(old_data.data(),
                                    old_data.size(),

@@ -17,6 +17,8 @@
 #ifndef UPDATE_ENGINE_PAYLOAD_CONSUMER_XOR_EXTENT_WRITER_H_
 #define UPDATE_ENGINE_PAYLOAD_CONSUMER_XOR_EXTENT_WRITER_H_
 
+#include <vector>
+
 #include "update_engine/payload_consumer/block_extent_writer.h"
 #include "update_engine/payload_consumer/extent_map.h"
 #include "update_engine/payload_consumer/extent_reader.h"

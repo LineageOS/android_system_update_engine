@@ -185,11 +185,14 @@ cc_defaults {
         "libpayload_extent_ranges",
         "libpayload_extent_utils",
         "libcow_operation_convert",
+        "lz4diff-protos",
+        "liblz4patch",
     ],
     shared_libs: [
         "libbase",
         "libcrypto",
         "libfec",
+        "liblz4",
         "libziparchive",
     ],
 }
@@ -459,6 +462,7 @@ cc_binary {
     shared_libs: [
         "libbase",
         "liblog",
+        "liblz4",
     ],
     static_libs: [
         "libpayload_consumer",
@@ -531,6 +535,7 @@ cc_defaults {
     defaults: [
         "libpayload_consumer_exports",
         "update_metadata-protos_exports",
+        "erofs-utils_export_defaults",
     ],
 
     header_libs: [
@@ -550,10 +555,16 @@ cc_defaults {
         "update_metadata-protos",
         "libpayload_extent_utils",
         "libcow_size_estimator",
+        "liberofs",
+        "lz4diff-protos",
+        "liblz4diff",
     ],
     shared_libs: [
         "libbase",
         "libext2fs",
+        // LZ4 has to be a shared lib, as we want to override it with
+        // LD_LIBRARY_PRELOAD later
+        "liblz4",
     ],
 }
 
@@ -591,6 +602,51 @@ cc_library_static {
     ],
 }
 
+cc_defaults {
+    name: "liblz4diff_defaults",
+    static_libs: [
+        "lz4diff-protos",
+        "update_metadata-protos",
+        "libssl",
+        "libbsdiff",
+        "libpuffdiff",
+    ],
+    shared_libs: [
+        "liblz4",
+    ],
+}
+
+cc_library_static {
+    name: "liblz4diff",
+    host_supported: true,
+    defaults: ["ue_defaults", "liblz4diff_defaults"],
+    srcs: [
+        "lz4diff/lz4diff.cc",
+        "lz4diff/lz4diff_compress.cc",
+    ],
+}
+
+cc_library_static {
+    name: "liblz4patch",
+    host_supported: true,
+    recovery_available: true,
+    defaults: ["ue_defaults"],
+    static_libs: [
+        "lz4diff-protos",
+        "update_metadata-protos",
+        "libssl",
+        "libbspatch",
+        "libpuffpatch",
+    ],
+    shared_libs: [
+        "liblz4",
+    ],
+    srcs: [
+        "lz4diff/lz4patch.cc",
+        "lz4diff/lz4diff_compress.cc",
+    ],
+}
+
 cc_library_static {
     name: "libpayload_generator",
     defaults: [
@@ -612,6 +668,7 @@ cc_library_static {
         "payload_generator/delta_diff_generator.cc",
         "payload_generator/delta_diff_utils.cc",
         "payload_generator/ext2_filesystem.cc",
+        "payload_generator/erofs_filesystem.cc",
         "payload_generator/extent_ranges.cc",
         "payload_generator/full_update_generator.cc",
         "payload_generator/mapfile_filesystem.cc",
@@ -730,6 +787,23 @@ genrule {
     ],
 }
 
+genrule {
+    name: "ue_unittest_erofs_imgs",
+    cmd: "$(in) $(location mkfs.erofs) $(location gen/erofs_empty.img) && " +
+         "$(in) $(location mkfs.erofs) $(location gen/erofs.img) $(location delta_generator) && " +
+         "$(in) $(location mkfs.erofs) $(location gen/erofs_new.img) $(location delta_generator) lz4hc,7",
+    srcs: ["sample_images/generate_test_erofs_images.sh"],
+    out: [
+        "gen/erofs.img",
+        "gen/erofs_new.img",
+        "gen/erofs_empty.img",
+    ],
+    tools: [
+        "mkfs.erofs",
+        "delta_generator",
+    ],
+}
+
 filegroup {
     name: "update_engine_host_unittest_srcs",
     srcs: [
@@ -747,12 +821,15 @@ filegroup {
         "common/prefs_unittest.cc",
         "common/terminator_unittest.cc",
         "common/test_utils.cc",
+        "lz4diff/lz4diff_compress_unittest.cc",
+        "lz4diff/lz4diff_unittest.cc",
         "payload_generator/ab_generator_unittest.cc",
         "payload_generator/blob_file_writer_unittest.cc",
         "payload_generator/block_mapping_unittest.cc",
         "payload_generator/boot_img_filesystem_unittest.cc",
         "payload_generator/deflate_utils_unittest.cc",
         "payload_generator/delta_diff_utils_unittest.cc",
+        "payload_generator/erofs_filesystem_unittest.cc",
         "payload_generator/ext2_filesystem_unittest.cc",
         "payload_generator/extent_ranges_unittest.cc",
         "payload_generator/extent_utils_unittest.cc",
@@ -787,6 +864,7 @@ cc_test_host {
     data: [
         ":ue_unittest_delta_generator",
         ":ue_unittest_disk_imgs",
+        ":ue_unittest_erofs_imgs",
         ":ue_unittest_keys",
         "otacerts.zip",
         "unittest_key.pem",
@@ -831,6 +909,7 @@ cc_test {
         ":test_subprocess",
         ":ue_unittest_delta_generator",
         ":ue_unittest_disk_imgs",
+        ":ue_unittest_erofs_imgs",
         ":ue_unittest_keys",
         "otacerts.zip",
         "unittest_key.pem",
@@ -952,4 +1031,21 @@ cc_binary_host {
         "libz",
         "update_metadata-protos",
     ],
+}
+
+cc_library_static {
+    name: "lz4diff-protos",
+    host_supported: true,
+    ramdisk_available: true,
+    recovery_available: true,
+
+    srcs: ["lz4diff/lz4diff.proto"],
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
+    proto: {
+        canonical_path_from_root: false,
+        export_proto_headers: true,
+    },
 }
