@@ -647,6 +647,22 @@ cc_library_static {
     ],
 }
 
+cc_binary_host {
+    name: "lz4diff",
+    defaults: [
+        "ue_defaults",
+        "libpayload_generator_exports",
+    ],
+    static_libs: [
+        "libpayload_generator",
+        "liblz4diff",
+        "liblz4patch",
+    ],
+    srcs: [
+        "lz4diff/lz4diff_main.cc",
+    ],
+}
+
 cc_library_static {
     name: "libpayload_generator",
     defaults: [
