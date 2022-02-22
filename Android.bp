@@ -821,6 +821,15 @@ genrule {
 }
 
 filegroup {
+    name: "update_engine_host_unittest_timeout_srcs",
+    srcs: [
+        "common/action_processor_unittest.cc",
+        "common/file_fetcher_unittest.cc",
+        "payload_generator/delta_diff_utils_unittest.cc",
+    ],
+}
+
+filegroup {
     name: "update_engine_host_unittest_srcs",
     srcs: [
         "common/action_pipe_unittest.cc",
@@ -876,6 +885,7 @@ cc_test_host {
     cflags: [
         "-g3",
     ],
+    tidy_timeout_srcs: [":update_engine_host_unittest_timeout_srcs"],
     srcs: [":update_engine_host_unittest_srcs"],
     data: [
         ":ue_unittest_delta_generator",
@@ -940,6 +950,13 @@ cc_test {
     test_config: "test_config.xml",
     test_suites: ["device-tests"],
 
+    tidy_timeout_srcs: [
+        ":update_engine_host_unittest_timeout_srcs",
+        "aosp/dynamic_partition_control_android_unittest.cc",
+        "common/http_fetcher_unittest.cc",
+        "payload_consumer/delta_performer_integration_test.cc",
+        "payload_consumer/delta_performer_unittest.cc",
+    ],
     srcs: [
         ":update_engine_host_unittest_srcs",
         "aosp/apex_handler_android_unittest.cc",
