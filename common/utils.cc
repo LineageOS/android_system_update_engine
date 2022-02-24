@@ -1117,4 +1117,15 @@ std::string HexEncode(const std::string_view blob) noexcept {
   return base::HexEncode(blob.data(), blob.size());
 }
 
+[[nodiscard]] std::string_view ToStringView(
+    const std::vector<unsigned char>& blob) noexcept {
+  return std::string_view{reinterpret_cast<const char*>(blob.data()),
+                          blob.size()};
+}
+
+[[nodiscard]] std::string_view ToStringView(const void* data,
+                                            size_t size) noexcept {
+  return std::string_view(reinterpret_cast<const char*>(data), size);
+}
+
 }  // namespace chromeos_update_engine
