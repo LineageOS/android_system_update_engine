@@ -18,10 +18,11 @@
 #define UPDATE_ENGINE_LZ4DIFF_LZ4DIFF_COMPRESS_H_
 
 #include "lz4diff_format.h"
-
 #include <string_view>
 
 namespace chromeos_update_engine {
+
+using SinkFunc = std::function<size_t(const uint8_t*, size_t)>;
 
 // |TryCompressBlob| and |TryDecompressBlob| are inverse function of each other.
 // One compresses data into fixed size output chunks, one decompresses fixed
@@ -36,6 +37,11 @@ Blob TryCompressBlob(std::string_view blob,
                      const std::vector<CompressedBlock>& block_info,
                      const bool zero_padding_enabled,
                      const CompressionAlgorithm compression_algo);
+bool TryCompressBlob(std::string_view blob,
+                     const std::vector<CompressedBlock>& block_info,
+                     const bool zero_padding_enabled,
+                     const CompressionAlgorithm compression_algo,
+                     const SinkFunc& sink);
 
 Blob TryDecompressBlob(std::string_view blob,
                        const std::vector<CompressedBlock>& block_info,
@@ -43,11 +49,6 @@ Blob TryDecompressBlob(std::string_view blob,
 Blob TryDecompressBlob(const Blob& blob,
                        const std::vector<CompressedBlock>& block_info,
                        const bool zero_padding_enabled);
-
-[[nodiscard]] std::string_view ToStringView(const Blob& blob) noexcept;
-
-[[nodiscard]] std::string_view ToStringView(const void* data,
-                                            size_t size) noexcept;
 
 std::ostream& operator<<(std::ostream& out, const CompressedBlockInfo& info);
 

@@ -545,6 +545,17 @@ std::string HexEncode(const std::array<uint8_t, kSize> blob) noexcept {
   return base::HexEncode(blob.data(), blob.size());
 }
 
+[[nodiscard]] std::string_view ToStringView(
+    const std::vector<unsigned char>& blob) noexcept;
+
+constexpr std::string_view ToStringView(
+    const std::vector<char>& blob) noexcept {
+  return std::string_view{blob.data(), blob.size()};
+}
+
+[[nodiscard]] std::string_view ToStringView(const void* data,
+                                            size_t size) noexcept;
+
 }  // namespace chromeos_update_engine
 
 #define TEST_AND_RETURN_FALSE_ERRNO(_x)                             \
