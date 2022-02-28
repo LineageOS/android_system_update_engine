@@ -268,12 +268,18 @@ bool InstallOperationExecutor::ExecuteLz4diffOperation(
     size_t count) {
   brillo::Blob src_data;
 
-  brillo::Blob dst_data;
   TEST_AND_RETURN_FALSE(utils::ReadExtents(
       source_fd, operation.src_extents(), &src_data, block_size_));
-  TEST_AND_RETURN_FALSE(
-      Lz4Patch(ToStringView(src_data), ToStringView(data, count), &dst_data));
-  return writer->Write(dst_data.data(), dst_data.size());
+  TEST_AND_RETURN_FALSE(Lz4Patch(
+      ToStringView(src_data),
+      ToStringView(data, count),
+      [writer(writer.get())](const uint8_t* data, size_t size) -> size_t {
+        if (!writer->Write(data, size)) {
+          return 0;
+        }
+        return size;
+      }));
+  return true;
 }
 
 bool InstallOperationExecutor::ExecuteSourceBsdiffOperation(
