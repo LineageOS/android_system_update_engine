@@ -1062,16 +1062,16 @@ string GetExclusionName(const string& str_to_convert) {
   return base::NumberToString(base::StringPieceHash()(str_to_convert));
 }
 
-static bool ParseTimestamp(const std::string& str, int64_t* out) {
-  if (!base::StringToInt64(str, out)) {
+static bool ParseTimestamp(std::string_view str, int64_t* out) {
+  if (!base::StringToInt64(base::StringPiece(str.data(), str.size()), out)) {
     LOG(WARNING) << "Invalid timestamp: " << str;
     return false;
   }
   return true;
 }
 
-ErrorCode IsTimestampNewer(const std::string& old_version,
-                           const std::string& new_version) {
+ErrorCode IsTimestampNewer(const std::string_view old_version,
+                           const std::string_view new_version) {
   if (old_version.empty() || new_version.empty()) {
     LOG(WARNING)
         << "One of old/new timestamp is empty, permit update anyway. Old: "
