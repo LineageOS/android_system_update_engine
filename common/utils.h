@@ -411,8 +411,8 @@ std::string GetExclusionName(const std::string& str_to_convert);
 // integer.
 // Return kPayloadTimestampError if both are integers but |new_version| <
 // |old_version|.
-ErrorCode IsTimestampNewer(const std::string& old_version,
-                           const std::string& new_version);
+ErrorCode IsTimestampNewer(const std::string_view old_version,
+                           const std::string_view new_version);
 
 std::unique_ptr<android::base::MappedFile> GetReadonlyZeroBlock(size_t size);
 
