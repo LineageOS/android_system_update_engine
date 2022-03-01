@@ -21,6 +21,11 @@
 #include "lz4diff_format.h"
 
 namespace chromeos_update_engine {
+
+bool Lz4Patch(std::string_view src_data,
+              std::string_view patch_data,
+              const SinkFunc& sink);
+
 bool Lz4Patch(std::string_view src_data,
               std::string_view patch_data,
               Blob* output);
