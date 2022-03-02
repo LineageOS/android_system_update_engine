@@ -16,6 +16,24 @@
       "message": "Wrong indentation?",
       "revId": "1880647903dcac5d4c30366e336e5b2e59d96f9c",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "aad2172b_ff119680",
+        "filename": "aosp/dynamic_partition_control_android.cc",
+        "patchSetId": 1
+      },
+      "lineNbr": 929,
+      "author": {
+        "id": 4550
+      },
+      "writtenOn": "2022-03-02T20:12:12Z",
+      "side": 1,
+      "message": "Not wrong, this file uses 2 space indentation.",
+      "parentUuid": "db56e306_c59bdf24",
+      "revId": "1880647903dcac5d4c30366e336e5b2e59d96f9c",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
