@@ -1,6 +1,23 @@
 {
   "comments": [
     {
+      "unresolved": false,
+      "key": {
+        "uuid": "d77c8028_8dafc9f8",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 24216
+      },
+      "writtenOn": "2022-03-07T18:41:18Z",
+      "side": 1,
+      "message": "Consider also picking this\nhttps://gerrit.twrp.me/c/android_system_update_engine/+/4326\nMind the bad merge\nhttps://gerrit.twrp.me/c/android_system_update_engine/+/4340",
+      "revId": "1880647903dcac5d4c30366e336e5b2e59d96f9c",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
       "unresolved": true,
       "key": {
         "uuid": "db56e306_c59bdf24",
