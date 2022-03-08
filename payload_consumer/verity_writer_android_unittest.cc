@@ -165,4 +165,22 @@ TEST_F(VerityWriterAndroidTest, FECTest) {
   ASSERT_EQ(part_data, actual_part);
 }
 
+TEST_F(VerityWriterAndroidTest, HashTreeDisabled) {
+  partition_.hash_tree_size = 0;
+  partition_.hash_tree_data_size = 0;
+  partition_.hash_tree_offset = 0;
+  partition_.hash_tree_data_offset = 0;
+
+  partition_.fec_data_offset = 0;
+  partition_.fec_data_size = 4096;
+  partition_.fec_offset = 4096;
+  partition_.fec_size = 2 * 4096;
+  brillo::Blob part_data(3 * 4096, 0x1);
+  test_utils::WriteFileVector(partition_.target_path, part_data);
+  ASSERT_TRUE(verity_writer_.Init(partition_));
+  ASSERT_TRUE(verity_writer_.Update(0, part_data.data(), part_data.size()));
+  ASSERT_TRUE(
+      verity_writer_.Finalize(partition_fd_.get(), partition_fd_.get()));
+}
+
 }  // namespace chromeos_update_engine
