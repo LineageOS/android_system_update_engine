@@ -869,6 +869,8 @@ filegroup {
         "payload_generator/payload_signer_unittest.cc",
         "payload_generator/squashfs_filesystem_unittest.cc",
         "payload_generator/zip_unittest.cc",
+        "payload_consumer/verity_writer_android_unittest.cc",
+        "payload_consumer/xz_extent_writer_unittest.cc",
         "testrunner.cc",
     ],
 }
@@ -991,9 +993,7 @@ cc_test {
         "payload_consumer/postinstall_runner_action_unittest.cc",
         "payload_consumer/snapshot_extent_writer_unittest.cc",
         "payload_consumer/vabc_partition_writer_unittest.cc",
-        "payload_consumer/verity_writer_android_unittest.cc",
         "payload_consumer/xor_extent_writer_unittest.cc",
-        "payload_consumer/xz_extent_writer_unittest.cc",
         "update_status_utils_unittest.cc",
     ],
 }
