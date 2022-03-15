@@ -273,6 +273,9 @@ std::unique_ptr<ExtentWriter> VABCPartitionWriter::CreateBaseExtentWriter() {
   auto source_fd = std::make_shared<EintrSafeFileDescriptor>();
   TEST_AND_RETURN_FALSE_ERRNO(
       source_fd->Open(install_part_.source_path.c_str(), O_RDONLY));
+  if (!operation.has_src_sha256_hash()) {
+    return true;
+  }
   return PartitionWriter::ValidateSourceHash(
       operation, source_fd, block_size_, error);
 }
