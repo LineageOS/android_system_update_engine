@@ -1082,3 +1082,25 @@ cc_library_static {
         export_proto_headers: true,
     },
 }
+
+cc_binary_host {
+    name: "ota_extractor",
+    defaults: [
+        "ue_defaults",
+        "libpayload_consumer_exports",
+    ],
+    srcs: [
+        "aosp/ota_extractor.cc",
+    ],
+    static_libs: [
+        "liblog",
+        "libbrotli",
+        "libbase",
+        "libpayload_consumer",
+        "libpayload_extent_ranges",
+        "libpayload_extent_utils",
+        "libz",
+        "libgflags",
+        "update_metadata-protos",
+    ],
+}
