@@ -465,6 +465,9 @@ bool DynamicPartitionControlAndroid::PreparePartitionsForUpdate(
   if (!SetTargetBuildVars(manifest)) {
     return false;
   }
+  for (auto& list : dynamic_partition_list_) {
+    list.clear();
+  }
 
   // Although the current build supports dynamic partitions, the given payload
   // doesn't use it for target partitions. This could happen when applying a
@@ -1279,6 +1282,9 @@ DynamicPartitionControlAndroid::GetCleanupPreviousUpdateAction(
 bool DynamicPartitionControlAndroid::ResetUpdate(PrefsInterface* prefs) {
   if (!GetVirtualAbFeatureFlag().IsEnabled()) {
     return true;
+  }
+  for (auto& list : dynamic_partition_list_) {
+    list.clear();
   }
 
   LOG(INFO) << __func__ << " resetting update state and deleting snapshots.";
