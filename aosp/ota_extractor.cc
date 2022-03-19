@@ -49,14 +49,16 @@ namespace chromeos_update_engine {
 
 bool ExtractImagesFromOTA(const DeltaArchiveManifest& manifest,
                           const PayloadMetadata& metadata,
-                          const uint8_t* payload,
-                          size_t size,
+                          int payload_fd,
+                          size_t payload_offset,
                           std::string_view output_dir) {
   InstallOperationExecutor executor(manifest.block_size());
-  const uint8_t* data_begin = payload + metadata.GetMetadataSize() +
-                              metadata.GetMetadataSignatureSize();
+  const size_t data_begin = metadata.GetMetadataSize() +
+                            metadata.GetMetadataSignatureSize() +
+                            payload_offset;
   const base::FilePath path(
       base::StringPiece(output_dir.data(), output_dir.size()));
+  std::vector<unsigned char> blob;
   for (const auto& partition : manifest.partitions()) {
     LOG(INFO) << "Extracting partition " << partition.partition_name()
               << " size: " << partition.new_partition_info().size();
@@ -67,10 +69,14 @@ bool ExtractImagesFromOTA(const DeltaArchiveManifest& manifest,
     TEST_AND_RETURN_FALSE_ERRNO(
         fd->Open(output_path.c_str(), O_RDWR | O_CREAT, 0644));
     for (const auto& op : partition.operations()) {
+      blob.resize(op.data_length());
+      const auto op_data_offset = data_begin + op.data_offset();
+      ssize_t bytes_read = 0;
+      TEST_AND_RETURN_FALSE(utils::PReadAll(
+          payload_fd, blob.data(), blob.size(), op_data_offset, &bytes_read));
       auto direct_writer = std::make_unique<DirectExtentWriter>(fd);
-      const auto op_data = data_begin + op.data_offset();
       TEST_AND_RETURN_FALSE(executor.ExecuteReplaceOperation(
-          op, std::move(direct_writer), op_data, op.data_length()));
+          op, std::move(direct_writer), blob.data(), blob.size()));
     }
     int err =
         truncate64(output_path.c_str(), partition.new_partition_info().size());
@@ -135,7 +141,7 @@ int main(int argc, char* argv[]) {
   }
   return !ExtractImagesFromOTA(manifest,
                                payload_metadata,
-                               payload + FLAGS_payload_offset,
-                               payload_size - FLAGS_payload_offset,
+                               payload_fd,
+                               FLAGS_payload_offset,
                                FLAGS_output_dir);
 }
