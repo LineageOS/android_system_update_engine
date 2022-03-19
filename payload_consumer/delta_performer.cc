@@ -1117,11 +1117,11 @@ ErrorCode DeltaPerformer::ValidateOperationHash(
 
   if (calculated_op_hash != expected_op_hash) {
     LOG(ERROR) << "Hash verification failed for operation "
-               << next_operation_num_ << ". Expected hash = ";
-    utils::HexDumpVector(expected_op_hash);
+               << next_operation_num_
+               << ". Expected hash = " << HexEncode(expected_op_hash);
     LOG(ERROR) << "Calculated hash over " << operation.data_length()
-               << " bytes at offset: " << operation.data_offset() << " = ";
-    utils::HexDumpVector(calculated_op_hash);
+               << " bytes at offset: " << operation.data_offset() << " = "
+               << HexEncode(calculated_op_hash);
     return ErrorCode::kDownloadOperationHashMismatch;
   }
 
