@@ -902,9 +902,84 @@ cc_test_host {
         "update_engine.conf",
     ],
     static_libs: [
-        "libcurl",
         "libgmock",
         "libpayload_generator",
+    ],
+}
+
+// update_engine_unittests (type: executable)
+// ========================================================
+// Main unittest file.
+cc_test {
+    name: "update_engine_http_unittests",
+    defaults: [
+        "ue_defaults",
+        "liblz4diff_defaults",
+        "update_metadata-protos_exports",
+    ],
+    require_root: true,
+    static_libs: [
+        "libbase",
+        "libbrillo-test-helpers",
+        "libchrome_test_helpers",
+        "libcurl",
+        "libcutils",
+        "libdm",
+        "libgmock",
+        "libz",
+    ],
+    shared_libs: [
+        "libssl",
+        "libcrypto",
+        "libziparchive",
+        "liblog",
+    ],
+
+    data: [
+        ":test_http_server",
+        ":test_subprocess",
+        ":ue_unittest_keys",
+        "otacerts.zip",
+        "unittest_key.pem",
+        "unittest_key2.pem",
+        "unittest_key_RSA4096.pem",
+        "unittest_key_EC.pem",
+    ],
+
+    // We cannot use the default generated AndroidTest.xml because of the use of helper modules
+    // (i.e. test_http_server, test_subprocess, ue_unittest_delta_generator).
+    // test_config: "test_config.xml",
+    test_suites: ["device-tests"],
+
+    srcs: [
+        "aosp/platform_constants_android.cc",
+        "certificate_checker.cc",
+        "common/action_processor.cc",
+        "common/boot_control_stub.cc",
+        "common/error_code_utils.cc",
+        "common/file_fetcher.cc",
+        "common/hash_calculator.cc",
+        "common/http_fetcher.cc",
+        "common/multi_range_http_fetcher.cc",
+        "common/http_common.cc",
+        "common/subprocess.cc",
+        "common/test_utils.cc",
+        "common/utils.cc",
+        "common/proxy_resolver.cc",
+        "libcurl_http_fetcher.cc",
+        "payload_consumer/certificate_parser_android.cc",
+        "payload_consumer/payload_verifier.cc",
+        "payload_generator/payload_signer.cc",
+        "update_status_utils.cc",
+
+        "certificate_checker_unittest.cc",
+        "common/http_fetcher_unittest.cc",
+        "common/mock_http_fetcher.cc",
+        "common/proxy_resolver_unittest.cc",
+        "common/subprocess_unittest.cc",
+        "libcurl_http_fetcher_unittest.cc",
+        "payload_consumer/certificate_parser_android_unittest.cc",
+        "update_status_utils_unittest.cc",
     ],
 }
 
@@ -933,8 +1008,6 @@ cc_test {
     ],
 
     data: [
-        ":test_http_server",
-        ":test_subprocess",
         ":ue_unittest_delta_generator",
         ":ue_unittest_disk_imgs",
         ":ue_unittest_erofs_imgs",
@@ -966,17 +1039,11 @@ cc_test {
         "aosp/dynamic_partition_control_android_unittest.cc",
         "aosp/update_attempter_android_integration_test.cc",
         "aosp/update_attempter_android_unittest.cc",
-        "certificate_checker_unittest.cc",
-        "common/http_fetcher_unittest.cc",
-        "common/proxy_resolver_unittest.cc",
-        "common/subprocess_unittest.cc",
         "common/utils_unittest.cc",
         "download_action_android_unittest.cc",
-        "libcurl_http_fetcher_unittest.cc",
         "payload_consumer/bzip_extent_writer_unittest.cc",
         "payload_consumer/cached_file_descriptor_unittest.cc",
         "payload_consumer/cow_writer_file_descriptor_unittest.cc",
-        "payload_consumer/certificate_parser_android_unittest.cc",
         "payload_consumer/delta_performer_integration_test.cc",
         "payload_consumer/delta_performer_unittest.cc",
         "payload_consumer/extent_reader_unittest.cc",
@@ -994,7 +1061,6 @@ cc_test {
         "payload_consumer/snapshot_extent_writer_unittest.cc",
         "payload_consumer/vabc_partition_writer_unittest.cc",
         "payload_consumer/xor_extent_writer_unittest.cc",
-        "update_status_utils_unittest.cc",
     ],
 }
 
