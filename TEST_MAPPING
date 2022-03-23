@@ -2,6 +2,9 @@
   "presubmit": [
     {
       "name": "update_engine_unittests"
+    },
+    {
+      "name": "update_engine_http_unittests"
     }
   ]
 }

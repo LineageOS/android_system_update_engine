@@ -25,7 +25,6 @@
 
 #include <brillo/key_value_store.h>
 #include <brillo/secure_blob.h>
-#include <lz4diff/lz4diff.pb.h>
 
 #include "bsdiff/constants.h"
 #include "update_engine/payload_consumer/payload_constants.h"
