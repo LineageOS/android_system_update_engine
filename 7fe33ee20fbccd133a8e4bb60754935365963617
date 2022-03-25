@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "ded85567_c0aa114a",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 29415
+      },
+      "writtenOn": "2022-03-25T17:51:18Z",
+      "side": 1,
+      "message": "Causes OTAs to fail to flash on ZenFone 8 in recovery. Removed patch, flashes fine. Added patch back in, fails again.",
+      "revId": "7fe33ee20fbccd133a8e4bb60754935365963617",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
