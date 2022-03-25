@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "42c39708_66b80c9d",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 2
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 2195
+      },
+      "writtenOn": "2022-03-25T21:08:53Z",
+      "side": 1,
+      "message": "Breaking OTA flashing entirely \u003e Breaking gapps",
+      "revId": "805bc58eb7afa0e984436bc1a4f0e7d25289e959",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
