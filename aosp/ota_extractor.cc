@@ -86,8 +86,19 @@ bool ExtractImagesFromOTA(const DeltaArchiveManifest& manifest,
       TEST_AND_RETURN_FALSE(utils::PReadAll(
           payload_fd, blob.data(), blob.size(), op_data_offset, &bytes_read));
       auto direct_writer = std::make_unique<DirectExtentWriter>(fd);
-      TEST_AND_RETURN_FALSE(executor.ExecuteReplaceOperation(
-          op, std::move(direct_writer), blob.data(), blob.size()));
+      if (op.type() == InstallOperation::ZERO) {
+        TEST_AND_RETURN_FALSE(executor.ExecuteZeroOrDiscardOperation(
+            op, std::move(direct_writer)));
+      } else if (op.type() == InstallOperation::REPLACE ||
+                 op.type() == InstallOperation::REPLACE_BZ ||
+                 op.type() == InstallOperation::REPLACE_XZ) {
+        TEST_AND_RETURN_FALSE(executor.ExecuteReplaceOperation(
+            op, std::move(direct_writer), blob.data(), blob.size()));
+      } else {
+        LOG(ERROR) << "Unsupported operation type: " << op.type() << ", "
+                   << InstallOperation::Type_Name(op.type());
+        return false;
+      }
     }
     int err =
         truncate64(output_path.c_str(), partition.new_partition_info().size());
