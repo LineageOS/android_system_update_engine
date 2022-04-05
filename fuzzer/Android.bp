@@ -1,0 +1,68 @@
+/*
+ * Copyright (C) 2021 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at:
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+cc_defaults {
+    name: "updateEngineFuzzer_defaults",
+    static_libs: [
+        "libupdate_engine_android",
+        "libavb",
+        "libavb_user",
+        "gkiprops",
+        "libpayload_consumer",
+        "libupdate_engine_boot_control",
+        "PlatformProperties",
+    ],
+    shared_libs: [
+        "apex_aidl_interface-cpp",
+        "libandroid_net",
+        "libbase",
+        "libbinder",
+        "libbinderwrapper",
+        "libbootloader_message",
+        "libbrillo-binder",
+        "libcurl",
+        "libcutils",
+        "libupdate_engine_stable-V1-cpp",
+        "liblog",
+        "libssl",
+        "libstatslog",
+        "libutils",
+        "libbrillo-stream",
+        "libbrillo",
+        "libchrome",
+    ],
+    include_dirs: ["system"],
+    fuzz_config: {
+        cc: [
+            "android-ota@google.com",
+        ],
+        componentid: 155276,
+    },
+}
+
+cc_fuzz {
+    name: "updateEngine_downloadAction_fuzzer",
+    srcs: [
+        "updateEngine_downloadAction_fuzzer.cpp",
+    ],
+    defaults: [
+        "updateEngineFuzzer_defaults",
+        "libupdate_engine_boot_control_exports",
+        "libpayload_consumer_exports",
+    ],
+    cflags: [
+        "-Wno-unused-parameter",
+    ],
+}
