@@ -442,6 +442,8 @@ def main():
                       help='Perform slot switch for this OTA package')
   parser.add_argument('--perform-reset-slot-switch', action='store_true',
                       help='Perform reset slot switch for this OTA package')
+  parser.add_argument('--wipe-user-data', action='store_true',
+                      help='Wipe userdata after installing OTA')
   args = parser.parse_args()
   logging.basicConfig(
       level=logging.WARNING if args.no_verbose else logging.INFO)
@@ -493,6 +495,8 @@ def main():
     args.extra_headers += "\nSWITCH_SLOT_ON_REBOOT=0"
   if args.no_postinstall:
     args.extra_headers += "\nRUN_POST_INSTALL=0"
+  if args.wipe_user_data:
+    args.extra_headers += "\nPOWERWASH=1"
 
   with zipfile.ZipFile(args.otafile) as zfp:
     CARE_MAP_ENTRY_NAME = "care_map.pb"

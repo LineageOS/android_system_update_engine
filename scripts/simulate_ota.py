@@ -110,6 +110,7 @@ def run_ota(source, target, payload_path, tempdir, output_dir):
   delta_generator_args.append("--partition_names=" + ":".join(partition_names))
   delta_generator_args.append("--new_partitions=" + ":".join(new_partitions))
 
+  print("Running ", " ".join(delta_generator_args))
   subprocess.check_output(delta_generator_args)
 
   valid = True

@@ -46,6 +46,10 @@ class PartitionWriter : public PartitionWriterInterface {
                                  const InstallOperation& operation,
                                  const FileDescriptorPtr source_fd,
                                  ErrorCode* error);
+  static bool ValidateSourceHash(const InstallOperation& operation,
+                                 const FileDescriptorPtr source_fd,
+                                 size_t block_size,
+                                 ErrorCode* error);
 
   // Perform necessary initialization work before InstallOperation can be
   // applied to this partition

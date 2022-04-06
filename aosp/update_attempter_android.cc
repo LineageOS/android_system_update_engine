@@ -400,6 +400,10 @@ bool UpdateAttempterAndroid::CancelUpdate(brillo::ErrorPtr* error) {
 bool UpdateAttempterAndroid::ResetStatus(brillo::ErrorPtr* error) {
   LOG(INFO) << "Attempting to reset state from "
             << UpdateStatusToString(status_) << " to UpdateStatus::IDLE";
+  if (processor_->IsRunning()) {
+    return LogAndSetError(
+        error, FROM_HERE, "Already processing an update, cancel it first.");
+  }
 
   if (apex_handler_android_ != nullptr) {
     LOG(INFO) << "Cleaning up reserved space for compressed APEX (if any)";
@@ -416,12 +420,12 @@ bool UpdateAttempterAndroid::ResetStatus(brillo::ErrorPtr* error) {
                           "ClearUpdateCompletedMarker() failed");
   }
 
+  if (!boot_control_->GetDynamicPartitionControl()->ResetUpdate(prefs_)) {
+    LOG(WARNING) << "Failed to reset snapshots. UpdateStatus is IDLE but"
+                  << "space might not be freed.";
+  }
   switch (status_) {
     case UpdateStatus::IDLE: {
-      if (!boot_control_->GetDynamicPartitionControl()->ResetUpdate(prefs_)) {
-        LOG(WARNING) << "Failed to reset snapshots. UpdateStatus is IDLE but"
-                     << "space might not be freed.";
-      }
       return true;
     }
 
