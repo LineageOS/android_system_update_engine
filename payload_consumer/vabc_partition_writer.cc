@@ -97,7 +97,17 @@ VABCPartitionWriter::VABCPartitionWriter(
 bool VABCPartitionWriter::Init(const InstallPlan* install_plan,
                                bool source_may_exist,
                                size_t next_op_index) {
-  xor_map_ = ComputeXorMap(partition_update_.merge_operations());
+  if (dynamic_control_->GetVirtualAbCompressionXorFeatureFlag().IsEnabled()) {
+    xor_map_ = ComputeXorMap(partition_update_.merge_operations());
+    if (xor_map_.size() > 0) {
+      LOG(INFO) << "Virtual AB Compression with XOR is enabled";
+    } else {
+      LOG(INFO) << "Device supports Virtual AB compression with XOR, but OTA "
+                   "package does not.";
+    }
+  } else {
+    LOG(INFO) << "Virtual AB Compression with XOR is disabled.";
+  }
   TEST_AND_RETURN_FALSE(install_plan != nullptr);
   if (source_may_exist && install_part_.source_size > 0) {
     TEST_AND_RETURN_FALSE(!install_part_.source_path.empty());

@@ -48,7 +48,11 @@ static constexpr auto& fake_part_name = "fake_part";
 static constexpr size_t FAKE_PART_SIZE = 4096 * 50;
 class VABCPartitionWriterTest : public ::testing::Test {
  public:
-  void SetUp() override { ftruncate(source_part_.fd, FAKE_PART_SIZE); }
+  void SetUp() override {
+    ftruncate(source_part_.fd, FAKE_PART_SIZE);
+    ON_CALL(dynamic_control_, GetVirtualAbCompressionXorFeatureFlag())
+        .WillByDefault(Return(FeatureFlag(FeatureFlag::Value::NONE)));
+  }
 
  protected:
   CowMergeOperation* AddMergeOp(PartitionUpdate* partition,
@@ -102,6 +106,8 @@ TEST_F(VABCPartitionWriterTest, MergeSequenceWriteTest) {
         ON_CALL(*cow_writer, EmitLabel(_)).WillByDefault(Return(true));
         return cow_writer;
       }));
+  EXPECT_CALL(dynamic_control_, GetVirtualAbCompressionXorFeatureFlag())
+      .WillRepeatedly(Return(FeatureFlag(FeatureFlag::Value::LAUNCH)));
   ASSERT_TRUE(writer_.Init(&install_plan_, true, 0));
 }
 
@@ -125,6 +131,8 @@ TEST_F(VABCPartitionWriterTest, MergeSequenceXorSameBlock) {
             ON_CALL(*cow_writer, EmitLabel(_)).WillByDefault(Return(true));
             return cow_writer;
           }));
+  EXPECT_CALL(dynamic_control_, GetVirtualAbCompressionXorFeatureFlag())
+      .WillRepeatedly(Return(FeatureFlag(FeatureFlag::Value::LAUNCH)));
   ASSERT_TRUE(writer_.Init(&install_plan_, true, 0));
 }
 
@@ -224,10 +232,12 @@ TEST_F(VABCPartitionWriterTest, StreamXORBlockTest) {
             .WillOnce(Return(true));
         return cow_writer;
       }));
+  EXPECT_CALL(dynamic_control_, GetVirtualAbCompressionXorFeatureFlag())
+      .WillRepeatedly(Return(FeatureFlag(FeatureFlag::Value::LAUNCH)));
   VABCPartitionWriter writer_{
       partition_update_, install_part_, &dynamic_control_, kBlockSize};
   ASSERT_TRUE(writer_.Init(&install_plan_, true, 0));
-  auto patch_data = GetNoopBSDIFF(kBlockSize * 5);
+  const auto patch_data = GetNoopBSDIFF(kBlockSize * 5);
   ASSERT_GT(patch_data.size(), 0UL);
   ASSERT_TRUE(writer_.PerformDiffOperation(
       *install_op, nullptr, patch_data.data(), patch_data.size()));
