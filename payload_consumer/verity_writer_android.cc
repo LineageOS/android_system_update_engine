@@ -116,7 +116,8 @@ bool VerityWriterAndroid::Finalize(FileDescriptor* read_fd,
     return false;
   }
   // All hash tree data blocks has been hashed, write hash tree to disk.
-  LOG(INFO) << "Writing verity hash tree to " << partition_->target_path;
+  LOG(INFO) << "Writing verity hash tree to "
+            << partition_->readonly_target_path;
   if (hash_tree_builder_) {
     TEST_AND_RETURN_FALSE(hash_tree_builder_->BuildHashTree());
     TEST_AND_RETURN_FALSE_ERRNO(
@@ -130,7 +131,7 @@ bool VerityWriterAndroid::Finalize(FileDescriptor* read_fd,
     hash_tree_builder_.reset();
   }
   if (partition_->fec_size != 0) {
-    LOG(INFO) << "Writing verity FEC to " << partition_->target_path;
+    LOG(INFO) << "Writing verity FEC to " << partition_->readonly_target_path;
     TEST_AND_RETURN_FALSE(EncodeFEC(read_fd,
                                     write_fd,
                                     partition_->fec_data_offset,

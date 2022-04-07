@@ -255,6 +255,7 @@ bool InstallOperationExecutor::ExecuteDiffOperation(
           operation, std::move(writer), source_fd, data, count);
     default:
       LOG(ERROR) << "Unexpected operation type when executing diff ops "
+                 << operation.type() << " "
                  << operation.Type_Name(operation.type());
       return false;
   }
