@@ -73,6 +73,10 @@ class MockDynamicPartitionControlAndroid
   MOCK_METHOD(std::string, GetSuperPartitionName, (uint32_t), (override));
   MOCK_METHOD(FeatureFlag, GetVirtualAbFeatureFlag, (), (override));
   MOCK_METHOD(FeatureFlag, GetVirtualAbCompressionFeatureFlag, (), (override));
+  MOCK_METHOD(FeatureFlag,
+              GetVirtualAbCompressionXorFeatureFlag,
+              (),
+              (override));
   MOCK_METHOD(bool, FinishUpdate, (bool), (override));
   MOCK_METHOD(bool,
               GetSystemOtherPath,

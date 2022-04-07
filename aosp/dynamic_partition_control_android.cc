@@ -82,6 +82,8 @@ constexpr char kVirtualAbEnabled[] = "ro.virtual_ab.enabled";
 constexpr char kVirtualAbRetrofit[] = "ro.virtual_ab.retrofit";
 constexpr char kVirtualAbCompressionEnabled[] =
     "ro.virtual_ab.compression.enabled";
+constexpr auto&& kVirtualAbCompressionXorEnabled =
+    "ro.virtual_ab.compression.xor.enabled";
 
 // Currently, android doesn't have a retrofit prop for VAB Compression. However,
 // struct FeatureFlag forces us to determine if a feature is 'retrofit'. So this
@@ -126,6 +128,8 @@ DynamicPartitionControlAndroid::DynamicPartitionControlAndroid(
       virtual_ab_(GetFeatureFlag(kVirtualAbEnabled, kVirtualAbRetrofit)),
       virtual_ab_compression_(GetFeatureFlag(kVirtualAbCompressionEnabled,
                                              kVirtualAbCompressionRetrofit)),
+      virtual_ab_compression_xor_(
+          GetFeatureFlag(kVirtualAbCompressionXorEnabled, "")),
       source_slot_(source_slot) {
   if (GetVirtualAbFeatureFlag().IsEnabled()) {
     snapshot_ = SnapshotManager::New();
@@ -150,6 +154,11 @@ DynamicPartitionControlAndroid::GetVirtualAbCompressionFeatureFlag() {
     return FeatureFlag(FeatureFlag::Value::NONE);
   }
   return virtual_ab_compression_;
+}
+
+FeatureFlag
+DynamicPartitionControlAndroid::GetVirtualAbCompressionXorFeatureFlag() {
+  return virtual_ab_compression_xor_;
 }
 
 bool DynamicPartitionControlAndroid::OptimizeOperation(
