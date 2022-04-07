@@ -156,6 +156,8 @@ struct InstallPlan {
     uint64_t fec_offset{0};
     uint64_t fec_size{0};
     uint32_t fec_roots{0};
+
+    bool ParseVerityConfig(const PartitionUpdate&);
   };
   std::vector<Partition> partitions;
 
