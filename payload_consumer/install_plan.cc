@@ -187,6 +187,44 @@ bool InstallPlan::Partition::operator==(
           postinstall_optional == that.postinstall_optional);
 }
 
+bool InstallPlan::Partition::ParseVerityConfig(
+    const PartitionUpdate& partition) {
+  if (partition.has_hash_tree_extent()) {
+    Extent extent = partition.hash_tree_data_extent();
+    hash_tree_data_offset = extent.start_block() * block_size;
+    hash_tree_data_size = extent.num_blocks() * block_size;
+    extent = partition.hash_tree_extent();
+    hash_tree_offset = extent.start_block() * block_size;
+    hash_tree_size = extent.num_blocks() * block_size;
+    uint64_t hash_tree_data_end = hash_tree_data_offset + hash_tree_data_size;
+    if (hash_tree_offset < hash_tree_data_end) {
+      LOG(ERROR) << "Invalid hash tree extents, hash tree data ends at "
+                 << hash_tree_data_end << ", but hash tree starts at "
+                 << hash_tree_offset;
+      return false;
+    }
+    hash_tree_algorithm = partition.hash_tree_algorithm();
+    hash_tree_salt.assign(partition.hash_tree_salt().begin(),
+                          partition.hash_tree_salt().end());
+  }
+  if (partition.has_fec_extent()) {
+    Extent extent = partition.fec_data_extent();
+    fec_data_offset = extent.start_block() * block_size;
+    fec_data_size = extent.num_blocks() * block_size;
+    extent = partition.fec_extent();
+    fec_offset = extent.start_block() * block_size;
+    fec_size = extent.num_blocks() * block_size;
+    uint64_t fec_data_end = fec_data_offset + fec_data_size;
+    if (fec_offset < fec_data_end) {
+      LOG(ERROR) << "Invalid fec extents, fec data ends at " << fec_data_end
+                 << ", but fec starts at " << fec_offset;
+      return false;
+    }
+    fec_roots = partition.fec_roots();
+  }
+  return true;
+}
+
 template <typename PartitinoUpdateArray>
 bool InstallPlan::ParseManifestToInstallPlan(
     const PartitinoUpdateArray& partitions,
@@ -226,42 +264,11 @@ bool InstallPlan::ParseManifestToInstallPlan(
     install_part.target_hash.assign(info.hash().begin(), info.hash().end());
 
     install_part.block_size = block_size;
-    if (partition.has_hash_tree_extent()) {
-      Extent extent = partition.hash_tree_data_extent();
-      install_part.hash_tree_data_offset = extent.start_block() * block_size;
-      install_part.hash_tree_data_size = extent.num_blocks() * block_size;
-      extent = partition.hash_tree_extent();
-      install_part.hash_tree_offset = extent.start_block() * block_size;
-      install_part.hash_tree_size = extent.num_blocks() * block_size;
-      uint64_t hash_tree_data_end =
-          install_part.hash_tree_data_offset + install_part.hash_tree_data_size;
-      if (install_part.hash_tree_offset < hash_tree_data_end) {
-        LOG(ERROR) << "Invalid hash tree extents, hash tree data ends at "
-                   << hash_tree_data_end << ", but hash tree starts at "
-                   << install_part.hash_tree_offset;
-        *error = ErrorCode::kDownloadNewPartitionInfoError;
-        return false;
-      }
-      install_part.hash_tree_algorithm = partition.hash_tree_algorithm();
-      install_part.hash_tree_salt.assign(partition.hash_tree_salt().begin(),
-                                         partition.hash_tree_salt().end());
-    }
-    if (partition.has_fec_extent()) {
-      Extent extent = partition.fec_data_extent();
-      install_part.fec_data_offset = extent.start_block() * block_size;
-      install_part.fec_data_size = extent.num_blocks() * block_size;
-      extent = partition.fec_extent();
-      install_part.fec_offset = extent.start_block() * block_size;
-      install_part.fec_size = extent.num_blocks() * block_size;
-      uint64_t fec_data_end =
-          install_part.fec_data_offset + install_part.fec_data_size;
-      if (install_part.fec_offset < fec_data_end) {
-        LOG(ERROR) << "Invalid fec extents, fec data ends at " << fec_data_end
-                   << ", but fec starts at " << install_part.fec_offset;
-        *error = ErrorCode::kDownloadNewPartitionInfoError;
-        return false;
-      }
-      install_part.fec_roots = partition.fec_roots();
+    if (!install_part.ParseVerityConfig(partition)) {
+      *error = ErrorCode::kDownloadNewPartitionInfoError;
+      LOG(INFO) << "Failed to parse partition `" << partition.partition_name()
+                << "` verity configs";
+      return false;
     }
 
     install_plan->partitions.push_back(install_part);
