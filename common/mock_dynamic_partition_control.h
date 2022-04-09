@@ -34,6 +34,10 @@ class MockDynamicPartitionControl : public DynamicPartitionControlInterface {
   MOCK_METHOD(bool, GetDeviceDir, (std::string*), (override));
   MOCK_METHOD(FeatureFlag, GetDynamicPartitionsFeatureFlag, (), (override));
   MOCK_METHOD(FeatureFlag, GetVirtualAbCompressionFeatureFlag, (), (override));
+  MOCK_METHOD(FeatureFlag,
+              GetVirtualAbCompressionXorFeatureFlag,
+              (),
+              (override));
   MOCK_METHOD(FeatureFlag, GetVirtualAbFeatureFlag, (), (override));
   MOCK_METHOD(bool, FinishUpdate, (bool), (override));
   MOCK_METHOD(std::unique_ptr<FileDescriptor>,
