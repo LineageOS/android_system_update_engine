@@ -118,15 +118,21 @@ bool ExtractImagesFromOTA(const DeltaArchiveManifest& manifest,
               << " size: " << partition.new_partition_info().size();
     const auto output_path =
         output_dir_path.Append(partition.partition_name() + ".img").value();
-    const auto input_path =
-        input_dir_path.Append(partition.partition_name() + ".img").value();
     auto out_fd =
         std::make_shared<chromeos_update_engine::EintrSafeFileDescriptor>();
     TEST_AND_RETURN_FALSE_ERRNO(
         out_fd->Open(output_path.c_str(), O_RDWR | O_CREAT, 0644));
     auto in_fd =
         std::make_shared<chromeos_update_engine::EintrSafeFileDescriptor>();
-    TEST_AND_RETURN_FALSE_ERRNO(in_fd->Open(input_path.c_str(), O_RDONLY));
+    if (partition.has_old_partition_info()) {
+      const auto input_path =
+          input_dir_path.Append(partition.partition_name() + ".img").value();
+      LOG(INFO) << "Incremental OTA detected for partition "
+                << partition.partition_name() << " opening source image "
+                << input_path;
+      CHECK(in_fd->Open(input_path.c_str(), O_RDONLY))
+          << " failed to open " << input_path;
+    }
 
     for (const auto& op : partition.operations()) {
       if (op.has_src_sha256_hash()) {
@@ -159,9 +165,11 @@ bool ExtractImagesFromOTA(const DeltaArchiveManifest& manifest,
         TEST_AND_RETURN_FALSE(executor.ExecuteReplaceOperation(
             op, std::move(direct_writer), blob.data(), blob.size()));
       } else if (op.type() == InstallOperation::SOURCE_COPY) {
+        CHECK(in_fd->IsOpen());
         TEST_AND_RETURN_FALSE(executor.ExecuteSourceCopyOperation(
             op, std::move(direct_writer), in_fd));
       } else {
+        CHECK(in_fd->IsOpen());
         TEST_AND_RETURN_FALSE(executor.ExecuteDiffOperation(
             op, std::move(direct_writer), in_fd, blob.data(), blob.size()));
       }
