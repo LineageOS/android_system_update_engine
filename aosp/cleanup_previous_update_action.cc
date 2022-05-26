@@ -277,7 +277,7 @@ void CleanupPreviousUpdateAction::WaitForMergeOrSchedule() {
   AcknowledgeTaskExecuted();
   TEST_AND_RETURN(running_);
 
-  auto update_uses_compression = snapshot_->UpdateUsesCompression();
+  snapshot_->SetMergeStatsFeatures(merge_stats_);
 
   // Propagate the merge failure code to the merge stats. If we wait until
   // after ProcessUpdateState, then a successful merge could overwrite the
@@ -290,7 +290,7 @@ void CleanupPreviousUpdateAction::WaitForMergeOrSchedule() {
   auto state = snapshot_->ProcessUpdateState(
       std::bind(&CleanupPreviousUpdateAction::OnMergePercentageUpdate, this),
       std::bind(&CleanupPreviousUpdateAction::BeforeCancel, this));
-  merge_stats_->set_state(state, update_uses_compression);
+  merge_stats_->set_state(state);
 
   switch (state) {
     case UpdateState::None: {
@@ -434,7 +434,7 @@ void CleanupPreviousUpdateAction::InitiateMergeAndWait() {
 
   LOG(WARNING) << "InitiateMerge failed.";
   auto state = snapshot_->GetUpdateState();
-  merge_stats_->set_state(state, snapshot_->UpdateUsesCompression());
+  merge_stats_->set_state(state);
   if (state == UpdateState::Unverified) {
     // We are stuck at unverified state. This can happen if the update has
     // been applied, but it has not even been attempted yet (in libsnapshot,
@@ -494,6 +494,16 @@ void CleanupPreviousUpdateAction::ReportMergeStats() {
   // DynamicPartitionControlInterface::UpdateUsesSnapshotCompression.
   // However, we have saved the flag in the snapshot report.
   bool vab_compression_used = report.compression_enabled();
+  bool userspace_snapshots_enabled =
+      boot_control_->GetDynamicPartitionControl()
+          ->GetVirtualAbUserspaceSnapshotsFeatureFlag()
+          .IsEnabled();
+  bool userspace_snapshots_used = report.userspace_snapshots_used();
+  bool xor_compression_enabled = boot_control_->GetDynamicPartitionControl()
+                                     ->GetVirtualAbCompressionXorFeatureFlag()
+                                     .IsEnabled();
+  bool xor_compression_used = report.xor_compression_used();
+  bool iouring_used = report.iouring_used();
 
   auto target_build_fingerprint =
       android::base::GetProperty("ro.build.fingerprint", "");
@@ -517,7 +527,12 @@ void CleanupPreviousUpdateAction::ReportMergeStats() {
                              report.boot_complete_to_merge_start_time_ms(),
                              static_cast<int32_t>(report.merge_failure_code()),
                              report.source_build_fingerprint().c_str(),
-                             target_build_fingerprint.c_str());
+                             target_build_fingerprint.c_str(),
+                             userspace_snapshots_enabled,
+                             userspace_snapshots_used,
+                             xor_compression_enabled,
+                             xor_compression_used,
+                             iouring_used);
 #endif
 }
 
