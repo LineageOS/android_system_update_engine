@@ -285,6 +285,7 @@ cc_defaults {
         "android.hardware.boot@1.0",
         "android.hardware.boot@1.1",
         "android.hardware.boot@1.2",
+        "android.hardware.boot-V1-ndk",
     ],
     header_libs: [
         "avb_headers",
