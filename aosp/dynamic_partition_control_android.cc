@@ -98,7 +98,8 @@ constexpr std::chrono::milliseconds kMapTimeout{1000};
 constexpr std::chrono::milliseconds kMapSnapshotTimeout{10000};
 
 DynamicPartitionControlAndroid::~DynamicPartitionControlAndroid() {
-  Cleanup();
+  UnmapAllPartitions();
+  metadata_device_.reset();
 }
 
 static FeatureFlag GetFeatureFlag(const char* enable_prop,
@@ -312,6 +313,12 @@ bool DynamicPartitionControlAndroid::UnmapAllPartitions() {
 void DynamicPartitionControlAndroid::Cleanup() {
   UnmapAllPartitions();
   metadata_device_.reset();
+  if (GetVirtualAbFeatureFlag().IsEnabled()) {
+    snapshot_ = SnapshotManager::New();
+  } else {
+    snapshot_ = SnapshotManagerStub::New();
+  }
+  CHECK(snapshot_ != nullptr) << "Cannot initialize SnapshotManager.";
 }
 
 bool DynamicPartitionControlAndroid::DeviceExists(const std::string& path) {
