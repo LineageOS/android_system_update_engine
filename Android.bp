@@ -558,6 +558,7 @@ cc_defaults {
         "libpayload_extent_utils",
         "libcow_size_estimator",
         "liberofs",
+        "libselinux",
         "lz4diff-protos",
         "liblz4diff",
     ],
