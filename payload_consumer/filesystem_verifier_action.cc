@@ -25,6 +25,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <memory>
+#include <numeric>
 #include <string>
 #include <utility>
 
@@ -97,6 +98,18 @@ void FilesystemVerifierAction::PerformAction() {
     abort_action_completer.set_code(ErrorCode::kSuccess);
     return;
   }
+  // partition_weight_[i] = total size of partitions before index i.
+  partition_weight_.clear();
+  partition_weight_.reserve(install_plan_.partitions.size() + 1);
+  partition_weight_.push_back(0);
+  for (const auto& part : install_plan_.partitions) {
+    partition_weight_.push_back(part.target_size);
+  }
+  std::partial_sum(partition_weight_.begin(),
+                   partition_weight_.end(),
+                   partition_weight_.begin(),
+                   std::plus<size_t>());
+
   install_plan_.Dump();
   StartPartitionHashing();
   abort_action_completer.set_should_complete(false);
@@ -135,11 +148,9 @@ void FilesystemVerifierAction::UpdateProgress(double progress) {
 }
 
 void FilesystemVerifierAction::UpdatePartitionProgress(double progress) {
-  // We don't consider sizes of each partition. Every partition
-  // has the same length on progress bar.
-  // TODO(b/186087589): Take sizes of each partition into account.
-  UpdateProgress((progress + partition_index_) /
-                 install_plan_.partitions.size());
+  UpdateProgress((partition_weight_[partition_index_] * (1 - progress) +
+                  partition_weight_[partition_index_ + 1] * progress) /
+                 partition_weight_.back());
 }
 
 bool FilesystemVerifierAction::InitializeFdVABC(bool should_write_verity) {
@@ -290,8 +301,15 @@ void FilesystemVerifierAction::HashPartition(const off64_t start_offset,
     return;
   }
   const auto progress = (start_offset + bytes_read) * 1.0f / partition_size_;
-  UpdatePartitionProgress(progress * (1 - kVerityProgressPercent) +
-                          kVerityProgressPercent);
+  // If we are writing verity, then the progress bar will be split between
+  // verity writes and partition hashing. Otherwise, the entire progress bar is
+  // dedicated to partition hashing for smooth progress.
+  if (ShouldWriteVerity()) {
+    UpdatePartitionProgress(progress * (1 - kVerityProgressPercent) +
+                            kVerityProgressPercent);
+  } else {
+    UpdatePartitionProgress(progress);
+  }
   CHECK(pending_task_id_.PostTask(
       FROM_HERE,
       base::BindOnce(&FilesystemVerifierAction::HashPartition,
