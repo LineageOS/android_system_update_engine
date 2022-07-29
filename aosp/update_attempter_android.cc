@@ -35,6 +35,7 @@
 #include "update_engine/aosp/cleanup_previous_update_action.h"
 #include "update_engine/common/constants.h"
 #include "update_engine/common/daemon_state_interface.h"
+#include "update_engine/common/clock.h"
 #include "update_engine/common/download_action.h"
 #include "update_engine/common/error_code_utils.h"
 #include "update_engine/common/file_fetcher.h"
@@ -42,7 +43,6 @@
 #include "update_engine/common/network_selector.h"
 #include "update_engine/common/utils.h"
 #include "update_engine/metrics_utils.h"
-#include "update_engine/payload_consumer/certificate_parser_interface.h"
 #include "update_engine/payload_consumer/delta_performer.h"
 #include "update_engine/payload_consumer/file_descriptor.h"
 #include "update_engine/payload_consumer/file_descriptor_utils.h"
@@ -328,8 +328,7 @@ bool UpdateAttempterAndroid::ApplyPayload(
 #ifdef _UE_SIDELOAD
     LOG(FATAL) << "Unsupported sideload URI: " << payload_url;
 #else
-    LibcurlHttpFetcher* libcurl_fetcher =
-        new LibcurlHttpFetcher(&proxy_resolver_, hardware_);
+    LibcurlHttpFetcher* libcurl_fetcher = new LibcurlHttpFetcher(hardware_);
     libcurl_fetcher->set_server_to_check(ServerToCheck::kDownload);
     fetcher = libcurl_fetcher;
 #endif  // _UE_SIDELOAD
