@@ -27,6 +27,7 @@
 
 #include <base/files/file_path.h>
 #include <libsnapshot/cow_writer.h>
+#include <gflags/gflags.h>
 
 #include "update_engine/common/cow_operation_convert.h"
 #include "update_engine/common/utils.h"
@@ -36,6 +37,10 @@
 #include "update_engine/update_metadata.pb.h"
 
 using android::snapshot::CowWriter;
+DEFINE_string(partitions,
+              "",
+              "Comma separated list of partitions to extract, leave empty for "
+              "extracting all partitions");
 
 namespace chromeos_update_engine {
 
@@ -77,7 +82,15 @@ bool ProcessPartition(const chromeos_update_engine::PartitionUpdate& partition,
 using chromeos_update_engine::MetadataParseResult;
 using chromeos_update_engine::PayloadMetadata;
 
-int main(int argc, const char* argv[]) {
+int main(int argc, char* argv[]) {
+  gflags::SetUsageMessage(
+      "A tool to extract device images from Android OTA packages");
+  gflags::ParseCommandLineFlags(&argc, &argv, true);
+  auto tokens = android::base::Tokenize(FLAGS_partitions, ",");
+  const std::set<std::string> partitions(
+      std::make_move_iterator(tokens.begin()),
+      std::make_move_iterator(tokens.end()));
+
   if (argc != 3) {
     printf("Usage: %s <payload.bin> <extracted target_file>\n", argv[0]);
     return -1;
@@ -129,6 +142,10 @@ int main(int argc, const char* argv[]) {
 
   for (const auto& partition : manifest.partitions()) {
     if (partition.estimate_cow_size() == 0) {
+      continue;
+    }
+    if (!partitions.empty() &&
+        partitions.count(partition.partition_name()) == 0) {
       continue;
     }
     LOG(INFO) << partition.partition_name();
