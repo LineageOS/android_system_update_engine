@@ -1126,6 +1126,7 @@ cc_binary_host {
         "libbase",
         "libcow_operation_convert",
         "libcow_size_estimator",
+        "libgflags",
         "libpayload_consumer",
         "libpayload_extent_ranges",
         "libpayload_extent_utils",
