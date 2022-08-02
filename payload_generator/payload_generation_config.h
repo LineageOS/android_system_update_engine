@@ -59,6 +59,9 @@ struct VerityConfig {
   // Whether the verity config is empty.
   bool IsEmpty() const;
 
+  // Clears this config, subsequent calls to "IsEmpty" will return true.
+  void Clear();
+
   // The extent for data covered by verity hash tree.
   Extent hash_tree_data_extent;
 

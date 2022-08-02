@@ -726,8 +726,20 @@ int Main(int argc, char** argv) {
 
   if (payload_config.is_delta &&
       payload_config.version.minor >= kVerityMinorPayloadVersion &&
-      !FLAGS_disable_verity_computation)
+      !FLAGS_disable_verity_computation) {
     CHECK(payload_config.target.LoadVerityConfig());
+    for (size_t i = 0; i < payload_config.target.partitions.size(); ++i) {
+      if (payload_config.source.partitions[i].fs_interface != nullptr) {
+        continue;
+      }
+      if (!payload_config.target.partitions[i].verity.IsEmpty()) {
+        LOG(INFO) << "Partition " << payload_config.target.partitions[i].name
+                  << " is installed in full OTA, disaling verity for this "
+                     "specific partition.";
+        payload_config.target.partitions[i].verity.Clear();
+      }
+    }
+  }
 
   LOG(INFO) << "Generating " << (payload_config.is_delta ? "delta" : "full")
             << " update";
