@@ -106,14 +106,15 @@ bool CowDryRun(
     cow_writer->AddLabel(0);
   }
   for (const auto& op : operations) {
+    cow_writer->AddLabel(0);
     if (op.type() == InstallOperation::ZERO) {
       for (const auto& ext : op.dst_extents()) {
         visited.AddExtent(ext);
         cow_writer->AddZeroBlocks(ext.start_block(), ext.num_blocks());
       }
-      cow_writer->AddLabel(0);
     }
   }
+  cow_writer->AddLabel(0);
   const size_t last_block = partition_size / block_size;
   const auto unvisited_extents =
       FilterExtentRanges({ExtentForRange(0, last_block)}, visited);
