@@ -41,6 +41,7 @@
 #include "update_engine/certificate_checker.h"
 #include "update_engine/common/hardware_interface.h"
 #include "update_engine/common/platform_constants.h"
+#include "update_engine/common/utils.h"
 
 using base::TimeDelta;
 using brillo::MessageLoop;
@@ -92,9 +93,8 @@ int LibcurlHttpFetcher::LibcurlCloseSocketCallback(void* clientp,
   return 1;
 }
 
-LibcurlHttpFetcher::LibcurlHttpFetcher(ProxyResolver* proxy_resolver,
-                                       HardwareInterface* hardware)
-    : HttpFetcher(proxy_resolver), hardware_(hardware) {
+LibcurlHttpFetcher::LibcurlHttpFetcher(HardwareInterface* hardware)
+    : hardware_(hardware) {
   // Dev users want a longer timeout (180 seconds) because they may
   // be waiting on the dev server to build an image.
   if (!hardware_->IsOfficialBuild())
@@ -106,7 +106,6 @@ LibcurlHttpFetcher::LibcurlHttpFetcher(ProxyResolver* proxy_resolver,
 LibcurlHttpFetcher::~LibcurlHttpFetcher() {
   LOG_IF(ERROR, transfer_in_progress_)
       << "Destroying the fetcher while a transfer is in progress.";
-  CancelProxyResolution();
   CleanUp();
 }
 
@@ -338,12 +337,7 @@ void LibcurlHttpFetcher::SetCurlOptionsForFile() {
 void LibcurlHttpFetcher::BeginTransfer(const string& url) {
   CHECK(!transfer_in_progress_);
   url_ = url;
-  auto closure =
-      base::Bind(&LibcurlHttpFetcher::ProxiesResolved, base::Unretained(this));
-  ResolveProxiesForUrl(url_, closure);
-}
 
-void LibcurlHttpFetcher::ProxiesResolved() {
   transfer_size_ = -1;
   resume_offset_ = 0;
   retry_count_ = 0;
@@ -362,7 +356,6 @@ void LibcurlHttpFetcher::ProxiesResolved() {
 }
 
 void LibcurlHttpFetcher::ForceTransferTermination() {
-  CancelProxyResolution();
   CleanUp();
   if (delegate_) {
     // Note that after the callback returns this object may be destroyed.
