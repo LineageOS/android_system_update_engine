@@ -339,6 +339,12 @@ bool UpdateAttempterAndroid::ApplyPayload(
   if (!headers[kPayloadPropertyUserAgent].empty())
     fetcher->SetHeader("User-Agent", headers[kPayloadPropertyUserAgent]);
 
+  if (!headers[kPayloadPropertyNetworkProxy].empty()) {
+    LOG(INFO) << "Using proxy url from payload headers: "
+              << headers[kPayloadPropertyNetworkProxy];
+    fetcher->SetProxies({headers[kPayloadPropertyNetworkProxy]});
+  }
+
   BuildUpdateActions(fetcher);
 
   SetStatusAndNotify(UpdateStatus::UPDATE_AVAILABLE);
