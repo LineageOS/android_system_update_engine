@@ -172,6 +172,10 @@ static constexpr const auto& kPayloadPropertyPowerwash = "POWERWASH";
 // This can be used to zero-rate OTA traffic by sending it over the correct
 // network.
 static constexpr const auto& kPayloadPropertyNetworkId = "NETWORK_ID";
+
+// Proxy URL to use for downloading OTA. This will be forwarded to libcurl
+static constexpr const auto& kPayloadPropertyNetworkProxy = "NETWORK_PROXY";
+
 // Set "SWITCH_SLOT_ON_REBOOT=0" to skip marking the updated partitions active.
 // The default is 1 (always switch slot if update succeeded).
 static constexpr const auto& kPayloadPropertySwitchSlotOnReboot =
