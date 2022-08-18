@@ -339,10 +339,10 @@ cc_defaults {
     static_libs: [
         "libavb",
         "libavb_user",
-        "gkiprops",
+        "libgkiprops",
         "libpayload_consumer",
         "libupdate_engine_boot_control",
-        "PlatformProperties",
+        "libPlatformProperties",
     ],
     shared_libs: [
         "apex_aidl_interface-cpp",
@@ -361,7 +361,7 @@ cc_defaults {
         "libutils",
     ],
     whole_static_libs: [
-        "com.android.sysprop.apex",
+        "libcom.android.sysprop.apex",
     ],
 }
 
@@ -473,7 +473,7 @@ cc_binary {
         // We add the static versions of the shared libraries that are not installed to
         // recovery image due to size concerns. Need to include all the static library
         // dependencies of these static libraries.
-        "gkiprops",
+        "libgkiprops",
         "libevent",
         "libmodpb64",
         "libprotobuf-cpp-lite",
