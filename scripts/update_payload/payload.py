@@ -25,10 +25,11 @@ import mmap
 import struct
 import zipfile
 
+import update_metadata_pb2
+
 from update_payload import applier
 from update_payload import checker
 from update_payload import common
-from update_payload import update_metadata_pb2
 from update_payload.error import PayloadError
 
 
