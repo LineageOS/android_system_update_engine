@@ -162,6 +162,14 @@ cc_library_static {
     },
 }
 
+python_library_host {
+    name: "update_metadata-protos-python",
+    srcs: ["update_metadata.proto"],
+    proto: {
+        canonical_path_from_root: false,
+    },
+}
+
 // libpayload_consumer (type: static_library)
 // ========================================================
 // The payload application component and common dependencies.
