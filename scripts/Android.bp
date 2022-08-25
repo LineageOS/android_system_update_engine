@@ -29,7 +29,6 @@ python_library_host {
         "update_payload/__init__.py",
         "update_payload/payload.py",
         "update_payload/checker.py",
-        "update_payload/applier.py",
         "update_payload/common.py",
         "update_payload/error.py",
         "update_payload/histogram.py",
