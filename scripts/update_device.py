@@ -444,6 +444,8 @@ def main():
                       help='Perform reset slot switch for this OTA package')
   parser.add_argument('--wipe-user-data', action='store_true',
                       help='Wipe userdata after installing OTA')
+  parser.add_argument('--disable-vabc', action='store_true',
+                      help='Disable vabc during OTA')
   args = parser.parse_args()
   logging.basicConfig(
       level=logging.WARNING if args.no_verbose else logging.INFO)
@@ -497,6 +499,8 @@ def main():
     args.extra_headers += "\nRUN_POST_INSTALL=0"
   if args.wipe_user_data:
     args.extra_headers += "\nPOWERWASH=1"
+  if args.disable_vabc:
+    args.extra_headers += "\nDISABLE_VABC=1"
 
   with zipfile.ZipFile(args.otafile) as zfp:
     CARE_MAP_ENTRY_NAME = "care_map.pb"
