@@ -124,6 +124,8 @@ class Payload(object):
     """
     if zipfile.is_zipfile(payload_file):
       with zipfile.ZipFile(payload_file) as zfp:
+        if "payload.bin" not in zfp.namelist():
+          raise ValueError(f"payload.bin missing in archive {payload_file}")
         self.payload_file = zfp.open("payload.bin", "r")
     elif isinstance(payload_file, str):
       payload_fp = open(payload_file, "rb")
@@ -150,6 +152,20 @@ class Payload(object):
   @property
   def is_partial(self):
     return self.manifest.partial_update
+
+  @property
+  def total_data_length(self):
+    """Return the total data length of this payload, excluding payload
+    signature at the very end.
+    """
+    # Operations are sorted in ascending data_offset order, so iterating
+    # backwards and find the first one with non zero data_offset will tell
+    # us total data length
+    for partition in reversed(self.manifest.partitions):
+      for op in reversed(partition.operations):
+        if op.data_offset > 0:
+          return op.data_offset + op.data_length
+    return 0
 
   def _ReadHeader(self):
     """Reads and returns the payload header.
