@@ -141,6 +141,7 @@ class Payload(object):
     self.metadata_signature = None
     self.payload_signature = None
     self.metadata_size = None
+    self.Init()
 
   @property
   def is_incremental(self):
@@ -223,7 +224,7 @@ class Payload(object):
       correctly.
     """
     if self.is_init:
-      raise PayloadError('payload object already initialized')
+      return
 
     self.manifest_hasher = hashlib.sha256()
 
