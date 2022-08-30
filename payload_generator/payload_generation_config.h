@@ -27,7 +27,6 @@
 #include <brillo/secure_blob.h>
 
 #include "bsdiff/constants.h"
-#include "update_engine/payload_consumer/payload_constants.h"
 #include "update_engine/payload_generator/filesystem_interface.h"
 #include "update_engine/update_metadata.pb.h"
 
@@ -261,6 +260,8 @@ struct PayloadGenerationConfig {
 
   // Whether to enable zucchini ops
   bool enable_zucchini = true;
+
+  std::string security_patch_level;
 
   std::vector<bsdiff::CompressorType> compressors{
       bsdiff::CompressorType::kBZ2, bsdiff::CompressorType::kBrotli};
