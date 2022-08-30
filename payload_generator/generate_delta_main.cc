@@ -394,6 +394,11 @@ int Main(int argc, char** argv) {
                "The maximum timestamp of the OS allowed to apply this "
                "payload.");
   DEFINE_string(
+      security_patch_level,
+      "",
+      "The security patch level of this OTA. Devices with a newer SPL "
+      "will not be allowed to apply this payload");
+  DEFINE_string(
       partition_timestamps,
       "",
       "The per-partition maximum timestamps which the OS allowed to apply this "
@@ -719,6 +724,9 @@ int Main(int argc, char** argv) {
   }
 
   payload_config.max_timestamp = FLAGS_max_timestamp;
+
+  payload_config.security_patch_level = FLAGS_security_patch_level;
+
   if (!FLAGS_partition_timestamps.empty()) {
     CHECK(ParsePerPartitionTimestamps(FLAGS_partition_timestamps,
                                       &payload_config));

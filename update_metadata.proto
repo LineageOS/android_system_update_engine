@@ -423,4 +423,8 @@ message DeltaArchiveManifest {
   // Information on compressed APEX to figure out how much space is required for
   // their decompression
   repeated ApexInfo apex_info = 17;
+
+  // Security patch level of the device, usually in the format of
+  // yyyy-mm-dd
+  optional string security_patch_level = 18;
 }
