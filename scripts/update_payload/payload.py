@@ -123,16 +123,19 @@ class Payload(object):
       payload_file_offset: the offset of the actual payload
     """
     if zipfile.is_zipfile(payload_file):
+      self.name = payload_file
       with zipfile.ZipFile(payload_file) as zfp:
         if "payload.bin" not in zfp.namelist():
           raise ValueError(f"payload.bin missing in archive {payload_file}")
         self.payload_file = zfp.open("payload.bin", "r")
     elif isinstance(payload_file, str):
+      self.name = payload_file
       payload_fp = open(payload_file, "rb")
       payload_bytes = mmap.mmap(
           payload_fp.fileno(), 0, access=mmap.ACCESS_READ)
       self.payload_file = io.BytesIO(payload_bytes)
     else:
+      self.name = payload_file.name
       self.payload_file = payload_file
     self.payload_file_offset = payload_file_offset
     self.manifest_hasher = None
