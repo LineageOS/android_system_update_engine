@@ -32,10 +32,9 @@
 
 #include "update_engine/common/hash_calculator.h"
 #include "update_engine/common/platform_constants.h"
-#include "update_engine/payload_consumer/file_descriptor.h"
 #include "update_engine/payload_consumer/file_writer.h"
 #include "update_engine/payload_consumer/install_plan.h"
-#include "update_engine/payload_consumer/partition_writer.h"
+#include "update_engine/payload_consumer/partition_writer_interface.h"
 #include "update_engine/payload_consumer/payload_metadata.h"
 #include "update_engine/payload_consumer/payload_verifier.h"
 #include "update_engine/update_metadata.pb.h"
@@ -88,7 +87,7 @@ class DeltaPerformer : public FileWriter {
   // FileWriter's Write implementation where caller doesn't care about
   // error codes.
   bool Write(const void* bytes, size_t count) override {
-    ErrorCode error;
+    ErrorCode error{};
     return Write(bytes, count, &error);
   }
 
@@ -314,6 +313,8 @@ class DeltaPerformer : public FileWriter {
 
   // Check if partition `part_name` is a dynamic partition.
   bool IsDynamicPartition(const std::string& part_name, uint32_t slot);
+
+  void CheckSPLDowngrade();
 
   // Update Engine preference store.
   PrefsInterface* prefs_;
