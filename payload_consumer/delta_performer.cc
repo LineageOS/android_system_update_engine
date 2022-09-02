@@ -395,6 +395,9 @@ void DeltaPerformer::CheckSPLDowngrade() {
   if (!manifest_.has_security_patch_level()) {
     return;
   }
+  if (manifest_.security_patch_level().empty()) {
+    return;
+  }
   const auto new_spl = manifest_.security_patch_level();
   const auto current_spl =
       android::base::GetProperty("ro.build.version.security_patch", "");
