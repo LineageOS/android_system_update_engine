@@ -66,7 +66,9 @@ bool PayloadFile::Init(const PayloadGenerationConfig& config) {
   manifest_.set_minor_version(config.version.minor);
   manifest_.set_block_size(config.block_size);
   manifest_.set_max_timestamp(config.max_timestamp);
-  manifest_.set_security_patch_level(config.security_patch_level);
+  if (!config.security_patch_level.empty()) {
+    manifest_.set_security_patch_level(config.security_patch_level);
+  }
 
   if (config.target.dynamic_partition_metadata != nullptr)
     *(manifest_.mutable_dynamic_partition_metadata()) =

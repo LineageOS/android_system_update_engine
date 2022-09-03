@@ -104,9 +104,9 @@ TEST_F(PayloadPropertiesTest, GetPropertiesAsJsonTestHash) {
       "{"
       R"("is_delta":true,)"
       R"("metadata_signature":"",)"
-      R"("metadata_size":168,)"
-      R"("sha256_hex":"6rXHDjFO8k8mNtIbLhimWOifecVI1Ts230Ia1DyNuPY=",)"
-      R"("size":214,)"
+      R"("metadata_size":165,)"
+      R"("sha256_hex":"cV7kfZBH3K0B6QJHxxykDh6b6x0WgVOmc63whPLOy7U=",)"
+      R"("size":211,)"
       R"("version":2)"
       "}";
   string json;
@@ -118,10 +118,10 @@ TEST_F(PayloadPropertiesTest, GetPropertiesAsJsonTestHash) {
 // Validate the hash of file and metadata are within the output.
 TEST_F(PayloadPropertiesTest, GetPropertiesAsKeyValueTestHash) {
   constexpr char kKeyValueProperties[] =
-      "FILE_HASH=6rXHDjFO8k8mNtIbLhimWOifecVI1Ts230Ia1DyNuPY=\n"
-      "FILE_SIZE=214\n"
-      "METADATA_HASH=wq2nRZ7o/aqEeVWcc2Z+bebLYEI8quPEnXHlyLtdW9Y=\n"
-      "METADATA_SIZE=168\n";
+      "FILE_HASH=cV7kfZBH3K0B6QJHxxykDh6b6x0WgVOmc63whPLOy7U=\n"
+      "FILE_SIZE=211\n"
+      "METADATA_HASH=aEKYyzJt2E8Gz8fzB+gmekN5mriotZCSq6R+kDfdeV4=\n"
+      "METADATA_SIZE=165\n";
   string key_value;
   EXPECT_TRUE(PayloadProperties{payload_file_.path()}.GetPropertiesAsKeyValue(
       &key_value));
