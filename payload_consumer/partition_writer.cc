@@ -160,7 +160,7 @@ bool PartitionWriter::Init(const InstallPlan* install_plan,
   // partial updates. Use the source size as the indicator.
 
   target_path_ = install_part_.target_path;
-  int err;
+  int err{};
 
   int flags = O_RDWR;
   if (!interactive_)
