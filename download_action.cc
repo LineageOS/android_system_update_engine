@@ -106,7 +106,7 @@ bool DownloadAction::LoadCachedManifest(int64_t manifest_size) {
     return false;
   }
 
-  ErrorCode error;
+  ErrorCode error{};
   const bool success =
       delta_performer_->Write(
           cached_manifest_bytes.data(), cached_manifest_bytes.size(), &error) &&

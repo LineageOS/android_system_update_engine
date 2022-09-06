@@ -166,7 +166,7 @@ void LibcurlHttpFetcher::ResumeTransfer(const string& url) {
                  curl_handle_, CURLOPT_PROXY, GetCurrentProxy().c_str()),
              CURLE_OK);
     // Curl seems to require us to set the protocol
-    curl_proxytype type;
+    curl_proxytype type{};
     if (GetProxyType(GetCurrentProxy(), &type)) {
       CHECK_EQ(curl_easy_setopt(curl_handle_, CURLOPT_PROXYTYPE, type),
                CURLE_OK);
@@ -597,7 +597,7 @@ size_t LibcurlHttpFetcher::LibcurlWrite(void* ptr, size_t size, size_t nmemb) {
 
   sent_byte_ = true;
   {
-    double transfer_size_double;
+    double transfer_size_double{};
     CHECK_EQ(curl_easy_getinfo(curl_handle_,
                                CURLINFO_CONTENT_LENGTH_DOWNLOAD,
                                &transfer_size_double),
@@ -827,7 +827,7 @@ CURLcode LibcurlHttpFetcher::GetCurlCode() {
     // Repeated calls to |curl_multi_info_read| will return a new struct each
     // time, until a NULL is returned as a signal that there is no more to get
     // at this point.
-    int msgs_in_queue;
+    int msgs_in_queue{};
     CURLMsg* curl_msg =
         curl_multi_info_read(curl_multi_handle_, &msgs_in_queue);
     if (curl_msg == nullptr)
