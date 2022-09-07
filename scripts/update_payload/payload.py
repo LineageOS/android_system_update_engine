@@ -18,6 +18,7 @@
 
 from __future__ import absolute_import
 from __future__ import print_function
+import binascii
 
 import hashlib
 import io
@@ -324,3 +325,17 @@ class Payload(object):
                metadata_size=metadata_size,
                part_sizes=part_sizes,
                report_out_file=report_out_file)
+
+  def CheckDataHash(self):
+    for part in self.manifest.partitions:
+      for op in part.operations:
+        if op.data_length == 0:
+          continue
+        if not op.data_sha256_hash:
+          raise PayloadError(
+              f"Operation {op} in partition {part.partition_name} missing data_sha256_hash")
+        blob = self.ReadDataBlob(op.data_offset, op.data_length)
+        blob_hash = hashlib.sha256(blob)
+        if blob_hash.digest() != op.data_sha256_hash:
+          raise PayloadError(
+              f"Operation {op} in partition {part.partition_name} has unexpected hash, expected: {binascii.hexlify(op.data_sha256_hash)}, actual: {blob_hash.hexdigest()}")
