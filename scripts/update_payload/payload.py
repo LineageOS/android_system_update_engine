@@ -166,7 +166,7 @@ class Payload(object):
     # us total data length
     for partition in reversed(self.manifest.partitions):
       for op in reversed(partition.operations):
-        if op.data_offset > 0:
+        if op.data_length > 0:
           return op.data_offset + op.data_length
     return 0
 
