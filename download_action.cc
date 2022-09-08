@@ -25,7 +25,6 @@
 #include <base/metrics/statistics_recorder.h>
 #include <base/strings/stringprintf.h>
 
-#include "update_engine/common/action_pipe.h"
 #include "update_engine/common/boot_control_interface.h"
 #include "update_engine/common/error_code_utils.h"
 #include "update_engine/common/multi_range_http_fetcher.h"
