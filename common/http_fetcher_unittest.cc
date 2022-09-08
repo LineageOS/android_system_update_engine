@@ -20,11 +20,11 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <deque>
 #include <memory>
 #include <string>
 #include <utility>
 #include <vector>
-#include <deque>
 
 #include <base/bind.h>
 #include <base/location.h>
@@ -50,8 +50,8 @@
 #endif  // __CHROMEOS__
 #include <brillo/streams/file_stream.h>
 #include <brillo/streams/stream.h>
-#include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <gtest/gtest.h>
 
 #include "update_engine/common/fake_hardware.h"
 #include "update_engine/common/file_fetcher.h"
@@ -141,7 +141,7 @@ class PythonHttpServer : public HttpServer {
     vector<char> buf(128);
     string line;
     while (line.find('\n') == string::npos) {
-      size_t read;
+      size_t read{};
       if (!stdout->ReadBlocking(buf.data(), buf.size(), &read, nullptr)) {
         ADD_FAILURE() << "error reading http server stdout";
         return;
@@ -208,25 +208,25 @@ class AnyHttpFetcherFactory {
     return res;
   }
 
-    virtual HttpFetcher* NewSmallFetcher() = 0;
+  virtual HttpFetcher* NewSmallFetcher() = 0;
 
-    virtual string BigUrl(in_port_t port) const { return kUnusedUrl; }
-    virtual string SmallUrl(in_port_t port) const { return kUnusedUrl; }
-    virtual string ErrorUrl(in_port_t port) const { return kUnusedUrl; }
+  virtual string BigUrl(in_port_t port) const { return kUnusedUrl; }
+  virtual string SmallUrl(in_port_t port) const { return kUnusedUrl; }
+  virtual string ErrorUrl(in_port_t port) const { return kUnusedUrl; }
 
-    virtual bool IsMock() const = 0;
-    virtual bool IsMulti() const = 0;
-    virtual bool IsHttpSupported() const = 0;
-    virtual bool IsFileFetcher() const = 0;
+  virtual bool IsMock() const = 0;
+  virtual bool IsMulti() const = 0;
+  virtual bool IsHttpSupported() const = 0;
+  virtual bool IsFileFetcher() const = 0;
 
-    virtual void IgnoreServerAborting(HttpServer* server) const {}
+  virtual void IgnoreServerAborting(HttpServer* server) const {}
 
-    virtual HttpServer* CreateServer() = 0;
+  virtual HttpServer* CreateServer() = 0;
 
-    FakeHardware* fake_hardware() { return &fake_hardware_; }
+  FakeHardware* fake_hardware() { return &fake_hardware_; }
 
-   protected:
-    FakeHardware fake_hardware_;
+ protected:
+  FakeHardware fake_hardware_;
 };
 
 class MockHttpFetcherFactory : public AnyHttpFetcherFactory {
@@ -621,7 +621,7 @@ TYPED_TEST(HttpFetcherTest, PauseTest) {
   unique_ptr<HttpServer> server(this->test_.CreateServer());
   ASSERT_TRUE(server->started_);
 
-  MessageLoop::TaskId callback_id;
+  MessageLoop::TaskId callback_id{};
   callback_id = this->loop_.PostDelayedTask(
       FROM_HERE,
       base::Bind(&UnpausingTimeoutCallback, &delegate, &callback_id),
