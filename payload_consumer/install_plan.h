@@ -73,6 +73,7 @@ struct InstallPlan {
       ErrorCode* error);
 
   bool is_resume{false};
+  bool disable_vabc{false};
   std::string download_url;  // url to download from
   std::string version;       // version we are installing.
 
