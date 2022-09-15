@@ -50,6 +50,7 @@
 #include "update_engine/common/utils.h"
 #include "update_engine/payload_consumer/partition_update_generator_interface.h"
 #include "update_engine/payload_consumer/partition_writer.h"
+#include "update_engine/update_metadata.pb.h"
 #if USE_FEC
 #include "update_engine/payload_consumer/fec_file_descriptor.h"
 #endif  // USE_FEC
@@ -486,6 +487,27 @@ bool DeltaPerformer::Write(const void* bytes, size_t count, ErrorCode* error) {
            !prefs_->SetInt64(kPrefsManifestSignatureSize,
                              metadata_signature_size_))
         << "Unable to save the manifest signature size.";
+
+    // update estimate_cow_size if VABC is disabled
+    // new_cow_size per partition = partition_size - (#blocks in Copy
+    // operations part of the partition)
+    if (install_plan_->disable_vabc) {
+      manifest_.mutable_dynamic_partition_metadata()
+          ->set_vabc_compression_param("none");
+      for (auto& partition : *manifest_.mutable_partitions()) {
+        int new_cow_size = partition.new_partition_info().size();
+        for (const auto& operation : partition.merge_operations()) {
+          if (operation.type() == CowMergeOperation::COW_COPY) {
+            new_cow_size -=
+                operation.dst_extent().num_blocks() * manifest_.block_size();
+          }
+        }
+        // Adding extra 8MB headroom. OTA will sometimes write labels/metadata
+        // to COW image. If we overrun reserved COW size, entire OTA will fail
+        // and no way for user to retry OTA
+        partition.set_estimate_cow_size(new_cow_size + (1024 * 1024 * 8));
+      }
+    }
 
     if (!PrimeUpdateState()) {
       *error = ErrorCode::kDownloadStateInitializationError;
