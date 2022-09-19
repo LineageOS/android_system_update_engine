@@ -328,6 +328,7 @@ void CleanupPreviousUpdateAction::WaitForMergeOrSchedule() {
 
     case UpdateState::MergeCompleted: {
       LOG(INFO) << "Merge finished with state MergeCompleted.";
+      boot_control_->MarkSlotUnbootable(1 - boot_control_->GetCurrentSlot());
       processor_->ActionComplete(this, ErrorCode::kSuccess);
       return;
     }
