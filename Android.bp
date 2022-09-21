@@ -266,6 +266,34 @@ cc_library_static {
     ],
 }
 
+cc_library_static {
+    name: "libstatslog_ue",
+    generated_sources: ["statslog_ue.cpp"],
+    generated_headers: ["statslog_ue.h"],
+    export_generated_headers: ["statslog_ue.h"],
+    shared_libs: [
+        "libstatssocket",
+    ]
+}
+
+genrule {
+    name: "statslog_ue.h",
+    tools: ["stats-log-api-gen"],
+    cmd: "$(location stats-log-api-gen) --header $(genDir)/statslog_ue.h --module update_engine --namespace chromeos_update_engine,statsd",
+    out: [
+        "statslog_ue.h",
+    ],
+}
+
+genrule {
+    name: "statslog_ue.cpp",
+    tools: ["stats-log-api-gen"],
+    cmd: "$(location stats-log-api-gen) --cpp $(genDir)/statslog_ue.cpp --module update_engine --namespace chromeos_update_engine,statsd --importHeader statslog_ue.h",
+    out: [
+        "statslog_ue.cpp",
+    ],
+}
+
 // libupdate_engine_boot_control (type: static_library)
 // ========================================================
 // A BootControl class implementation using Android's HIDL boot_control HAL.
@@ -280,6 +308,7 @@ cc_defaults {
         "libpayload_consumer",
         "libsnapshot",
         "libsnapshot_cow",
+        "libstatslog_ue",
         "libz",
         "update_metadata-protos",
     ],
@@ -287,7 +316,6 @@ cc_defaults {
         "libbootloader_message",
         "libhidlbase",
         "liblp",
-        "libstatslog",
         "libutils",
         "android.hardware.boot@1.0",
         "android.hardware.boot@1.1",
@@ -307,9 +335,7 @@ cc_defaults {
             exclude_static_libs: [
                 "libfs_mgr_binder",
                 "libsnapshot",
-            ],
-            exclude_shared_libs: [
-                "libstatslog",
+                "libstatslog_ue"
             ],
         },
     },
@@ -349,6 +375,7 @@ cc_defaults {
         "libavb_user",
         "libgkiprops",
         "libpayload_consumer",
+        "libstatslog_ue",
         "libupdate_engine_boot_control",
         "libPlatformProperties",
     ],
@@ -365,7 +392,7 @@ cc_defaults {
         "libupdate_engine_stable-V1-cpp",
         "liblog",
         "libssl",
-        "libstatslog",
+        "libstatssocket",
         "libutils",
     ],
     whole_static_libs: [
