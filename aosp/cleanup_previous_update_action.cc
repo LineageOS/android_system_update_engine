@@ -25,7 +25,7 @@
 #include <base/bind.h>
 
 #ifndef __ANDROID_RECOVERY__
-#include <statslog.h>
+#include <statslog_ue.h>
 #endif
 
 #include "update_engine/common/utils.h"
@@ -513,26 +513,26 @@ void CleanupPreviousUpdateAction::ReportMergeStats() {
             << passed_ms.count() << "ms (resumed " << report.resume_count()
             << " times), using " << report.cow_file_size()
             << " bytes of COW image.";
-  android::util::stats_write(android::util::SNAPSHOT_MERGE_REPORTED,
-                             static_cast<int32_t>(report.state()),
-                             static_cast<int64_t>(passed_ms.count()),
-                             static_cast<int32_t>(report.resume_count()),
-                             vab_retrofit,
-                             static_cast<int64_t>(report.cow_file_size()),
-                             vab_compression_enabled,
-                             vab_compression_used,
-                             report.total_cow_size_bytes(),
-                             report.estimated_cow_size_bytes(),
-                             report.boot_complete_time_ms(),
-                             report.boot_complete_to_merge_start_time_ms(),
-                             static_cast<int32_t>(report.merge_failure_code()),
-                             report.source_build_fingerprint().c_str(),
-                             target_build_fingerprint.c_str(),
-                             userspace_snapshots_enabled,
-                             userspace_snapshots_used,
-                             xor_compression_enabled,
-                             xor_compression_used,
-                             iouring_used);
+  statsd::stats_write(statsd::SNAPSHOT_MERGE_REPORTED,
+                      static_cast<int32_t>(report.state()),
+                      static_cast<int64_t>(passed_ms.count()),
+                      static_cast<int32_t>(report.resume_count()),
+                      vab_retrofit,
+                      static_cast<int64_t>(report.cow_file_size()),
+                      vab_compression_enabled,
+                      vab_compression_used,
+                      report.total_cow_size_bytes(),
+                      report.estimated_cow_size_bytes(),
+                      report.boot_complete_time_ms(),
+                      report.boot_complete_to_merge_start_time_ms(),
+                      static_cast<int32_t>(report.merge_failure_code()),
+                      report.source_build_fingerprint().c_str(),
+                      target_build_fingerprint.c_str(),
+                      userspace_snapshots_enabled,
+                      userspace_snapshots_used,
+                      xor_compression_enabled,
+                      xor_compression_used,
+                      iouring_used);
 #endif
 }
 
