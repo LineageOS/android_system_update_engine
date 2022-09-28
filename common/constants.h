@@ -176,7 +176,12 @@ static constexpr const auto& kPayloadPropertyNetworkId = "NETWORK_ID";
 // Proxy URL to use for downloading OTA. This will be forwarded to libcurl
 static constexpr const auto& kPayloadPropertyNetworkProxy = "NETWORK_PROXY";
 
+// Set Virtual AB Compression's compression algorithm to "none", but still use
+// userspace snapshots and snapuserd for update installation.
 static constexpr const auto& kPayloadDisableVABC = "DISABLE_VABC";
+
+// Max retry count for download
+static constexpr const auto& kPayloadDownloadRetry = "DOWNLOAD_RETRY";
 
 // Set "SWITCH_SLOT_ON_REBOOT=0" to skip marking the updated partitions active.
 // The default is 1 (always switch slot if update succeeded).
