@@ -331,6 +331,10 @@ bool UpdateAttempterAndroid::ApplyPayload(
     LOG(FATAL) << "Unsupported sideload URI: " << payload_url;
 #else
     LibcurlHttpFetcher* libcurl_fetcher = new LibcurlHttpFetcher(hardware_);
+    if (!headers[kPayloadDownloadRetry].empty()) {
+      libcurl_fetcher->set_max_retry_count(
+          atoi(headers[kPayloadDownloadRetry].c_str()));
+    }
     libcurl_fetcher->set_server_to_check(ServerToCheck::kDownload);
     fetcher = libcurl_fetcher;
 #endif  // _UE_SIDELOAD
