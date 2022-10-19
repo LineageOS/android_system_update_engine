@@ -52,10 +52,9 @@ bool CowDryRun(
   for (const auto& op : merge_operations) {
     if (op.type() == CowMergeOperation::COW_COPY) {
       visited.AddExtent(op.dst_extent());
-      for (size_t i = 0; i < op.dst_extent().num_blocks(); i++) {
-        cow_writer->AddCopy(op.dst_extent().start_block() + i,
-                            op.src_extent().start_block() + i);
-      }
+      cow_writer->AddCopy(op.dst_extent().start_block(),
+                          op.src_extent().start_block(),
+                          op.dst_extent().num_blocks());
     } else if (op.type() == CowMergeOperation::COW_XOR && xor_enabled) {
       CHECK_NE(source_fd, nullptr) << "Source fd is required to enable XOR ops";
       CHECK(source_fd->IsOpen());

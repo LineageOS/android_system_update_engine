@@ -229,19 +229,30 @@ bool VABCPartitionWriter::WriteSourceCopyCowOps(
   for (const auto& cow_op : converted) {
     std::vector<uint8_t> buffer;
     switch (cow_op.op) {
-      case CowOperation::CowCopy:
+      case CowOperation::CowCopy: {
         if (cow_op.src_block == cow_op.dst_block) {
           continue;
         }
-        // Add blocks in reverse order, because snapused specifically prefers
-        // this ordering. Since we already eliminated all self-overlapping
-        // SOURCE_COPY during delta generation, this should be safe to do.
-        for (size_t i = cow_op.block_count; i > 0; i--) {
-          TEST_AND_RETURN_FALSE(cow_writer->AddCopy(cow_op.dst_block + i - 1,
-                                                    cow_op.src_block + i - 1));
+
+        const bool userSnapshots = android::base::GetBoolProperty(
+            "ro.virtual_ab.userspace.snapshots.enabled", false);
+
+        if (userSnapshots) {
+          TEST_AND_RETURN_FALSE(cow_op.block_count != 0);
+          TEST_AND_RETURN_FALSE(cow_writer->AddCopy(
+              cow_op.dst_block, cow_op.src_block, cow_op.block_count));
+        } else {
+          // Add blocks in reverse order, because snapused specifically prefers
+          // this ordering. Since we already eliminated all self-overlapping
+          // SOURCE_COPY during delta generation, this should be safe to do.
+          for (size_t i = cow_op.block_count; i > 0; i--) {
+            TEST_AND_RETURN_FALSE(cow_writer->AddCopy(
+                cow_op.dst_block + i - 1, cow_op.src_block + i - 1));
+          }
         }
         break;
-      case CowOperation::CowReplace:
+      }
+      case CowOperation::CowReplace: {
         buffer.resize(block_size * cow_op.block_count);
         ssize_t bytes_read = 0;
         TEST_AND_RETURN_FALSE(utils::ReadAll(source_fd,
@@ -257,6 +268,7 @@ bool VABCPartitionWriter::WriteSourceCopyCowOps(
         TEST_AND_RETURN_FALSE(cow_writer->AddRawBlocks(
             cow_op.dst_block, buffer.data(), buffer.size()));
         break;
+      }
     }
   }
 
