@@ -102,7 +102,7 @@ TEST_F(VABCPartitionWriterTest, MergeSequenceWriteTest) {
         EXPECT_CALL(*cow_writer, EmitSequenceData(_, _))
             .With(Args<1, 0>(ElementsAreArray(expected_merge_sequence)))
             .WillOnce(Return(true));
-        ON_CALL(*cow_writer, EmitCopy(_, _)).WillByDefault(Return(true));
+        ON_CALL(*cow_writer, EmitCopy(_, _, _)).WillByDefault(Return(true));
         ON_CALL(*cow_writer, EmitLabel(_)).WillByDefault(Return(true));
         return cow_writer;
       }));
@@ -127,7 +127,7 @@ TEST_F(VABCPartitionWriterTest, MergeSequenceXorSameBlock) {
             EXPECT_CALL(*cow_writer, EmitSequenceData(_, _))
                 .With(Args<1, 0>(ElementsAreArray(expected_merge_sequence)))
                 .WillOnce(Return(true));
-            ON_CALL(*cow_writer, EmitCopy(_, _)).WillByDefault(Return(true));
+            ON_CALL(*cow_writer, EmitCopy(_, _, _)).WillByDefault(Return(true));
             ON_CALL(*cow_writer, EmitLabel(_)).WillByDefault(Return(true));
             return cow_writer;
           }));
@@ -150,17 +150,17 @@ TEST_F(VABCPartitionWriterTest, EmitBlockTest) {
                 std::make_unique<android::snapshot::MockSnapshotWriter>(
                     android::snapshot::CowOptions{});
             Sequence s;
-            ON_CALL(*cow_writer, EmitCopy(_, _)).WillByDefault(Return(true));
+            ON_CALL(*cow_writer, EmitCopy(_, _, _)).WillByDefault(Return(true));
             ON_CALL(*cow_writer, EmitLabel(_)).WillByDefault(Return(true));
             ON_CALL(*cow_writer, Initialize()).WillByDefault(Return(true));
             EXPECT_CALL(*cow_writer, Initialize()).InSequence(s);
-            EXPECT_CALL(*cow_writer, EmitCopy(10, 5)).InSequence(s);
-            EXPECT_CALL(*cow_writer, EmitCopy(15, 10)).InSequence(s);
+            EXPECT_CALL(*cow_writer, EmitCopy(10, 5, 1)).InSequence(s);
+            EXPECT_CALL(*cow_writer, EmitCopy(15, 10, 1)).InSequence(s);
             // libsnapshot want blocks in reverser order, so 21 goes before 20
-            EXPECT_CALL(*cow_writer, EmitCopy(21, 16)).InSequence(s);
-            EXPECT_CALL(*cow_writer, EmitCopy(20, 15)).InSequence(s);
+            EXPECT_CALL(*cow_writer, EmitCopy(21, 16, 1)).InSequence(s);
+            EXPECT_CALL(*cow_writer, EmitCopy(20, 15, 1)).InSequence(s);
 
-            EXPECT_CALL(*cow_writer, EmitCopy(25, 20)).InSequence(s);
+            EXPECT_CALL(*cow_writer, EmitCopy(25, 20, 1)).InSequence(s);
             return cow_writer;
           }));
   ASSERT_TRUE(writer_.Init(&install_plan_, true, 0));
@@ -224,7 +224,7 @@ TEST_F(VABCPartitionWriterTest, StreamXORBlockTest) {
               .WillOnce(Return(true));
         }
         EXPECT_CALL(*cow_writer, Initialize()).Times(1);
-        EXPECT_CALL(*cow_writer, EmitCopy(_, _)).Times(0);
+        EXPECT_CALL(*cow_writer, EmitCopy(_, _, _)).Times(0);
         EXPECT_CALL(*cow_writer, EmitRawBlocks(_, _, _)).WillOnce(Return(true));
         EXPECT_CALL(*cow_writer, EmitXorBlocks(10, _, kBlockSize * 2, 5, 0))
             .WillOnce(Return(true));
