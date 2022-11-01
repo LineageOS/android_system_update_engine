@@ -86,6 +86,10 @@ class FilesystemVerifierAction : public InstallPlanAction {
 
  private:
   friend class FilesystemVerifierActionTestDelegate;
+  // Wrapper function that schedules calls of EncodeFEC. Returns true on success
+  void WriteVerityData(FileDescriptor* fd,
+                       void* buffer,
+                       const size_t buffer_size);
   void WriteVerityAndHashPartition(const off64_t start_offset,
                                    const off64_t end_offset,
                                    void* buffer,
