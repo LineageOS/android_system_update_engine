@@ -157,8 +157,7 @@ TEST_F(VABCPartitionWriterTest, EmitBlockTest) {
             EXPECT_CALL(*cow_writer, EmitCopy(10, 5, 1)).InSequence(s);
             EXPECT_CALL(*cow_writer, EmitCopy(15, 10, 1)).InSequence(s);
             // libsnapshot want blocks in reverser order, so 21 goes before 20
-            EXPECT_CALL(*cow_writer, EmitCopy(21, 16, 1)).InSequence(s);
-            EXPECT_CALL(*cow_writer, EmitCopy(20, 15, 1)).InSequence(s);
+            EXPECT_CALL(*cow_writer, EmitCopy(20, 15, 2)).InSequence(s);
 
             EXPECT_CALL(*cow_writer, EmitCopy(25, 20, 1)).InSequence(s);
             return cow_writer;
