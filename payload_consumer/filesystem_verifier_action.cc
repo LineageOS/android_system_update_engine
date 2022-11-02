@@ -24,6 +24,7 @@
 
 #include <algorithm>
 #include <cstdlib>
+#include <functional>
 #include <memory>
 #include <numeric>
 #include <string>
@@ -207,6 +208,35 @@ bool FilesystemVerifierAction::InitializeFd(const std::string& part_path) {
   return true;
 }
 
+void FilesystemVerifierAction::WriteVerityData(FileDescriptor* fd,
+                                               void* buffer,
+                                               const size_t buffer_size) {
+  if (verity_writer_->FECFinished()) {
+    LOG(INFO) << "EncodeFEC is completed. Resuming other tasks";
+    if (dynamic_control_->UpdateUsesSnapshotCompression()) {
+      // Spin up snapuserd to read fs.
+      if (!InitializeFdVABC(false)) {
+        LOG(ERROR) << "Failed to map all partitions";
+        Cleanup(ErrorCode::kFilesystemVerifierError);
+        return;
+      }
+    }
+    HashPartition(0, partition_size_, buffer, buffer_size);
+    return;
+  }
+  if (!verity_writer_->IncrementalFinalize(fd, fd)) {
+    LOG(ERROR) << "Failed to write verity data";
+    Cleanup(ErrorCode::kVerityCalculationError);
+  }
+  CHECK(pending_task_id_.PostTask(
+      FROM_HERE,
+      base::BindOnce(&FilesystemVerifierAction::WriteVerityData,
+                     base::Unretained(this),
+                     fd,
+                     buffer,
+                     buffer_size)));
+}
+
 void FilesystemVerifierAction::WriteVerityAndHashPartition(
     const off64_t start_offset,
     const off64_t end_offset,
@@ -218,20 +248,7 @@ void FilesystemVerifierAction::WriteVerityAndHashPartition(
     LOG_IF(WARNING, start_offset > end_offset)
         << "start_offset is greater than end_offset : " << start_offset << " > "
         << end_offset;
-    if (!verity_writer_->Finalize(fd, fd)) {
-      LOG(ERROR) << "Failed to write verity data";
-      Cleanup(ErrorCode::kVerityCalculationError);
-      return;
-    }
-    if (dynamic_control_->UpdateUsesSnapshotCompression()) {
-      // Spin up snapuserd to read fs.
-      if (!InitializeFdVABC(false)) {
-        LOG(ERROR) << "Failed to map all partitions";
-        Cleanup(ErrorCode::kFilesystemVerifierError);
-        return;
-      }
-    }
-    HashPartition(0, partition_size_, buffer, buffer_size);
+    WriteVerityData(fd, buffer, buffer_size);
     return;
   }
   const auto cur_offset = fd->Seek(start_offset, SEEK_SET);
