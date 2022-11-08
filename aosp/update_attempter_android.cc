@@ -1229,6 +1229,7 @@ bool UpdateAttempterAndroid::resetShouldSwitchSlotOnReboot(
     return LogAndSetError(
         error, FROM_HERE, "Already processing an update, cancel it first.");
   }
+  TEST_AND_RETURN_FALSE(ClearUpdateCompletedMarker());
   // Update the boot flags so the current slot has higher priority.
   if (!boot_control_->SetActiveBootSlot(GetCurrentSlot())) {
     return LogAndSetError(error, FROM_HERE, "Failed to SetActiveBootSlot");
