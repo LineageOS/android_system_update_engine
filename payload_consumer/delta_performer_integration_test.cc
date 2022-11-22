@@ -602,7 +602,7 @@ static void GenerateDeltaFile(bool full_kernel,
     if (signature_test == kSignatureGeneratedPlaceholderMismatch) {
       signature_size -= 1;
       LOG(INFO) << "Inserting mismatched placeholder signature.";
-      ASSERT_FALSE(InsertSignaturePlaceholder(
+      ASSERT_TRUE(InsertSignaturePlaceholder(
           signature_size, state->delta_file->path(), &state->metadata_size));
       return;
     }
@@ -640,6 +640,7 @@ static void ApplyDeltaFile(bool full_kernel,
     ASSERT_TRUE(payload_metadata.ParsePayloadHeader(state->delta));
     state->metadata_size = payload_metadata.GetMetadataSize();
     LOG(INFO) << "Metadata size: " << state->metadata_size;
+    LOG(INFO) << "Payload size: " << state->delta.size();
     state->metadata_signature_size =
         payload_metadata.GetMetadataSignatureSize();
     LOG(INFO) << "Metadata signature size: " << state->metadata_signature_size;
