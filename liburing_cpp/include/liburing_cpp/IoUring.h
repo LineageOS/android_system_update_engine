@@ -62,6 +62,13 @@ class IoUringInterface {
   virtual IoUringSQE PrepWrite(int fd, const void *buf, unsigned nbytes,
                                uint64_t offset) = 0;
 
+  // Return number of SQEs available in the queue. If this is 0, subsequent
+  // calls to Prep*() functions will fail.
+  virtual size_t SQELeft() const = 0;
+  // Return number of SQEs currently in the queue. SQEs already submitted would
+  // not be counted.
+  virtual size_t SQEReady() const = 0;
+
   // Ring operations
   virtual IoUringSubmitResult Submit() = 0;
   // Submit and block until |completions| number of CQEs are available
