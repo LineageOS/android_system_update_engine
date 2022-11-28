@@ -100,6 +100,10 @@ class IoUring final : public IoUringInterface {
     io_uring_prep_write(sqe, fd, buf, nbytes, offset);
     return IoUringSQE{static_cast<void*>(sqe)};
   }
+
+  size_t SQELeft() const override { return io_uring_sq_space_left(&ring); }
+  size_t SQEReady() const override { return io_uring_sq_ready(&ring); }
+
   IoUringSubmitResult Submit() override {
     return IoUringSubmitResult{io_uring_submit(&ring)};
   }
