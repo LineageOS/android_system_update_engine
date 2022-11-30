@@ -458,13 +458,6 @@ bool PayloadSigner::AddSignatureToPayload(
                                                   &signatures_offset));
 
   LOG(INFO) << "Signed payload size: " << payload.size();
-  const auto ret =
-      HANDLE_EINTR(truncate(signed_payload_path.c_str(), payload.size()));
-  if (ret < 0) {
-    PLOG(ERROR) << "Failed to truncate file " << signed_payload_path
-                << " to size " << payload.size();
-    return false;
-  }
   TEST_AND_RETURN_FALSE(utils::WriteFile(
       signed_payload_path.c_str(), payload.data(), payload.size()));
   return true;
