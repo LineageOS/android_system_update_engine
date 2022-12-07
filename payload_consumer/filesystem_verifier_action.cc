@@ -37,9 +37,10 @@
 #include <brillo/secure_blob.h>
 #include <brillo/streams/file_stream.h>
 
-#include "common/error_code.h"
+#include "update_engine/common/error_code.h"
 #include "update_engine/common/utils.h"
 #include "update_engine/payload_consumer/file_descriptor.h"
+#include "update_engine/payload_consumer/install_plan.h"
 
 using brillo::data_encoding::Base64Encode;
 using std::string;
@@ -112,6 +113,14 @@ void FilesystemVerifierAction::PerformAction() {
                    std::plus<size_t>());
 
   install_plan_.Dump();
+  // If we are not writing verity, just map all partitions once at the
+  // beginning.
+  // No need to re-map for each partition, because we are not writing any new
+  // COW data.
+  if (dynamic_control_->UpdateUsesSnapshotCompression() &&
+      !install_plan_.write_verity) {
+    dynamic_control_->MapAllPartitions();
+  }
   StartPartitionHashing();
   abort_action_completer.set_should_complete(false);
 }
@@ -178,8 +187,10 @@ bool FilesystemVerifierAction::InitializeFdVABC(bool should_write_verity) {
     // writes won't be visible to previously opened snapuserd daemon. To ensure
     // that we will see the most up to date data from partitions, call Unmap()
     // then Map() to re-spin daemon.
-    dynamic_control_->UnmapAllPartitions();
-    dynamic_control_->MapAllPartitions();
+    if (install_plan_.write_verity) {
+      dynamic_control_->UnmapAllPartitions();
+      dynamic_control_->MapAllPartitions();
+    }
     return InitializeFd(partition.readonly_target_path);
   }
   partition_fd_ =
