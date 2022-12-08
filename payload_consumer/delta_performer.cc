@@ -736,6 +736,13 @@ bool DeltaPerformer::ParseManifestPartitions(ErrorCode* error) {
           partitions_, boot_control_, block_size_, error)) {
     return false;
   }
+  auto&& has_verity = [](const auto& part) {
+    return part.fec_extent().num_blocks() > 0 ||
+           part.hash_tree_extent().num_blocks() > 0;
+  };
+  if (!std::any_of(partitions_.begin(), partitions_.end(), has_verity)) {
+    install_plan_->write_verity = false;
+  }
 
   LogPartitionInfo(partitions_);
   return true;
