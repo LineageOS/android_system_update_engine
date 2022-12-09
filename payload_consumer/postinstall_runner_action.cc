@@ -114,9 +114,11 @@ void PostinstallRunnerAction::PerformAction() {
   if (dynamic_control->UpdateUsesSnapshotCompression()) {
     // Before calling MapAllPartitions to map snapshot devices, all CowWriters
     // must be closed, and MapAllPartitions() should be called.
-    dynamic_control->UnmapAllPartitions();
-    if (!dynamic_control->MapAllPartitions()) {
-      return CompletePostinstall(ErrorCode::kPostInstallMountError);
+    if (!install_plan_.partitions.empty()) {
+      dynamic_control->UnmapAllPartitions();
+      if (!dynamic_control->MapAllPartitions()) {
+        return CompletePostinstall(ErrorCode::kPostInstallMountError);
+      }
     }
   }
 
