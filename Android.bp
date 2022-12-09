@@ -145,8 +145,8 @@ cc_defaults {
     shared_libs: ["libprotobuf-cpp-lite"],
 }
 
-cc_library_static {
-    name: "update_metadata-protos",
+cc_defaults {
+    name: "update_metadata-protos-defaults",
     host_supported: true,
     ramdisk_available: true,
     recovery_available: true,
@@ -162,6 +162,19 @@ cc_library_static {
     },
 }
 
+cc_library_static {
+    name: "update_metadata-protos",
+    defaults: ["update_metadata-protos-defaults"],
+    proto: {
+        type: "lite",
+    },
+}
+
+cc_library_static {
+    name: "update_metadata-protos-full",
+    defaults: ["update_metadata-protos-defaults"],
+}
+
 python_library_host {
     name: "update_metadata-protos-python",
     srcs: ["update_metadata.proto"],
@@ -174,11 +187,10 @@ python_library_host {
 // ========================================================
 // The payload application component and common dependencies.
 cc_defaults {
-    name: "libpayload_consumer_exports",
-    defaults: ["update_metadata-protos_exports"],
+    name: "libpayload_consumer_exports_defaults",
+    defaults: ["update_metadata-protos_exports",],
 
     static_libs: [
-        "update_metadata-protos",
         "libxz",
         "libbz",
         "libbspatch",
@@ -205,12 +217,24 @@ cc_defaults {
     ],
 }
 
-cc_library_static {
-    name: "libpayload_consumer",
+cc_defaults {
+    name: "libpayload_consumer_exports",
     defaults: [
-        "ue_defaults",
-        "libpayload_consumer_exports",
+        "libpayload_consumer_exports_defaults"
     ],
+    static_libs: ["update_metadata-protos",],
+}
+
+cc_defaults {
+    name: "libpayload_consumer_exports_proto-full",
+    defaults: [
+        "libpayload_consumer_exports_defaults"
+    ],
+    static_libs: ["update_metadata-protos-full",],
+}
+
+cc_defaults {
+    name: "libpayload_consumer_defaults",
     host_supported: true,
     recovery_available: true,
 
@@ -267,6 +291,24 @@ cc_library_static {
 }
 
 cc_library_static {
+    name: "libpayload_consumer",
+    defaults: [
+        "ue_defaults",
+        "libpayload_consumer_exports",
+        "libpayload_consumer_defaults",
+    ],
+}
+
+cc_library_static {
+    name: "libpayload_consumer_proto-full",
+    defaults: [
+        "ue_defaults",
+        "libpayload_consumer_exports_proto-full",
+        "libpayload_consumer_defaults",
+    ],
+}
+
+cc_library_static {
     name: "libstatslog_ue",
     generated_sources: ["statslog_ue.cpp"],
     generated_headers: ["statslog_ue.h"],
@@ -298,19 +340,17 @@ genrule {
 // ========================================================
 // A BootControl class implementation using Android's HIDL boot_control HAL.
 cc_defaults {
-    name: "libupdate_engine_boot_control_exports",
-    defaults: ["update_metadata-protos_exports"],
+    name: "libupdate_engine_boot_control_exports_defaults",
+    defaults: ["update_metadata-protos_exports",],
 
     static_libs: [
         "libcutils",
         "libfs_mgr_binder",
         "libgsi",
-        "libpayload_consumer",
         "libsnapshot",
         "libsnapshot_cow",
         "libstatslog_ue",
         "libz",
-        "update_metadata-protos",
     ],
     shared_libs: [
         "libbootloader_message",
@@ -341,12 +381,32 @@ cc_defaults {
     },
 }
 
-cc_library_static {
-    name: "libupdate_engine_boot_control",
+cc_defaults {
+    name: "libupdate_engine_boot_control_exports",
+    defaults: [
+        "libupdate_engine_boot_control_exports_defaults",
+    ],
+    static_libs: [
+        "libpayload_consumer",
+        "update_metadata-protos",
+    ]
+}
+
+cc_defaults {
+    name: "libupdate_engine_boot_control_exports_proto-full",
+    defaults: [
+        "libupdate_engine_boot_control_exports_defaults",
+    ],
+    static_libs: [
+        "libpayload_consumer_proto-full",
+        "update_metadata-protos-full",
+    ]
+}
+
+cc_defaults {
+    name: "libupdate_engine_boot_control_defaults",
     defaults: [
         "ue_defaults",
-        "libupdate_engine_boot_control_exports",
-        "libpayload_consumer_exports",
     ],
     recovery_available: true,
 
@@ -358,25 +418,39 @@ cc_library_static {
     ],
 }
 
+cc_library_static {
+    name: "libupdate_engine_boot_control",
+    defaults: [
+        "libupdate_engine_boot_control_defaults",
+        "libupdate_engine_boot_control_exports",
+        "libpayload_consumer_exports",
+    ],
+}
+
+cc_library_static {
+    name: "libupdate_engine_boot_control_proto-full",
+    defaults: [
+        "libupdate_engine_boot_control_defaults",
+        "libupdate_engine_boot_control_exports_proto-full",
+        "libpayload_consumer_exports_proto-full",
+    ],
+}
+
 // libupdate_engine_android (type: static_library)
 // ========================================================
 // The main daemon static_library used in Android (non-Brillo). This only has a
 // loop to apply payloads provided by the upper layer via a Binder interface.
 cc_defaults {
-    name: "libupdate_engine_android_exports",
+    name: "libupdate_engine_android_exports_defaults",
     defaults: [
         "ue_defaults",
-        "libpayload_consumer_exports",
-        "libupdate_engine_boot_control_exports",
     ],
 
     static_libs: [
         "libavb",
         "libavb_user",
         "libgkiprops",
-        "libpayload_consumer",
         "libstatslog_ue",
-        "libupdate_engine_boot_control",
         "libPlatformProperties",
     ],
     shared_libs: [
@@ -400,11 +474,36 @@ cc_defaults {
     ],
 }
 
-cc_library_static {
-    name: "libupdate_engine_android",
+cc_defaults {
+    name: "libupdate_engine_android_exports",
+    defaults: [
+        "libupdate_engine_android_exports_defaults",
+        "libupdate_engine_boot_control_exports",
+        "libpayload_consumer_exports",
+    ],
+    static_libs: [
+        "libpayload_consumer",
+        "libupdate_engine_boot_control",
+    ],
+}
+
+cc_defaults {
+    name: "libupdate_engine_android_exports_proto-full",
+    defaults: [
+        "libupdate_engine_android_exports_defaults",
+        "libupdate_engine_boot_control_exports_proto-full",
+        "libpayload_consumer_exports_proto-full",
+    ],
+    static_libs: [
+        "libpayload_consumer_proto-full",
+        "libupdate_engine_boot_control_proto-full",
+    ],
+}
+
+cc_defaults {
+    name: "libupdate_engine_android_defaults",
     defaults: [
         "ue_defaults",
-        "libupdate_engine_android_exports",
     ],
 
     // TODO(deymo): Remove external/cros/system_api/dbus once the strings are moved
@@ -434,6 +533,22 @@ cc_library_static {
         "metrics_utils.cc",
         "update_boot_flags_action.cc",
     ],
+}
+
+cc_library_static {
+    name: "libupdate_engine_android",
+    defaults: [
+        "libupdate_engine_android_defaults",
+        "libupdate_engine_android_exports",
+    ]
+}
+
+cc_library_static {
+    name: "libupdate_engine_android_proto-full",
+    defaults: [
+        "libupdate_engine_android_defaults",
+        "libupdate_engine_android_exports_proto-full",
+    ]
 }
 
 // update_engine (type: executable)
