@@ -35,6 +35,7 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <filesystem>
 #include <utility>
 #include <vector>
 
@@ -407,6 +408,53 @@ bool SendFile(int out_fd, int in_fd, size_t count) {
     count -= bytes_written;
   }
   return true;
+}
+
+bool FsyncDirectory(const char* dirname) {
+  android::base::unique_fd fd(
+      TEMP_FAILURE_RETRY(open(dirname, O_RDONLY | O_CLOEXEC)));
+  if (fd == -1) {
+    PLOG(ERROR) << "Failed to open " << dirname;
+    return false;
+  }
+  if (fsync(fd) == -1) {
+    if (errno == EROFS || errno == EINVAL) {
+      PLOG(WARNING) << "Skip fsync " << dirname
+                    << " on a file system does not support synchronization";
+    } else {
+      PLOG(ERROR) << "Failed to fsync " << dirname;
+      return false;
+    }
+  }
+  return true;
+}
+
+bool WriteStringToFileAtomic(const std::string& path,
+                             std::string_view content) {
+  const std::string tmp_path = path + ".tmp";
+  {
+    const int flags = O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC;
+    android::base::unique_fd fd(
+        TEMP_FAILURE_RETRY(open(tmp_path.c_str(), flags, 0644)));
+    if (fd == -1) {
+      PLOG(ERROR) << "Failed to open " << path;
+      return false;
+    }
+    if (!WriteAll(fd.get(), content.data(), content.size())) {
+      PLOG(ERROR) << "Failed to write to fd " << fd;
+      return false;
+    }
+    // rename() without fsync() is not safe. Data could still be living on page
+    // cache. To ensure atomiticity, call fsync()
+    if (fsync(fd) != 0) {
+      PLOG(ERROR) << "Failed to fsync " << tmp_path;
+    }
+  }
+  if (rename(tmp_path.c_str(), path.c_str()) == -1) {
+    PLOG(ERROR) << "rename failed from " << tmp_path << " to " << path;
+    return false;
+  }
+  return FsyncDirectory(std::filesystem::path(path).parent_path().c_str());
 }
 
 void HexDumpArray(const uint8_t* const arr, const size_t length) {
