@@ -25,6 +25,7 @@
 #include <base/strings/string_split.h>
 #include <base/strings/string_util.h>
 
+#include "brillo/file_utils.h"
 #include "update_engine/common/utils.h"
 
 using std::string;
@@ -202,8 +203,8 @@ bool Prefs::FileStorage::SetKey(std::string_view key, std::string_view value) {
     // to parent directories where we might not have permission to write to.
     TEST_AND_RETURN_FALSE(base::CreateDirectory(filename.DirName()));
   }
-  TEST_AND_RETURN_FALSE(base::WriteFile(filename, value.data(), value.size()) ==
-                        static_cast<int>(value.size()));
+  TEST_AND_RETURN_FALSE(
+      utils::WriteStringToFileAtomic(filename.value(), value));
   return true;
 }
 
