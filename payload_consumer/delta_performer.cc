@@ -1320,10 +1320,7 @@ bool DeltaPerformer::CanResumeUpdate(PrefsInterface* prefs,
   return true;
 }
 
-bool DeltaPerformer::ResetUpdateProgress(
-    PrefsInterface* prefs,
-    bool quick,
-    bool skip_dynamic_partititon_metadata_updated) {
+bool DeltaPerformer::ResetUpdateProgress(PrefsInterface* prefs, bool quick) {
   TEST_AND_RETURN_FALSE(prefs->SetInt64(kPrefsUpdateStateNextOperation,
                                         kUpdateStateOperationInvalid));
   if (!quick) {
@@ -1338,10 +1335,8 @@ bool DeltaPerformer::ResetUpdateProgress(
     prefs->Delete(kPrefsPostInstallSucceeded);
     prefs->Delete(kPrefsVerityWritten);
 
-    if (!skip_dynamic_partititon_metadata_updated) {
-      LOG(INFO) << "Resetting recorded hash for prepared partitions.";
-      prefs->Delete(kPrefsDynamicPartitionMetadataUpdated);
-    }
+    LOG(INFO) << "Resetting recorded hash for prepared partitions.";
+    prefs->Delete(kPrefsDynamicPartitionMetadataUpdated);
   }
   return true;
 }
@@ -1414,6 +1409,7 @@ bool DeltaPerformer::CheckpointUpdateProgress(bool force) {
   }
   TEST_AND_RETURN_FALSE(
       prefs_->SetInt64(kPrefsUpdateStateNextOperation, next_operation_num_));
+  LOG(INFO) << "Update progress successfully checkpointed.";
   return true;
 }
 
