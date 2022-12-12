@@ -38,6 +38,7 @@
 #include "update_engine/common/constants.h"
 #include "update_engine/common/daemon_state_interface.h"
 #include "update_engine/common/download_action.h"
+#include "update_engine/common/error_code.h"
 #include "update_engine/common/error_code_utils.h"
 #include "update_engine/common/file_fetcher.h"
 #include "update_engine/common/metrics_reporter_interface.h"
@@ -569,7 +570,7 @@ bool UpdateAttempterAndroid::VerifyPayloadApplicable(
 void UpdateAttempterAndroid::ProcessingDone(const ActionProcessor* processor,
                                             ErrorCode code) {
   LOG(INFO) << "Processing Done.";
-
+  last_error_ = code;
   if (status_ == UpdateStatus::CLEANUP_PREVIOUS_UPDATE) {
     TerminateUpdateAndNotify(code);
     return;
@@ -1202,22 +1203,30 @@ bool UpdateAttempterAndroid::setShouldSwitchSlotOnReboot(
   }
 
   auto install_plan_action = std::make_unique<InstallPlanAction>(install_plan_);
-  auto filesystem_verifier_action = std::make_unique<FilesystemVerifierAction>(
-      boot_control_->GetDynamicPartitionControl());
   auto postinstall_runner_action =
       std::make_unique<PostinstallRunnerAction>(boot_control_, hardware_);
   SetStatusAndNotify(UpdateStatus::VERIFYING);
-  filesystem_verifier_action->set_delegate(this);
   postinstall_runner_action->set_delegate(this);
 
-  // Bond them together. We have to use the leaf-types when calling
-  // BondActions().
-  BondActions(install_plan_action.get(), filesystem_verifier_action.get());
-  BondActions(filesystem_verifier_action.get(),
-              postinstall_runner_action.get());
+  // If last error code is kUpdatedButNotActive, we know that we reached this
+  // state by calling applyPayload() with switch_slot=false. That applyPayload()
+  // call would have already performed filesystem verification, therefore, we
+  // can safely skip the verification to save time.
+  if (last_error_ == ErrorCode::kUpdatedButNotActive) {
+    BondActions(install_plan_action.get(), postinstall_runner_action.get());
+    processor_->EnqueueAction(std::move(install_plan_action));
+  } else {
+    auto filesystem_verifier_action =
+        std::make_unique<FilesystemVerifierAction>(
+            boot_control_->GetDynamicPartitionControl());
+    filesystem_verifier_action->set_delegate(this);
+    BondActions(install_plan_action.get(), filesystem_verifier_action.get());
+    BondActions(filesystem_verifier_action.get(),
+                postinstall_runner_action.get());
+    processor_->EnqueueAction(std::move(install_plan_action));
+    processor_->EnqueueAction(std::move(filesystem_verifier_action));
+  }
 
-  processor_->EnqueueAction(std::move(install_plan_action));
-  processor_->EnqueueAction(std::move(filesystem_verifier_action));
   processor_->EnqueueAction(std::move(postinstall_runner_action));
   ScheduleProcessingStart();
   return true;

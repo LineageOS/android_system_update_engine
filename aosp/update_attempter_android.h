@@ -34,6 +34,7 @@
 #include "update_engine/common/clock_interface.h"
 #include "update_engine/common/daemon_state_interface.h"
 #include "update_engine/common/download_action.h"
+#include "update_engine/common/error_code.h"
 #include "update_engine/common/hardware_interface.h"
 #include "update_engine/common/metrics_reporter_interface.h"
 #include "update_engine/common/network_selector_interface.h"
@@ -276,6 +277,7 @@ class UpdateAttempterAndroid
 
   // The path to the zip file with X509 certificates.
   std::string update_certificates_path_{constants::kUpdateCertificatesPath};
+  ErrorCode last_error_{ErrorCode::kSuccess};
 
   DISALLOW_COPY_AND_ASSIGN(UpdateAttempterAndroid);
 };
