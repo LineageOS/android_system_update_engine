@@ -1170,15 +1170,6 @@ bool UpdateAttempterAndroid::setShouldSwitchSlotOnReboot(
   TEST_AND_RETURN_FALSE(
       VerifyPayloadParseManifest(metadata_filename, &manifest, error));
 
-  if (!boot_control_->GetDynamicPartitionControl()->PreparePartitionsForUpdate(
-          GetCurrentSlot(),
-          GetTargetSlot(),
-          manifest,
-          false /* should update */,
-          nullptr)) {
-    return LogAndSetError(
-        error, FROM_HERE, "Failed to PreparePartitionsForUpdate");
-  }
   InstallPlan install_plan_;
   install_plan_.source_slot = GetCurrentSlot();
   install_plan_.target_slot = GetTargetSlot();
@@ -1190,17 +1181,6 @@ bool UpdateAttempterAndroid::setShouldSwitchSlotOnReboot(
 
   CHECK_NE(install_plan_.source_slot, UINT32_MAX);
   CHECK_NE(install_plan_.target_slot, UINT32_MAX);
-
-  ErrorCode error_code{};
-  if (!install_plan_.ParsePartitions(manifest.partitions(),
-                                     boot_control_,
-                                     manifest.block_size(),
-                                     &error_code)) {
-    return LogAndSetError(error,
-                          FROM_HERE,
-                          "Failed to LoadPartitionsFromSlots " +
-                              utils::ErrorCodeToString(error_code));
-  }
 
   auto install_plan_action = std::make_unique<InstallPlanAction>(install_plan_);
   auto postinstall_runner_action =
@@ -1216,6 +1196,26 @@ bool UpdateAttempterAndroid::setShouldSwitchSlotOnReboot(
     BondActions(install_plan_action.get(), postinstall_runner_action.get());
     processor_->EnqueueAction(std::move(install_plan_action));
   } else {
+    if (!boot_control_->GetDynamicPartitionControl()
+             ->PreparePartitionsForUpdate(GetCurrentSlot(),
+                                          GetTargetSlot(),
+                                          manifest,
+                                          false /* should update */,
+                                          nullptr)) {
+      return LogAndSetError(
+          error, FROM_HERE, "Failed to PreparePartitionsForUpdate");
+    }
+    ErrorCode error_code{};
+    if (!install_plan_.ParsePartitions(manifest.partitions(),
+                                       boot_control_,
+                                       manifest.block_size(),
+                                       &error_code)) {
+      return LogAndSetError(error,
+                            FROM_HERE,
+                            "Failed to LoadPartitionsFromSlots " +
+                                utils::ErrorCodeToString(error_code));
+    }
+
     auto filesystem_verifier_action =
         std::make_unique<FilesystemVerifierAction>(
             boot_control_->GetDynamicPartitionControl());
