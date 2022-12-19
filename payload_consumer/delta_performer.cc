@@ -474,7 +474,7 @@ bool DeltaPerformer::Write(const void* bytes, size_t count, ErrorCode* error) {
       manifest_.mutable_dynamic_partition_metadata()
           ->set_vabc_compression_param("none");
       for (auto& partition : *manifest_.mutable_partitions()) {
-        int new_cow_size = partition.new_partition_info().size();
+        auto new_cow_size = partition.new_partition_info().size();
         for (const auto& operation : partition.merge_operations()) {
           if (operation.type() == CowMergeOperation::COW_COPY) {
             new_cow_size -=
