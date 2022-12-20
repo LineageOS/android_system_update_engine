@@ -39,6 +39,7 @@
 #include "update_engine/common/metrics_reporter_interface.h"
 #include "update_engine/common/network_selector_interface.h"
 #include "update_engine/common/prefs_interface.h"
+#include "update_engine/metrics_utils.h"
 #include "update_engine/payload_consumer/filesystem_verifier_action.h"
 #include "update_engine/payload_consumer/postinstall_runner_action.h"
 
@@ -278,6 +279,9 @@ class UpdateAttempterAndroid
   // The path to the zip file with X509 certificates.
   std::string update_certificates_path_{constants::kUpdateCertificatesPath};
   ErrorCode last_error_{ErrorCode::kSuccess};
+
+  metrics_utils::PersistedValue<int64_t> metric_bytes_downloaded_;
+  metrics_utils::PersistedValue<int64_t> metric_total_bytes_downloaded_;
 
   DISALLOW_COPY_AND_ASSIGN(UpdateAttempterAndroid);
 };

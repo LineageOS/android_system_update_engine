@@ -56,8 +56,8 @@
 #include <brillo/data_encoding.h>
 
 #include "update_engine/common/constants.h"
-#include "update_engine/common/platform_constants.h"
 #include "update_engine/common/subprocess.h"
+#include "update_engine/common/platform_constants.h"
 #include "update_engine/payload_consumer/file_descriptor.h"
 
 using base::Time;
