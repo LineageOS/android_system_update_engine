@@ -324,6 +324,8 @@ bool UpdateAttempterAndroid::ApplyPayload(
   } else {
 #ifdef _UE_SIDELOAD
     LOG(FATAL) << "Unsupported sideload URI: " << payload_url;
+    return false;  // NOLINT, unreached but analyzer might not know.
+                   // Suppress warnings about null 'fetcher' after this.
 #else
     LibcurlHttpFetcher* libcurl_fetcher = new LibcurlHttpFetcher(hardware_);
     if (!headers[kPayloadDownloadRetry].empty()) {
