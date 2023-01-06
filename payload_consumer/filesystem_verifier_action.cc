@@ -80,7 +80,9 @@ namespace chromeos_update_engine {
 
 namespace {
 const off_t kReadFileBufferSize = 128 * 1024;
-constexpr float kVerityProgressPercent = 0.6;
+constexpr float kVerityProgressPercent = 0.3;
+constexpr float kEncodeFECPercent = 0.3;
+
 }  // namespace
 
 void FilesystemVerifierAction::PerformAction() {
@@ -239,6 +241,8 @@ void FilesystemVerifierAction::WriteVerityData(FileDescriptor* fd,
     LOG(ERROR) << "Failed to write verity data";
     Cleanup(ErrorCode::kVerityCalculationError);
   }
+  UpdatePartitionProgress(kVerityProgressPercent +
+                          verity_writer_->GetProgress() * kEncodeFECPercent);
   CHECK(pending_task_id_.PostTask(
       FROM_HERE,
       base::BindOnce(&FilesystemVerifierAction::WriteVerityData,
@@ -333,8 +337,9 @@ void FilesystemVerifierAction::HashPartition(const off64_t start_offset,
   // verity writes and partition hashing. Otherwise, the entire progress bar is
   // dedicated to partition hashing for smooth progress.
   if (ShouldWriteVerity()) {
-    UpdatePartitionProgress(progress * (1 - kVerityProgressPercent) +
-                            kVerityProgressPercent);
+    UpdatePartitionProgress(
+        progress * (1 - (kVerityProgressPercent + kEncodeFECPercent)) +
+        kVerityProgressPercent + kEncodeFECPercent);
   } else {
     UpdatePartitionProgress(progress);
   }
