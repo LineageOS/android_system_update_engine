@@ -55,6 +55,7 @@ class IncrementalEncodeFEC {
   void UpdateState();
   bool Finished() const;
   void Reset();
+  double ReportProgress() const;
 
  private:
   brillo::Blob rs_blocks_;
@@ -88,7 +89,7 @@ class VerityWriterAndroid : public VerityWriterInterface {
   bool Finalize(FileDescriptor* read_fd, FileDescriptor* write_fd) override;
   bool IncrementalFinalize(FileDescriptor* read_fd,
                            FileDescriptor* write_fd) override;
-
+  double GetProgress() override;
   bool FECFinished() const override;
   // Read [data_offset : data_offset + data_size) from |path| and encode FEC
   // data, if |verify_mode|, then compare the encoded FEC with the one in

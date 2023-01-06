@@ -150,6 +150,10 @@ bool IncrementalEncodeFEC::Finished() const {
   return current_step_ == EncodeFECStep::kComplete;
 }
 
+double IncrementalEncodeFEC::ReportProgress() const {
+  return static_cast<double>(current_round_) / num_rounds_;
+}
+
 namespace verity_writer {
 std::unique_ptr<VerityWriterInterface> CreateVerityWriter() {
   return std::make_unique<VerityWriterAndroid>();
@@ -312,6 +316,11 @@ bool VerityWriterAndroid::FECFinished() const {
   }
   return false;
 }
+
+double VerityWriterAndroid::GetProgress() {
+  return encodeFEC_.ReportProgress();
+}
+
 bool VerityWriterAndroid::EncodeFEC(FileDescriptor* read_fd,
                                     FileDescriptor* write_fd,
                                     uint64_t data_offset,
