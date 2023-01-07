@@ -55,6 +55,9 @@ class VerityWriterInterface {
   // Returns true once FEC data is finished writing
   virtual bool FECFinished() const = 0;
 
+  // Gets progress report on FEC write
+  virtual double GetProgress() = 0;
+
  protected:
   VerityWriterInterface() = default;
 
