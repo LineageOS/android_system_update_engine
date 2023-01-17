@@ -288,7 +288,9 @@ int PartitionWriter::Close() {
 }
 
 void PartitionWriter::CheckpointUpdateProgress(size_t next_op_index) {
-  target_fd_->Flush();
+  if (target_fd_) {
+    target_fd_->Flush();
+  }
 }
 
 std::unique_ptr<ExtentWriter> PartitionWriter::CreateBaseExtentWriter() {
