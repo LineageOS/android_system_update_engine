@@ -1409,7 +1409,6 @@ bool DeltaPerformer::CheckpointUpdateProgress(bool force) {
   }
   TEST_AND_RETURN_FALSE(
       prefs_->SetInt64(kPrefsUpdateStateNextOperation, next_operation_num_));
-  LOG(INFO) << "Update progress successfully checkpointed.";
   return true;
 }
 
