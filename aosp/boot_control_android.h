@@ -26,7 +26,7 @@
 #include <BootControlClient.h>
 
 #include "update_engine/aosp/dynamic_partition_control_android.h"
-#include "update_engine/common/boot_control.h"
+#include "update_engine/common/boot_control_interface.h"
 #include "update_engine/common/dynamic_partition_control_interface.h"
 
 namespace chromeos_update_engine {
