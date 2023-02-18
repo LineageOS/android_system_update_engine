@@ -25,7 +25,6 @@
 #include <base/strings/string_split.h>
 #include <base/strings/string_util.h>
 
-#include "brillo/file_utils.h"
 #include "update_engine/common/utils.h"
 
 using std::string;

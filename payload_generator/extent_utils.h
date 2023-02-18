@@ -151,6 +151,13 @@ constexpr bool ExtentContains(const Extent& extent, size_t block) {
          block < extent.start_block() + extent.num_blocks();
 }
 
+// return true iff |big| extent contains |small| extent
+constexpr bool ExtentContains(const Extent& big, const Extent& small) {
+  return big.start_block() <= small.start_block() &&
+         small.start_block() + small.num_blocks() <=
+             big.start_block() + big.num_blocks();
+}
+
 }  // namespace chromeos_update_engine
 
 #endif  // UPDATE_ENGINE_PAYLOAD_GENERATOR_EXTENT_UTILS_H_
