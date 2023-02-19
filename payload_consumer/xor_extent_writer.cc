@@ -48,21 +48,22 @@ bool XORExtentWriter::WriteExtent(const void* bytes,
     const auto merge_op = merge_op_opt.value();
     TEST_AND_RETURN_FALSE(merge_op->has_src_extent());
     TEST_AND_RETURN_FALSE(merge_op->has_dst_extent());
-    if (merge_op->dst_extent() != xor_ext) {
-      LOG(ERROR) << "Each xor extent is expected to correspond to a complete "
-                    "MergeOp, extent in value: "
-                 << merge_op->dst_extent() << " extent in key: " << xor_ext;
-      return false;
-    }
-    if (xor_ext.start_block() + xor_ext.num_blocks() >
-        extent.start_block() + extent.num_blocks()) {
+    if (!ExtentContains(extent, xor_ext)) {
       LOG(ERROR) << "CowXor merge op extent should be completely inside "
                     "InstallOp's extent. merge op extent: "
                  << xor_ext << " InstallOp extent: " << extent;
       return false;
     }
+    if (!ExtentContains(merge_op->dst_extent(), xor_ext)) {
+      LOG(ERROR) << "CowXor op extent should be completely inside "
+                    "xor_map's extent. merge op extent: "
+                 << xor_ext << " xor_map extent: " << merge_op->dst_extent();
+      return false;
+    }
     const auto src_offset = merge_op->src_offset();
-    const auto src_block = merge_op->src_extent().start_block();
+    const auto src_block = merge_op->src_extent().start_block() +
+                           xor_ext.start_block() -
+                           merge_op->dst_extent().start_block();
     xor_block_data.resize(BlockSize() * xor_ext.num_blocks());
     ssize_t bytes_read = 0;
     TEST_AND_RETURN_FALSE_ERRNO(
