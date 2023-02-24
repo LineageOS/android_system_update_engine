@@ -29,6 +29,7 @@
 #include <vector>
 
 #include <android-base/properties.h>
+#include <android-base/strings.h>
 #include <base/files/file_util.h>
 #include <base/format_macros.h>
 #include <base/metrics/histogram_macros.h>
@@ -395,27 +396,43 @@ MetadataParseResult DeltaPerformer::ParsePayloadMetadata(
       base::TimeDelta::FromMinutes(5),                                      \
       20);
 
-void DeltaPerformer::CheckSPLDowngrade() {
+bool DeltaPerformer::CheckSPLDowngrade() {
   if (!manifest_.has_security_patch_level()) {
-    return;
+    return true;
   }
   if (manifest_.security_patch_level().empty()) {
-    return;
+    return true;
   }
   const auto new_spl = manifest_.security_patch_level();
   const auto current_spl =
       android::base::GetProperty("ro.build.version.security_patch", "");
   if (current_spl.empty()) {
-    LOG(ERROR) << "Failed to get ro.build.version.security_patch, unable to "
-                  "determine if this OTA is a SPL downgrade.";
-    return;
+    LOG(WARNING) << "Failed to get ro.build.version.security_patch, unable to "
+                    "determine if this OTA is a SPL downgrade. Assuming this "
+                    "OTA is not SPL downgrade.";
+    return true;
   }
   if (new_spl < current_spl) {
+    const auto avb_state =
+        android::base::GetProperty("ro.boot.verifiedbootstate", "green");
+    if (android::base::EqualsIgnoreCase(avb_state, "green")) {
+      LOG(ERROR) << "Target build SPL " << new_spl
+                 << " is older than current build's SPL " << current_spl
+                 << ", this OTA is an SPL downgrade. Your device's "
+                    "ro.boot.verifiedbootstate="
+                 << avb_state
+                 << ", it probably has a locked bootlaoder. Since a locked "
+                    "bootloader will reject SPL downgrade no matter what, we "
+                    "will reject this OTA.";
+      return false;
+    }
     install_plan_->powerwash_required = true;
-    LOG(INFO) << "Target build SPL " << new_spl
-              << " is older than current build's SPL " << current_spl
-              << ", this OTA is an SPL downgrade. Data wipe will be required";
+    LOG(WARNING)
+        << "Target build SPL " << new_spl
+        << " is older than current build's SPL " << current_spl
+        << ", this OTA is an SPL downgrade. Data wipe will be required";
   }
+  return true;
 }
 
 // Wrapper around write. Returns true if all requested bytes
@@ -464,7 +481,10 @@ bool DeltaPerformer::Write(const void* bytes, size_t count, ErrorCode* error) {
 
     block_size_ = manifest_.block_size();
 
-    CheckSPLDowngrade();
+    if (!CheckSPLDowngrade()) {
+      *error = ErrorCode::kPayloadTimestampError;
+      return false;
+    }
 
     // update estimate_cow_size if VABC is disabled
     // new_cow_size per partition = partition_size - (#blocks in Copy
