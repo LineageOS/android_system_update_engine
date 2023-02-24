@@ -1428,7 +1428,7 @@ std::unique_ptr<android::snapshot::ISnapshotWriter>
 DynamicPartitionControlAndroid::OpenCowWriter(
     const std::string& partition_name,
     const std::optional<std::string>& source_path,
-    bool is_append) {
+    bool) {
   auto suffix = SlotSuffixForSlotNumber(target_slot_);
 
   auto super_device = GetSuperDevice();
