@@ -487,6 +487,18 @@ bool DeltaPerformer::Write(const void* bytes, size_t count, ErrorCode* error) {
         partition.set_estimate_cow_size(new_cow_size + (1024 * 1024 * 8));
       }
     }
+    if (install_plan_->enable_threading) {
+      manifest_.mutable_dynamic_partition_metadata()
+          ->mutable_vabc_feature_set()
+          ->set_threaded(true);
+      LOG(INFO) << "Attempting to enable multi-threaded compression for VABC";
+    }
+    if (install_plan_->batched_writes) {
+      manifest_.mutable_dynamic_partition_metadata()
+          ->mutable_vabc_feature_set()
+          ->set_batch_writes(true);
+      LOG(INFO) << "Attempting to enable batched writes for VABC";
+    }
 
     // This populates |partitions_| and the |install_plan.partitions| with the
     // list of partitions from the manifest.
