@@ -350,6 +350,12 @@ bool UpdateAttempterAndroid::ApplyPayload(
   if (!headers[kPayloadDisableVABC].empty()) {
     install_plan_.disable_vabc = true;
   }
+  if (!headers[kPayloadEnableThreading].empty()) {
+    install_plan_.enable_threading = true;
+  }
+  if (!headers[kPayloadBatchedWrites].empty()) {
+    install_plan_.batched_writes = true;
+  }
 
   BuildUpdateActions(fetcher);
 

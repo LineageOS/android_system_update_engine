@@ -483,6 +483,10 @@ def main():
                       help='Wipe userdata after installing OTA')
   parser.add_argument('--disable-vabc', action='store_true',
                       help='Disable vabc during OTA')
+  parser.add_argument('--enable-threading', action='store_true',
+                      help='Enable multi-threaded compression for VABC')
+  parser.add_argument('--batched-writes', action='store_true',
+                      help='Enable batched writes for VABC')
   parser.add_argument('--speed-limit', type=str,
                       help='Speed limit for serving payloads over HTTP. For '
                       'example: 10K, 5m, 1G, input is case insensitive')
@@ -545,6 +549,10 @@ def main():
     args.extra_headers += "\nPOWERWASH=1"
   if args.disable_vabc:
     args.extra_headers += "\nDISABLE_VABC=1"
+  if args.enable_threading:
+    args.extra_headers += "\nENABLE_THREADING=1"
+  if args.batched_writes:
+    args.extra_headers += "\nBATCHED_WRITES=1"
 
   with zipfile.ZipFile(args.otafile) as zfp:
     CARE_MAP_ENTRY_NAME = "care_map.pb"
