@@ -26,7 +26,6 @@
 #include <brillo/message_loops/message_loop.h>
 
 #include "update_engine/aosp/dynamic_partition_control_android.h"
-#include "update_engine/common/utils.h"
 
 using std::string;
 

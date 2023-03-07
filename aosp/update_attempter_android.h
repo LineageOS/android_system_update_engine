@@ -168,8 +168,8 @@ class UpdateAttempterAndroid
   // |update_completed_marker_| is empty.
   [[nodiscard]] bool WriteUpdateCompletedMarker();
 
-  // Returns whether an update was completed in the current boot.
-  [[nodiscard]] bool UpdateCompletedOnThisBoot();
+  // Returns whether a slot switch was attempted in the current boot.
+  [[nodiscard]] bool UpdateCompletedOnThisBoot() const;
 
   // Prefs to use for metrics report
   // |kPrefsPayloadAttemptNumber|: number of update attempts for the current
