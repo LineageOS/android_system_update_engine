@@ -29,7 +29,6 @@
 #include <libsnapshot/cow_writer.h>
 #include <gflags/gflags.h>
 
-#include "update_engine/common/cow_operation_convert.h"
 #include "update_engine/common/utils.h"
 #include "update_engine/payload_consumer/file_descriptor.h"
 #include "update_engine/payload_consumer/payload_metadata.h"
