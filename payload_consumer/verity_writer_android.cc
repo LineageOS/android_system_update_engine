@@ -151,6 +151,9 @@ bool IncrementalEncodeFEC::Finished() const {
 }
 
 double IncrementalEncodeFEC::ReportProgress() const {
+  if (num_rounds_ == 0) {
+    return 1.0;
+  }
   return static_cast<double>(current_round_) / num_rounds_;
 }
 
@@ -311,7 +314,8 @@ bool VerityWriterAndroid::IncrementalFinalize(FileDescriptor* read_fd,
   return true;
 }
 bool VerityWriterAndroid::FECFinished() const {
-  if (encodeFEC_.Finished()) {
+  if ((encodeFEC_.Finished() || partition_->fec_size == 0) &&
+      hash_tree_written_) {
     return true;
   }
   return false;
