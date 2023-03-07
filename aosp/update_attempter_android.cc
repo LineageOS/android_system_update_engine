@@ -820,9 +820,10 @@ void UpdateAttempterAndroid::BuildUpdateActions(HttpFetcher* fetcher) {
 }
 
 bool UpdateAttempterAndroid::WriteUpdateCompletedMarker() {
-  LOG(INFO) << "Writing update complete marker.";
   string boot_id;
   TEST_AND_RETURN_FALSE(utils::GetBootId(&boot_id));
+  LOG(INFO) << "Writing update complete marker, slot "
+            << boot_control_->GetCurrentSlot() << ", boot id: " << boot_id;
   TEST_AND_RETURN_FALSE(
       prefs_->SetString(kPrefsUpdateCompletedOnBootId, boot_id));
   TEST_AND_RETURN_FALSE(
@@ -837,7 +838,7 @@ bool UpdateAttempterAndroid::ClearUpdateCompletedMarker() {
   return true;
 }
 
-bool UpdateAttempterAndroid::UpdateCompletedOnThisBoot() {
+bool UpdateAttempterAndroid::UpdateCompletedOnThisBoot() const {
   // In case of an update_engine restart without a reboot, we stored the boot_id
   // when the update was completed by setting a pref, so we can check whether
   // the last update was on this boot or a previous one.
@@ -945,7 +946,9 @@ bool UpdateAttempterAndroid::OTARebootSucceeded() const {
       prefs_->GetString(kPrefsPreviousVersion, &previous_version));
   if (previous_slot != current_slot) {
     LOG(INFO) << "Detected a slot switch, OTA succeeded, device updated from "
-              << previous_version << " to " << current_version;
+              << previous_version << " to " << current_version
+              << ", previous slot: " << previous_slot
+              << " current slot: " << current_slot;
     if (previous_version == current_version) {
       LOG(INFO) << "Previous version is the same as current version, this is "
                    "possibly a self-OTA.";
@@ -967,7 +970,8 @@ OTAResult UpdateAttempterAndroid::GetOTAUpdateResult() const {
   // We only set |kPrefsSystemUpdatedMarker| if slot is actually switched, so
   // existence of this pref is sufficient indicator. Given that we have to
   // delete this pref after checking it. This is done in
-  // |DeltaPerformer::ResetUpdateProgress|
+  // |DeltaPerformer::ResetUpdateProgress| and
+  // |UpdateAttempterAndroid::UpdateStateAfterReboot|
   auto slot_switch_attempted = prefs_->Exists(kPrefsUpdateCompletedOnBootId);
   auto system_rebooted = DidSystemReboot(prefs_);
   auto ota_successful = OTARebootSucceeded();
@@ -997,6 +1001,11 @@ void UpdateAttempterAndroid::UpdateStateAfterReboot(const OTAResult result) {
   string current_boot_id;
   TEST_AND_RETURN(utils::GetBootId(&current_boot_id));
   prefs_->SetString(kPrefsBootId, current_boot_id);
+  std::string slot_switch_indicator;
+  prefs_->GetString(kPrefsUpdateCompletedOnBootId, &slot_switch_indicator);
+  if (slot_switch_indicator != current_boot_id) {
+    ClearUpdateCompletedMarker();
+  }
 
   // If there's no record of previous version (e.g. due to a data wipe), we
   // save the info of current boot and skip the metrics report.
