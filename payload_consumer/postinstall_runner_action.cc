@@ -36,7 +36,6 @@
 
 #include "update_engine/common/action_processor.h"
 #include "update_engine/common/boot_control_interface.h"
-#include "update_engine/common/platform_constants.h"
 #include "update_engine/common/subprocess.h"
 #include "update_engine/common/utils.h"
 
