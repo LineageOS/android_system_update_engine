@@ -202,7 +202,7 @@ bool PostinstallRunnerAction::MountPartition(
 
 void PostinstallRunnerAction::PerformPartitionPostinstall() {
   if (install_plan_.download_url.empty()) {
-    LOG(INFO) << "Skipping post-install during rollback";
+    LOG(INFO) << "Skipping post-install";
     return CompletePostinstall(ErrorCode::kSuccess);
   }
 
@@ -430,6 +430,12 @@ void PostinstallRunnerAction::CompletePartitionPostinstall(
 }
 
 void PostinstallRunnerAction::CompletePostinstall(ErrorCode error_code) {
+  if (!install_plan_.partitions.empty()) {
+    auto dynamic_control = boot_control_->GetDynamicPartitionControl();
+    CHECK(dynamic_control);
+    dynamic_control->UnmapAllPartitions();
+    LOG(INFO) << "Unmapped all partitions.";
+  }
   // We only attempt to mark the new slot as active if all the postinstall
   // steps succeeded.
   if (error_code == ErrorCode::kSuccess) {
@@ -448,11 +454,6 @@ void PostinstallRunnerAction::CompletePostinstall(ErrorCode error_code) {
       error_code = ErrorCode::kUpdatedButNotActive;
     }
   }
-
-  auto dynamic_control = boot_control_->GetDynamicPartitionControl();
-  CHECK(dynamic_control);
-  dynamic_control->UnmapAllPartitions();
-  LOG(INFO) << "Unmapped all partitions.";
 
   ScopedActionCompleter completer(processor_, this);
   completer.set_code(error_code);
