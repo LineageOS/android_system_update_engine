@@ -506,10 +506,6 @@ cc_defaults {
         "ue_defaults",
     ],
 
-    // TODO(deymo): Remove external/cros/system_api/dbus once the strings are moved
-    // out of the DBus interface.
-    include_dirs: ["external/cros/system_api/dbus"],
-
     aidl: {
         local_include_dirs: ["binder_bindings"],
         export_aidl_headers: true,
@@ -587,9 +583,6 @@ cc_binary {
     recovery: true,
 
     cflags: ["-D_UE_SIDELOAD"],
-    // TODO(deymo): Remove external/cros/system_api/dbus once the strings are moved
-    // out of the DBus interface.
-    include_dirs: ["external/cros/system_api/dbus"],
     header_libs: ["libgtest_prod_headers"],
 
     srcs: [
@@ -653,10 +646,6 @@ cc_binary {
 cc_binary {
     name: "update_engine_client",
     defaults: ["ue_defaults"],
-
-    // TODO(deymo): Remove external/cros/system_api/dbus once the strings are moved
-    // out of the DBus interface.
-    include_dirs: ["external/cros/system_api/dbus"],
 
     shared_libs: [
         "libbinder",
