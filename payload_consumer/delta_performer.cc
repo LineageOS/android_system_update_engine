@@ -489,8 +489,8 @@ bool DeltaPerformer::Write(const void* bytes, size_t count, ErrorCode* error) {
     // update estimate_cow_size if VABC is disabled
     // new_cow_size per partition = partition_size - (#blocks in Copy
     // operations part of the partition)
-    if (install_plan_->disable_vabc) {
-      LOG(INFO) << "Disabling VABC";
+    if (install_plan_->vabc_none) {
+      LOG(INFO) << "Setting Virtual AB Compression algorithm to none";
       manifest_.mutable_dynamic_partition_metadata()
           ->set_vabc_compression_param("none");
       for (auto& partition : *manifest_.mutable_partitions()) {
