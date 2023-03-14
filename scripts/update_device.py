@@ -481,8 +481,8 @@ def main():
                       help='Perform reset slot switch for this OTA package')
   parser.add_argument('--wipe-user-data', action='store_true',
                       help='Wipe userdata after installing OTA')
-  parser.add_argument('--disable-vabc', action='store_true',
-                      help='Disable vabc during OTA')
+  parser.add_argument('--vabc-none', action='store_true',
+                      help='Set Virtual AB Compression algorithm to none, but still use Android COW format')
   parser.add_argument('--enable-threading', action='store_true',
                       help='Enable multi-threaded compression for VABC')
   parser.add_argument('--batched-writes', action='store_true',
@@ -547,8 +547,8 @@ def main():
     args.extra_headers += "\nRUN_POST_INSTALL=0"
   if args.wipe_user_data:
     args.extra_headers += "\nPOWERWASH=1"
-  if args.disable_vabc:
-    args.extra_headers += "\nDISABLE_VABC=1"
+  if args.vabc_none:
+    args.extra_headers += "\nVABC_NONE=1"
   if args.enable_threading:
     args.extra_headers += "\nENABLE_THREADING=1"
   if args.batched_writes:
