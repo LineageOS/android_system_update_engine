@@ -347,8 +347,8 @@ bool UpdateAttempterAndroid::ApplyPayload(
               << headers[kPayloadPropertyNetworkProxy];
     fetcher->SetProxies({headers[kPayloadPropertyNetworkProxy]});
   }
-  if (!headers[kPayloadDisableVABC].empty()) {
-    install_plan_.disable_vabc = true;
+  if (!headers[kPayloadVABCNone].empty()) {
+    install_plan_.vabc_none = true;
   }
   if (!headers[kPayloadEnableThreading].empty()) {
     install_plan_.enable_threading = true;
