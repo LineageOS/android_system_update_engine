@@ -41,6 +41,7 @@
 #include <google/protobuf/repeated_field.h>
 #include <puffin/puffpatch.h>
 
+#include "libsnapshot/cow_format.h"
 #include "update_engine/common/constants.h"
 #include "update_engine/common/download_action.h"
 #include "update_engine/common/error_code.h"
@@ -501,10 +502,23 @@ bool DeltaPerformer::Write(const void* bytes, size_t count, ErrorCode* error) {
                 operation.dst_extent().num_blocks() * manifest_.block_size();
           }
         }
-        // Adding extra 8MB headroom. OTA will sometimes write labels/metadata
-        // to COW image. If we overrun reserved COW size, entire OTA will fail
+        // Every block written to COW device will come with a header which
+        // stores src/dst block info along with other data.
+        const auto cow_metadata_size = partition.new_partition_info().size() /
+                                       manifest_.block_size() *
+                                       sizeof(android::snapshot::CowOperation);
+        // update_engine will emit a label op every op or every two seconds,
+        // whichever one is longer. In the worst case, we add 1 label per
+        // InstallOp. So take size of label ops into account.
+        const auto label_ops_size = partition.operations_size() *
+                                    sizeof(android::snapshot::CowOperation);
+        // Adding extra 2MB headroom just for any unexpected space usage.
+        // If we overrun reserved COW size, entire OTA will fail
         // and no way for user to retry OTA
-        partition.set_estimate_cow_size(new_cow_size + (1024 * 1024 * 8));
+        partition.set_estimate_cow_size(new_cow_size + (1024 * 1024 * 2) +
+                                        cow_metadata_size + label_ops_size);
+        LOG(INFO) << "New COW size for partition " << partition.partition_name()
+                  << " is " << partition.estimate_cow_size();
       }
     }
     if (install_plan_->enable_threading) {
