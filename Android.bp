@@ -207,6 +207,7 @@ cc_defaults {
         "libcow_operation_convert",
         "lz4diff-protos",
         "liblz4patch",
+        "libzstd",
     ],
     shared_libs: [
         "libbase",
@@ -699,6 +700,7 @@ cc_defaults {
         "libselinux",
         "lz4diff-protos",
         "liblz4diff",
+        "libzstd",
     ],
     shared_libs: [
         "libbase",
@@ -1068,6 +1070,7 @@ cc_test {
         "libdm",
         "libgmock",
         "libz",
+        "libzstd",
     ],
     shared_libs: [
         "libssl",
