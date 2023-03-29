@@ -138,6 +138,8 @@ class Payload(object):
     else:
       self.name = payload_file.name
       self.payload_file = payload_file
+    self.payload_file_size = self.payload_file.seek(0, io.SEEK_END)
+    self.payload_file.seek(0, io.SEEK_SET)
     self.payload_file_offset = payload_file_offset
     self.manifest_hasher = None
     self.is_init = False
@@ -266,7 +268,7 @@ class Payload(object):
     self.metadata_size = self.header.size + self.header.manifest_len
     self.data_offset = self.metadata_size + self.header.metadata_signature_len
 
-    if self.manifest.signatures_offset and self.manifest.signatures_size:
+    if self.manifest.signatures_offset and self.manifest.signatures_size and self.manifest.signatures_offset + self.manifest.signatures_size <= self.payload_file_size:
       payload_signature_blob = self.ReadDataBlob(
           self.manifest.signatures_offset, self.manifest.signatures_size)
       payload_signature = update_metadata_pb2.Signatures()
