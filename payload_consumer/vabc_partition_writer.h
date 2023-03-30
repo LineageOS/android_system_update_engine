@@ -70,7 +70,9 @@ class VABCPartitionWriter final : public PartitionWriterInterface {
       android::snapshot::ICowWriter* cow_writer);
 
  private:
+  [[nodiscard]] bool DoesDeviceSupportsXor();
   bool IsXorEnabled() const noexcept { return xor_map_.size() > 0; }
+  [[nodiscard]] bool WriteAllCopyOps();
   std::unique_ptr<android::snapshot::ISnapshotWriter> cow_writer_;
 
   [[nodiscard]] std::unique_ptr<ExtentWriter> CreateBaseExtentWriter();
