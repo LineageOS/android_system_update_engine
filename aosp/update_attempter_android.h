@@ -234,6 +234,8 @@ class UpdateAttempterAndroid
   void RemoveCleanupPreviousUpdateCallback(
       CleanupSuccessfulUpdateCallbackInterface* callback);
 
+  bool IsProductionBuild();
+
   DaemonStateInterface* daemon_state_;
 
   // DaemonStateAndroid pointers.
