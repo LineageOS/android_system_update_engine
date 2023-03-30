@@ -179,6 +179,8 @@ static constexpr const auto& kPayloadPropertyNetworkProxy = "NETWORK_PROXY";
 // Set Virtual AB Compression's compression algorithm to "none", but still use
 // userspace snapshots and snapuserd for update installation.
 static constexpr const auto& kPayloadVABCNone = "VABC_NONE";
+// Enable/Disable VABC, falls back on plain VAB
+static constexpr const auto& kPayloadDisableVABC = "DISABLE_VABC";
 // Enable multi-threaded compression for VABC
 static constexpr const auto& kPayloadEnableThreading = "ENABLE_THREADING";
 // Enable batched writes for VABC

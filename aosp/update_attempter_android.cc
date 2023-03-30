@@ -281,6 +281,11 @@ bool UpdateAttempterAndroid::ApplyPayload(
   install_plan_.powerwash_required =
       GetHeaderAsBool(headers[kPayloadPropertyPowerwash], false);
 
+  if (!IsProductionBuild()) {
+    install_plan_.disable_vabc =
+        GetHeaderAsBool(headers[kPayloadDisableVABC], false);
+  }
+
   install_plan_.switch_slot_on_reboot =
       GetHeaderAsBool(headers[kPayloadPropertySwitchSlotOnReboot], true);
 
@@ -1316,6 +1321,15 @@ void UpdateAttempterAndroid::RemoveCleanupPreviousUpdateCallback(
                      [&](const auto& e) { return e.get() == callback; });
   cleanup_previous_update_callbacks_.erase(
       end_it, cleanup_previous_update_callbacks_.end());
+}
+
+bool UpdateAttempterAndroid::IsProductionBuild() {
+  if (android::base::GetProperty("ro.build.type", "") != "userdebug" ||
+      android::base::GetProperty("ro.build.tags", "") == "release-keys" ||
+      android::base::GetProperty("ro.boot.verifiedbootstate", "") == "green") {
+    return true;
+  }
+  return false;
 }
 
 }  // namespace chromeos_update_engine
