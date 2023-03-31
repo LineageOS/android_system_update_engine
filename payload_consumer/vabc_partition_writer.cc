@@ -97,6 +97,40 @@ VABCPartitionWriter::VABCPartitionWriter(
   }
 }
 
+bool VABCPartitionWriter::DoesDeviceSupportsXor() {
+  return dynamic_control_->GetVirtualAbCompressionXorFeatureFlag().IsEnabled();
+}
+
+bool VABCPartitionWriter::WriteAllCopyOps() {
+  const bool userSnapshots = android::base::GetBoolProperty(
+      "ro.virtual_ab.userspace.snapshots.enabled", false);
+  for (const auto& cow_op : partition_update_.merge_operations()) {
+    if (cow_op.type() != CowMergeOperation::COW_COPY) {
+      continue;
+    }
+    if (cow_op.dst_extent() == cow_op.src_extent()) {
+      continue;
+    }
+    if (userSnapshots) {
+      TEST_AND_RETURN_FALSE(cow_op.src_extent().num_blocks() != 0);
+      TEST_AND_RETURN_FALSE(
+          cow_writer_->AddCopy(cow_op.dst_extent().start_block(),
+                               cow_op.src_extent().start_block(),
+                               cow_op.src_extent().num_blocks()));
+    } else {
+      // Add blocks in reverse order, because snapused specifically prefers
+      // this ordering. Since we already eliminated all self-overlapping
+      // SOURCE_COPY during delta generation, this should be safe to do.
+      for (size_t i = cow_op.src_extent().num_blocks(); i > 0; i--) {
+        TEST_AND_RETURN_FALSE(
+            cow_writer_->AddCopy(cow_op.dst_extent().start_block() + i - 1,
+                                 cow_op.src_extent().start_block() + i - 1));
+      }
+    }
+  }
+  return true;
+}
+
 bool VABCPartitionWriter::Init(const InstallPlan* install_plan,
                                bool source_may_exist,
                                size_t next_op_index) {
@@ -144,35 +178,21 @@ bool VABCPartitionWriter::Init(const InstallPlan* install_plan,
     if (IsXorEnabled()) {
       LOG(INFO) << "VABC XOR enabled for partition "
                 << partition_update_.partition_name();
+    }
+    // When merge sequence is present in COW, snapuserd will merge blocks in
+    // order specified by the merge seuqnece op. Hence we have the freedom of
+    // writing COPY operations out of order. Delay processing of copy ops so
+    // that update_engine can be more responsive in progress updates.
+    if (DoesDeviceSupportsXor()) {
+      LOG(INFO) << "Snapuserd supports XOR and merge sequence, writing merge "
+                   "sequence and delay writing COPY operations";
       TEST_AND_RETURN_FALSE(WriteMergeSequence(
           partition_update_.merge_operations(), cow_writer_.get()));
-    }
-    const bool userSnapshots = android::base::GetBoolProperty(
-        "ro.virtual_ab.userspace.snapshots.enabled", false);
-
-    for (const auto& cow_op : partition_update_.merge_operations()) {
-      if (cow_op.type() != CowMergeOperation::COW_COPY) {
-        continue;
-      }
-      if (cow_op.dst_extent() == cow_op.src_extent()) {
-        continue;
-      }
-      if (userSnapshots) {
-        TEST_AND_RETURN_FALSE(cow_op.src_extent().num_blocks() != 0);
-        TEST_AND_RETURN_FALSE(
-            cow_writer_->AddCopy(cow_op.dst_extent().start_block(),
-                                 cow_op.src_extent().start_block(),
-                                 cow_op.src_extent().num_blocks()));
-      } else {
-        // Add blocks in reverse order, because snapused specifically prefers
-        // this ordering. Since we already eliminated all self-overlapping
-        // SOURCE_COPY during delta generation, this should be safe to do.
-        for (size_t i = cow_op.src_extent().num_blocks(); i > 0; i--) {
-          TEST_AND_RETURN_FALSE(
-              cow_writer_->AddCopy(cow_op.dst_extent().start_block() + i - 1,
-                                   cow_op.src_extent().start_block() + i - 1));
-        }
-      }
+    } else {
+      LOG(INFO) << "Snapuserd does not support merge sequence, writing all "
+                   "COPY operations up front, this may take few "
+                   "minutes.";
+      TEST_AND_RETURN_FALSE(WriteAllCopyOps());
     }
     cow_writer_->AddLabel(0);
   }
@@ -253,12 +273,19 @@ std::unique_ptr<ExtentWriter> VABCPartitionWriter::CreateBaseExtentWriter() {
   // we still want to verify that all blocks contain expected data.
   auto source_fd = verified_source_fd_.ChooseSourceFD(operation, error);
   TEST_AND_RETURN_FALSE(source_fd != nullptr);
+  // For devices not supporting XOR, sequence op is not supported, so all COPY
+  // operations are written up front in strict merge order.
+  if (!DoesDeviceSupportsXor()) {
+    return true;
+  }
   std::vector<CowOperation> converted;
 
   const auto& src_extents = operation.src_extents();
   const auto& dst_extents = operation.dst_extents();
   BlockIterator it1{src_extents};
   BlockIterator it2{dst_extents};
+  const bool userSnapshots = android::base::GetBoolProperty(
+      "ro.virtual_ab.userspace.snapshots.enabled", false);
   while (!it1.is_end() && !it2.is_end()) {
     const auto src_block = *it1;
     const auto dst_block = *it2;
@@ -267,13 +294,30 @@ std::unique_ptr<ExtentWriter> VABCPartitionWriter::CreateBaseExtentWriter() {
     if (src_block == dst_block) {
       continue;
     }
-    if (!copy_blocks_.ContainsBlock(dst_block)) {
+    if (copy_blocks_.ContainsBlock(dst_block)) {
+      push_back(&converted, {CowOperation::CowCopy, src_block, dst_block, 1});
+    } else {
       push_back(&converted,
                 {CowOperation::CowReplace, src_block, dst_block, 1});
     }
   }
   std::vector<uint8_t> buffer;
   for (const auto& cow_op : converted) {
+    if (cow_op.op == CowOperation::CowCopy) {
+      if (userSnapshots) {
+        cow_writer_->AddCopy(
+            cow_op.dst_block, cow_op.src_block, cow_op.block_count);
+      } else {
+        // Add blocks in reverse order, because snapused specifically prefers
+        // this ordering. Since we already eliminated all self-overlapping
+        // SOURCE_COPY during delta generation, this should be safe to do.
+        for (size_t i = cow_op.block_count; i > 0; i--) {
+          TEST_AND_RETURN_FALSE(cow_writer_->AddCopy(cow_op.dst_block + i - 1,
+                                                     cow_op.src_block + i - 1));
+        }
+      }
+      continue;
+    }
     buffer.resize(block_size_ * cow_op.block_count);
     ssize_t bytes_read = 0;
     TEST_AND_RETURN_FALSE(utils::ReadAll(source_fd,
