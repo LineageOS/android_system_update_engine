@@ -55,6 +55,7 @@
 #include "update_engine/payload_consumer/payload_verifier.h"
 #include "update_engine/payload_consumer/postinstall_runner_action.h"
 #include "update_engine/update_boot_flags_action.h"
+#include "update_engine/update_status.h"
 #include "update_engine/update_status_utils.h"
 
 #ifndef _UE_SIDELOAD
@@ -281,6 +282,11 @@ bool UpdateAttempterAndroid::ApplyPayload(
   install_plan_.powerwash_required =
       GetHeaderAsBool(headers[kPayloadPropertyPowerwash], false);
 
+  if (!IsProductionBuild()) {
+    install_plan_.disable_vabc =
+        GetHeaderAsBool(headers[kPayloadDisableVABC], false);
+  }
+
   install_plan_.switch_slot_on_reboot =
       GetHeaderAsBool(headers[kPayloadPropertySwitchSlotOnReboot], true);
 
@@ -422,6 +428,13 @@ bool UpdateAttempterAndroid::ResetStatus(brillo::ErrorPtr* error) {
     return LogAndSetError(
         error, FROM_HERE, "Already processing an update, cancel it first.");
   }
+  if (status_ != UpdateStatus::IDLE &&
+      status_ != UpdateStatus::UPDATED_NEED_REBOOT) {
+    return LogAndSetError(error,
+                          FROM_HERE,
+                          "Status reset not allowed in this state, please "
+                          "cancel on going OTA first.");
+  }
 
   if (apex_handler_android_ != nullptr) {
     LOG(INFO) << "Cleaning up reserved space for compressed APEX (if any)";
@@ -437,30 +450,18 @@ bool UpdateAttempterAndroid::ResetStatus(brillo::ErrorPtr* error) {
                           "Failed to reset the status because "
                           "ClearUpdateCompletedMarker() failed");
   }
-
+  if (status_ == UpdateStatus::UPDATED_NEED_REBOOT) {
+    if (!resetShouldSwitchSlotOnReboot(error)) {
+      LOG(INFO) << "Failed to reset slot switch.";
+      return false;
+    }
+    LOG(INFO) << "Slot switch reset successful";
+  }
   if (!boot_control_->GetDynamicPartitionControl()->ResetUpdate(prefs_)) {
     LOG(WARNING) << "Failed to reset snapshots. UpdateStatus is IDLE but"
                  << "space might not be freed.";
   }
-  switch (status_) {
-    case UpdateStatus::IDLE: {
-      return true;
-    }
-
-    case UpdateStatus::UPDATED_NEED_REBOOT: {
-      const bool ret_value = resetShouldSwitchSlotOnReboot(error);
-      if (ret_value) {
-        LOG(INFO) << "Reset status successful";
-      }
-      return ret_value;
-    }
-
-    default:
-      return LogAndSetError(
-          error,
-          FROM_HERE,
-          "Reset not allowed in this state. Cancel the ongoing update first");
-  }
+  return true;
 }
 
 bool UpdateAttempterAndroid::VerifyPayloadParseManifest(
@@ -1316,6 +1317,15 @@ void UpdateAttempterAndroid::RemoveCleanupPreviousUpdateCallback(
                      [&](const auto& e) { return e.get() == callback; });
   cleanup_previous_update_callbacks_.erase(
       end_it, cleanup_previous_update_callbacks_.end());
+}
+
+bool UpdateAttempterAndroid::IsProductionBuild() {
+  if (android::base::GetProperty("ro.build.type", "") != "userdebug" ||
+      android::base::GetProperty("ro.build.tags", "") == "release-keys" ||
+      android::base::GetProperty("ro.boot.verifiedbootstate", "") == "green") {
+    return true;
+  }
+  return false;
 }
 
 }  // namespace chromeos_update_engine

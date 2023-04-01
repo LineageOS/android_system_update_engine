@@ -521,6 +521,9 @@ bool DeltaPerformer::Write(const void* bytes, size_t count, ErrorCode* error) {
                   << " is " << partition.estimate_cow_size();
       }
     }
+    if (install_plan_->disable_vabc) {
+      manifest_.mutable_dynamic_partition_metadata()->set_vabc_enabled(false);
+    }
     if (install_plan_->enable_threading) {
       manifest_.mutable_dynamic_partition_metadata()
           ->mutable_vabc_feature_set()
