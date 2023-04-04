@@ -151,7 +151,21 @@ void VABCPartitionWriterTest::EmitBlockTest(bool xor_enabled) {
   if (xor_enabled) {
     ON_CALL(dynamic_control_, GetVirtualAbCompressionXorFeatureFlag())
         .WillByDefault(Return(FeatureFlag(FeatureFlag::Value::LAUNCH)));
+  } else {
+    ON_CALL(dynamic_control_, GetVirtualAbCompressionXorFeatureFlag())
+        .WillByDefault(Return(FeatureFlag(FeatureFlag::Value::NONE)));
   }
+  InstallOperation& install_op = *partition_update_.add_operations();
+  install_op.set_type(InstallOperation::SOURCE_COPY);
+  *install_op.add_src_extents() = ExtentForRange(5, 1);
+  *install_op.add_src_extents() = ExtentForRange(10, 1);
+  *install_op.add_src_extents() = ExtentForRange(15, 2);
+  *install_op.add_src_extents() = ExtentForRange(20, 2);
+
+  *install_op.add_dst_extents() = ExtentForRange(10, 1);
+  *install_op.add_dst_extents() = ExtentForRange(15, 1);
+  *install_op.add_dst_extents() = ExtentForRange(20, 2);
+  *install_op.add_dst_extents() = ExtentForRange(25, 2);
   AddMergeOp(&partition_update_, {5, 1}, {10, 1}, CowMergeOperation::COW_COPY);
   AddMergeOp(&partition_update_, {10, 1}, {15, 1}, CowMergeOperation::COW_COPY);
   AddMergeOp(&partition_update_, {15, 2}, {20, 2}, CowMergeOperation::COW_COPY);
@@ -178,6 +192,8 @@ void VABCPartitionWriterTest::EmitBlockTest(bool xor_enabled) {
           EXPECT_CALL(*cow_writer, EmitCopy(20, 15, 2));
 
           EXPECT_CALL(*cow_writer, EmitCopy(25, 20, 1));
+          EXPECT_CALL(*cow_writer, EmitRawBlocks(26, _, 4096))
+              .WillOnce(Return(true));
           EXPECT_CALL(*cow_writer, Finalize());
         } else {
           Sequence s;
@@ -187,24 +203,13 @@ void VABCPartitionWriterTest::EmitBlockTest(bool xor_enabled) {
           EXPECT_CALL(*cow_writer, EmitCopy(20, 15, 2)).InSequence(s);
 
           EXPECT_CALL(*cow_writer, EmitCopy(25, 20, 1)).InSequence(s);
+          EXPECT_CALL(*cow_writer, EmitRawBlocks(26, _, 4096))
+              .InSequence(s)
+              .WillOnce(Return(true));
         }
         return cow_writer;
       }));
   ASSERT_TRUE(writer_.Init(&install_plan_, true, 0));
-  if (!xor_enabled) {
-    return;
-  }
-  InstallOperation install_op;
-  install_op.set_type(InstallOperation::SOURCE_COPY);
-  *install_op.add_src_extents() = ExtentForRange(5, 1);
-  *install_op.add_src_extents() = ExtentForRange(10, 1);
-  *install_op.add_src_extents() = ExtentForRange(15, 2);
-  *install_op.add_src_extents() = ExtentForRange(20, 1);
-
-  *install_op.add_dst_extents() = ExtentForRange(10, 1);
-  *install_op.add_dst_extents() = ExtentForRange(15, 1);
-  *install_op.add_dst_extents() = ExtentForRange(20, 2);
-  *install_op.add_dst_extents() = ExtentForRange(25, 1);
   ErrorCode error{};
   ASSERT_TRUE(writer_.PerformSourceCopyOperation(install_op, &error));
 }
