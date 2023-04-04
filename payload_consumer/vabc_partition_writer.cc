@@ -95,6 +95,8 @@ VABCPartitionWriter::VABCPartitionWriter(
     }
     copy_blocks_.AddExtent(cow_op.dst_extent());
   }
+  LOG(INFO) << "Partition `" << partition_update.partition_name() << " has "
+            << copy_blocks_.blocks() << " copy blocks";
 }
 
 bool VABCPartitionWriter::DoesDeviceSupportsXor() {
@@ -273,11 +275,6 @@ std::unique_ptr<ExtentWriter> VABCPartitionWriter::CreateBaseExtentWriter() {
   // we still want to verify that all blocks contain expected data.
   auto source_fd = verified_source_fd_.ChooseSourceFD(operation, error);
   TEST_AND_RETURN_FALSE(source_fd != nullptr);
-  // For devices not supporting XOR, sequence op is not supported, so all COPY
-  // operations are written up front in strict merge order.
-  if (!DoesDeviceSupportsXor()) {
-    return true;
-  }
   std::vector<CowOperation> converted;
 
   const auto& src_extents = operation.src_extents();
@@ -286,6 +283,9 @@ std::unique_ptr<ExtentWriter> VABCPartitionWriter::CreateBaseExtentWriter() {
   BlockIterator it2{dst_extents};
   const bool userSnapshots = android::base::GetBoolProperty(
       "ro.virtual_ab.userspace.snapshots.enabled", false);
+  // For devices not supporting XOR, sequence op is not supported, so all COPY
+  // operations are written up front in strict merge order.
+  const auto sequence_op_supported = DoesDeviceSupportsXor();
   while (!it1.is_end() && !it2.is_end()) {
     const auto src_block = *it1;
     const auto dst_block = *it2;
@@ -295,7 +295,9 @@ std::unique_ptr<ExtentWriter> VABCPartitionWriter::CreateBaseExtentWriter() {
       continue;
     }
     if (copy_blocks_.ContainsBlock(dst_block)) {
-      push_back(&converted, {CowOperation::CowCopy, src_block, dst_block, 1});
+      if (sequence_op_supported) {
+        push_back(&converted, {CowOperation::CowCopy, src_block, dst_block, 1});
+      }
     } else {
       push_back(&converted,
                 {CowOperation::CowReplace, src_block, dst_block, 1});
