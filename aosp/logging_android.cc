@@ -265,7 +265,7 @@ bool RedirectToLiblog(int severity,
   } else {
     // This will eventually be redirected to CombinedLogger.
     // Use nullptr as tag so that liblog infers log tag from getprogname().
-    if (file == nullptr || file[0] == 0 || line == 0) {
+    if (file == nullptr || file[0] == 0 || line == 0 || message_start != 0) {
       __android_log_write(priority, nullptr /* tag */, str.c_str());
     } else {
       __android_log_print(priority,
