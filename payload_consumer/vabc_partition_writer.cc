@@ -358,7 +358,11 @@ bool VABCPartitionWriter::PerformDiffOperation(
 
   std::unique_ptr<ExtentWriter> writer =
       IsXorEnabled() ? std::make_unique<XORExtentWriter>(
-                           operation, source_fd, cow_writer_.get(), xor_map_)
+                           operation,
+                           source_fd,
+                           cow_writer_.get(),
+                           xor_map_,
+                           partition_update_.old_partition_info().size())
                      : CreateBaseExtentWriter();
   return executor_.ExecuteDiffOperation(
       operation, std::move(writer), source_fd, data, count);
