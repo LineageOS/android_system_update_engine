@@ -18,6 +18,7 @@
 #include <string>
 #include <vector>
 
+#include <android-base/strings.h>
 #include <base/bind.h>
 #include <base/files/file_path.h>
 #include <base/files/file_util.h>
@@ -25,10 +26,10 @@
 #include <base/strings/string_number_conversions.h>
 #include <base/strings/string_split.h>
 #include <base/strings/string_util.h>
-#include <brillo/flag_helper.h>
 #include <brillo/key_value_store.h>
 #include <brillo/message_loops/base_message_loop.h>
 #include <xz.h>
+#include <gflags/gflags.h>
 
 #include "update_engine/common/download_action.h"
 #include "update_engine/common/fake_boot_control.h"
@@ -165,7 +166,7 @@ class ApplyPayloadProcessorDelegate : public ActionProcessorDelegate {
   void ProcessingStopped(const ActionProcessor* processor) override {
     brillo::MessageLoop::current()->BreakLoop();
   }
-  ErrorCode code_;
+  ErrorCode code_{};
 };
 
 // TODO(deymo): Move this function to a new file and make the delta_performer
@@ -303,7 +304,6 @@ bool ParsePerPartitionTimestamps(const string& partition_timestamps,
   return true;
 }
 
-int Main(int argc, char** argv) {
   DEFINE_string(old_image, "", "Path to the old rootfs");
   DEFINE_string(new_image, "", "Path to the new rootfs");
   DEFINE_string(old_kernel, "", "Path to the old kernel partition image");
@@ -453,14 +453,17 @@ int Main(int argc, char** argv) {
                 "",
                 "Compression parameter passed to mkfs.erofs's -z option. "
                 "Example: lz4 lz4hc,9");
-
-  brillo::FlagHelper::Init(
-      argc,
-      argv,
+  int Main(int argc, char** argv) {
+  gflags::SetUsageMessage(
       "Generates a payload to provide to ChromeOS' update_engine.\n\n"
       "This tool can create full payloads and also delta payloads if the src\n"
       "image is provided. It also provides debugging options to apply, sign\n"
       "and verify payloads.");
+  gflags::ParseCommandLineFlags(&argc, &argv, true);
+  CHECK_EQ(argc, 1) << " Unused args: "
+                    << android::base::Join(
+                           std::vector<char*>(argv + 1, argv + argc), " ");
+
   Terminator::Init();
 
   logging::LoggingSettings log_settings;
@@ -770,7 +773,7 @@ int Main(int argc, char** argv) {
                            metadata_size_string.size()));
   }
   return 0;
-}
+  }
 
 }  // namespace
 
