@@ -22,7 +22,6 @@
 #include <ApexProperties.sysprop.h>
 
 #include "update_engine/aosp/apex_handler_android.h"
-#include "update_engine/common/utils.h"
 
 namespace chromeos_update_engine {
 

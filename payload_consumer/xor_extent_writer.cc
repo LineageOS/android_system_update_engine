@@ -64,6 +64,23 @@ bool XORExtentWriter::WriteExtent(const void* bytes,
     const auto src_block = merge_op->src_extent().start_block() +
                            xor_ext.start_block() -
                            merge_op->dst_extent().start_block();
+    const auto i = xor_ext.start_block() - extent.start_block();
+    const auto dst_block_data =
+        static_cast<const unsigned char*>(bytes) + i * BlockSize();
+    const auto is_out_of_bound_read =
+        (src_block + xor_ext.num_blocks()) * BlockSize() + src_offset >
+            partition_size_ &&
+        partition_size_ != 0;
+    if (is_out_of_bound_read) {
+      LOG(INFO) << "Getting partial read for last block, converting "
+                   "XOR operation to a regular replace "
+                << xor_ext;
+      TEST_AND_RETURN_FALSE(
+          cow_writer_->AddRawBlocks(xor_ext.start_block(),
+                                    dst_block_data,
+                                    xor_ext.num_blocks() * BlockSize()));
+      continue;
+    }
     xor_block_data.resize(BlockSize() * xor_ext.num_blocks());
     ssize_t bytes_read = 0;
     TEST_AND_RETURN_FALSE_ERRNO(
@@ -73,14 +90,12 @@ bool XORExtentWriter::WriteExtent(const void* bytes,
                         src_offset + src_block * BlockSize(),
                         &bytes_read));
     if (bytes_read != static_cast<ssize_t>(xor_block_data.size())) {
-      LOG(ERROR) << "bytes_read: " << bytes_read;
+      LOG(ERROR) << "bytes_read: " << bytes_read << ", expected to read "
+                 << xor_block_data.size() << " at block " << src_block
+                 << " offset " << src_offset;
       return false;
     }
 
-    const auto i = xor_ext.start_block() - extent.start_block();
-
-    const auto dst_block_data =
-        static_cast<const unsigned char*>(bytes) + i * BlockSize();
     std::transform(xor_block_data.cbegin(),
                    xor_block_data.cbegin() + xor_block_data.size(),
                    dst_block_data,
