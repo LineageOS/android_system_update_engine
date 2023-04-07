@@ -14,6 +14,7 @@
 // limitations under the License.
 //
 
+#include <cstring>
 #include <map>
 #include <string>
 #include <vector>
@@ -28,6 +29,7 @@
 #include <base/strings/string_util.h>
 #include <brillo/key_value_store.h>
 #include <brillo/message_loops/base_message_loop.h>
+#include <unistd.h>
 #include <xz.h>
 #include <gflags/gflags.h>
 
@@ -304,156 +306,186 @@ bool ParsePerPartitionTimestamps(const string& partition_timestamps,
   return true;
 }
 
-  DEFINE_string(old_image, "", "Path to the old rootfs");
-  DEFINE_string(new_image, "", "Path to the new rootfs");
-  DEFINE_string(old_kernel, "", "Path to the old kernel partition image");
-  DEFINE_string(new_kernel, "", "Path to the new kernel partition image");
-  DEFINE_string(old_partitions,
-                "",
-                "Path to the old partitions. To pass multiple partitions, use "
-                "a single argument with a colon between paths, e.g. "
-                "/path/to/part:/path/to/part2::/path/to/last_part . Path can "
-                "be empty, but it has to match the order of partition_names.");
-  DEFINE_string(new_partitions,
-                "",
-                "Path to the new partitions. To pass multiple partitions, use "
-                "a single argument with a colon between paths, e.g. "
-                "/path/to/part:/path/to/part2:/path/to/last_part . Path has "
-                "to match the order of partition_names.");
-  DEFINE_string(old_mapfiles,
-                "",
-                "Path to the .map files associated with the partition files "
-                "in the old partition. The .map file is normally generated "
-                "when creating the image in Android builds. Only recommended "
-                "for unsupported filesystem. Pass multiple files separated by "
-                "a colon as with -old_partitions.");
-  DEFINE_string(new_mapfiles,
-                "",
-                "Path to the .map files associated with the partition files "
-                "in the new partition, similar to the -old_mapfiles flag.");
-  DEFINE_string(partition_names,
-                string(kPartitionNameRoot) + ":" + kPartitionNameKernel,
-                "Names of the partitions. To pass multiple names, use a single "
-                "argument with a colon between names, e.g. "
-                "name:name2:name3:last_name . Name can not be empty, and it "
-                "has to match the order of partitions.");
-  DEFINE_string(in_file,
-                "",
-                "Path to input delta payload file used to hash/sign payloads "
-                "and apply delta over old_image (for debugging)");
-  DEFINE_string(out_file, "", "Path to output delta payload file");
-  DEFINE_string(out_hash_file, "", "Path to output hash file");
-  DEFINE_string(
-      out_metadata_hash_file, "", "Path to output metadata hash file");
-  DEFINE_string(
-      out_metadata_size_file, "", "Path to output metadata size file");
-  DEFINE_string(private_key, "", "Path to private key in .pem format");
-  DEFINE_string(public_key, "", "Path to public key in .pem format");
-  DEFINE_int32(
-      public_key_version, -1, "DEPRECATED. Key-check version # of client");
-  DEFINE_string(signature_size,
-                "",
-                "Raw signature size used for hash calculation. "
-                "You may pass in multiple sizes by colon separating them. E.g. "
-                "2048:2048:4096 will assume 3 signatures, the first two with "
-                "2048 size and the last 4096.");
-  DEFINE_string(payload_signature_file,
-                "",
-                "Raw signature file to sign payload with. To pass multiple "
-                "signatures, use a single argument with a colon between paths, "
-                "e.g. /path/to/sig:/path/to/next:/path/to/last_sig . Each "
-                "signature will be assigned a client version, starting from "
-                "kSignatureOriginalVersion.");
-  DEFINE_string(metadata_signature_file,
-                "",
-                "Raw signature file with the signature of the metadata hash. "
-                "To pass multiple signatures, use a single argument with a "
-                "colon between paths, "
-                "e.g. /path/to/sig:/path/to/next:/path/to/last_sig .");
-  DEFINE_int32(
-      chunk_size, 200 * 1024 * 1024, "Payload chunk size (-1 for whole files)");
-  DEFINE_uint64(rootfs_partition_size,
-                chromeos_update_engine::kRootFSPartitionSize,
-                "RootFS partition size for the image once installed");
-  DEFINE_uint64(
-      major_version, 2, "The major version of the payload being generated.");
-  DEFINE_int32(minor_version,
-               -1,
-               "The minor version of the payload being generated "
-               "(-1 means autodetect).");
-  DEFINE_string(properties_file,
-                "",
-                "If passed, dumps the payload properties of the payload passed "
-                "in --in_file and exits. Look at --properties_format.");
-  DEFINE_string(properties_format,
-                kPayloadPropertiesFormatKeyValue,
-                "Defines the format of the --properties_file. The acceptable "
-                "values are: key-value (default) and json");
-  DEFINE_int64(max_timestamp,
-               0,
-               "The maximum timestamp of the OS allowed to apply this "
-               "payload.");
-  DEFINE_string(
-      security_patch_level,
-      "",
-      "The security patch level of this OTA. Devices with a newer SPL "
-      "will not be allowed to apply this payload");
-  DEFINE_string(
-      partition_timestamps,
-      "",
-      "The per-partition maximum timestamps which the OS allowed to apply this "
-      "payload. Passed in comma separated pairs, e.x. system:1234,vendor:5678");
+DEFINE_string(old_image, "", "Path to the old rootfs");
+DEFINE_string(new_image, "", "Path to the new rootfs");
+DEFINE_string(old_kernel, "", "Path to the old kernel partition image");
+DEFINE_string(new_kernel, "", "Path to the new kernel partition image");
+DEFINE_string(old_partitions,
+              "",
+              "Path to the old partitions. To pass multiple partitions, use "
+              "a single argument with a colon between paths, e.g. "
+              "/path/to/part:/path/to/part2::/path/to/last_part . Path can "
+              "be empty, but it has to match the order of partition_names.");
+DEFINE_string(new_partitions,
+              "",
+              "Path to the new partitions. To pass multiple partitions, use "
+              "a single argument with a colon between paths, e.g. "
+              "/path/to/part:/path/to/part2:/path/to/last_part . Path has "
+              "to match the order of partition_names.");
+DEFINE_string(old_mapfiles,
+              "",
+              "Path to the .map files associated with the partition files "
+              "in the old partition. The .map file is normally generated "
+              "when creating the image in Android builds. Only recommended "
+              "for unsupported filesystem. Pass multiple files separated by "
+              "a colon as with -old_partitions.");
+DEFINE_string(new_mapfiles,
+              "",
+              "Path to the .map files associated with the partition files "
+              "in the new partition, similar to the -old_mapfiles flag.");
+DEFINE_string(partition_names,
+              string(kPartitionNameRoot) + ":" + kPartitionNameKernel,
+              "Names of the partitions. To pass multiple names, use a single "
+              "argument with a colon between names, e.g. "
+              "name:name2:name3:last_name . Name can not be empty, and it "
+              "has to match the order of partitions.");
+DEFINE_string(in_file,
+              "",
+              "Path to input delta payload file used to hash/sign payloads "
+              "and apply delta over old_image (for debugging)");
+DEFINE_string(out_file, "", "Path to output delta payload file");
+DEFINE_string(out_hash_file, "", "Path to output hash file");
+DEFINE_string(out_metadata_hash_file, "", "Path to output metadata hash file");
+DEFINE_string(out_metadata_size_file, "", "Path to output metadata size file");
+DEFINE_string(private_key, "", "Path to private key in .pem format");
+DEFINE_string(public_key, "", "Path to public key in .pem format");
+DEFINE_int32(public_key_version,
+             -1,
+             "DEPRECATED. Key-check version # of client");
+DEFINE_string(signature_size,
+              "",
+              "Raw signature size used for hash calculation. "
+              "You may pass in multiple sizes by colon separating them. E.g. "
+              "2048:2048:4096 will assume 3 signatures, the first two with "
+              "2048 size and the last 4096.");
+DEFINE_string(payload_signature_file,
+              "",
+              "Raw signature file to sign payload with. To pass multiple "
+              "signatures, use a single argument with a colon between paths, "
+              "e.g. /path/to/sig:/path/to/next:/path/to/last_sig . Each "
+              "signature will be assigned a client version, starting from "
+              "kSignatureOriginalVersion.");
+DEFINE_string(metadata_signature_file,
+              "",
+              "Raw signature file with the signature of the metadata hash. "
+              "To pass multiple signatures, use a single argument with a "
+              "colon between paths, "
+              "e.g. /path/to/sig:/path/to/next:/path/to/last_sig .");
+DEFINE_int32(chunk_size,
+             200 * 1024 * 1024,
+             "Payload chunk size (-1 for whole files)");
+DEFINE_uint64(rootfs_partition_size,
+              chromeos_update_engine::kRootFSPartitionSize,
+              "RootFS partition size for the image once installed");
+DEFINE_uint64(major_version,
+              2,
+              "The major version of the payload being generated.");
+DEFINE_int32(minor_version,
+             -1,
+             "The minor version of the payload being generated "
+             "(-1 means autodetect).");
+DEFINE_string(properties_file,
+              "",
+              "If passed, dumps the payload properties of the payload passed "
+              "in --in_file and exits. Look at --properties_format.");
+DEFINE_string(properties_format,
+              kPayloadPropertiesFormatKeyValue,
+              "Defines the format of the --properties_file. The acceptable "
+              "values are: key-value (default) and json");
+DEFINE_int64(max_timestamp,
+             0,
+             "The maximum timestamp of the OS allowed to apply this "
+             "payload.");
+DEFINE_string(security_patch_level,
+              "",
+              "The security patch level of this OTA. Devices with a newer SPL "
+              "will not be allowed to apply this payload");
+DEFINE_string(
+    partition_timestamps,
+    "",
+    "The per-partition maximum timestamps which the OS allowed to apply this "
+    "payload. Passed in comma separated pairs, e.x. system:1234,vendor:5678");
 
-  DEFINE_string(new_postinstall_config_file,
-                "",
-                "A config file specifying postinstall related metadata. "
-                "Only allowed in major version 2 or newer.");
-  DEFINE_string(dynamic_partition_info_file,
-                "",
-                "An info file specifying dynamic partition metadata. "
-                "Only allowed in major version 2 or newer.");
-  DEFINE_bool(disable_fec_computation,
-              false,
-              "Disables the fec data computation on device.");
-  DEFINE_bool(disable_verity_computation,
-              false,
-              "Disables the verity data computation on device.");
-  DEFINE_string(
-      out_maximum_signature_size_file,
-      "",
-      "Path to the output maximum signature size given a private key.");
-  DEFINE_bool(is_partial_update,
-              false,
-              "The payload only targets a subset of partitions on the device,"
-              "e.g. generic kernel image update.");
-  DEFINE_bool(
-      disable_vabc,
-      false,
-      "Whether to disable Virtual AB Compression when installing the OTA");
-  DEFINE_bool(enable_vabc_xor,
-              false,
-              "Whether to use Virtual AB Compression XOR feature");
-  DEFINE_string(
-      apex_info_file, "", "Path to META/apex_info.pb found in target build");
-  DEFINE_string(compressor_types,
-                "bz2:brotli",
-                "Colon ':' separated list of compressors. Allowed valures are "
-                "bz2 and brotli.");
-  DEFINE_bool(
-      enable_lz4diff,
-      false,
-      "Whether to enable LZ4diff feature when processing EROFS images.");
+DEFINE_string(new_postinstall_config_file,
+              "",
+              "A config file specifying postinstall related metadata. "
+              "Only allowed in major version 2 or newer.");
+DEFINE_string(dynamic_partition_info_file,
+              "",
+              "An info file specifying dynamic partition metadata. "
+              "Only allowed in major version 2 or newer.");
+DEFINE_bool(disable_fec_computation,
+            false,
+            "Disables the fec data computation on device.");
+DEFINE_bool(disable_verity_computation,
+            false,
+            "Disables the verity data computation on device.");
+DEFINE_string(out_maximum_signature_size_file,
+              "",
+              "Path to the output maximum signature size given a private key.");
+DEFINE_bool(is_partial_update,
+            false,
+            "The payload only targets a subset of partitions on the device,"
+            "e.g. generic kernel image update.");
+DEFINE_bool(
+    disable_vabc,
+    false,
+    "Whether to disable Virtual AB Compression when installing the OTA");
+DEFINE_bool(enable_vabc_xor,
+            false,
+            "Whether to use Virtual AB Compression XOR feature");
+DEFINE_string(apex_info_file,
+              "",
+              "Path to META/apex_info.pb found in target build");
+DEFINE_string(compressor_types,
+              "bz2:brotli",
+              "Colon ':' separated list of compressors. Allowed valures are "
+              "bz2 and brotli.");
+DEFINE_bool(enable_lz4diff,
+            false,
+            "Whether to enable LZ4diff feature when processing EROFS images.");
 
-  DEFINE_bool(
-      enable_zucchini,
-      true,
-      "Whether to enable zucchini feature when processing executable files.");
+DEFINE_bool(
+    enable_zucchini,
+    true,
+    "Whether to enable zucchini feature when processing executable files.");
 
-  DEFINE_string(erofs_compression_param,
-                "",
-                "Compression parameter passed to mkfs.erofs's -z option. "
-                "Example: lz4 lz4hc,9");
-  int Main(int argc, char** argv) {
+DEFINE_string(erofs_compression_param,
+              "",
+              "Compression parameter passed to mkfs.erofs's -z option. "
+              "Example: lz4 lz4hc,9");
+
+void RoundDownPartitions(const ImageConfig& config) {
+  for (const auto& part : config.partitions) {
+    if (part.path.empty()) {
+      continue;
+    }
+    const auto size = utils::FileSize(part.path);
+    if (size % kBlockSize != 0) {
+      const auto err =
+          truncate(part.path.c_str(), size / kBlockSize * kBlockSize);
+      CHECK_EQ(err, 0) << "Failed to truncate " << part.path << ", error "
+                       << strerror(errno);
+    }
+  }
+}
+
+void RoundUpPartitions(const ImageConfig& config) {
+  for (const auto& part : config.partitions) {
+    if (part.path.empty()) {
+      continue;
+    }
+    const auto size = utils::FileSize(part.path);
+    if (size % kBlockSize != 0) {
+      const auto err = truncate(
+          part.path.c_str(), (size + kBlockSize - 1) / kBlockSize * kBlockSize);
+      CHECK_EQ(err, 0) << "Failed to truncate " << part.path << ", error "
+                       << strerror(errno);
+    }
+  }
+}
+
+int Main(int argc, char** argv) {
   gflags::SetUsageMessage(
       "Generates a payload to provide to ChromeOS' update_engine.\n\n"
       "This tool can create full payloads and also delta payloads if the src\n"
@@ -656,8 +688,10 @@ bool ParsePerPartitionTimestamps(const string& partition_timestamps,
   // The partition size is never passed to the delta_generator, so we
   // need to detect those from the provided files.
   if (payload_config.is_delta) {
+    RoundDownPartitions(payload_config.source);
     CHECK(payload_config.source.LoadImageSize());
   }
+  RoundUpPartitions(payload_config.target);
   CHECK(payload_config.target.LoadImageSize());
 
   if (!FLAGS_dynamic_partition_info_file.empty()) {
@@ -773,7 +807,7 @@ bool ParsePerPartitionTimestamps(const string& partition_timestamps,
                            metadata_size_string.size()));
   }
   return 0;
-  }
+}
 
 }  // namespace
 
