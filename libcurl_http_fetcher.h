@@ -82,7 +82,7 @@ class UnresolvedHostStateMachine {
 
 class LibcurlHttpFetcher : public HttpFetcher {
  public:
-  LibcurlHttpFetcher(HardwareInterface* hardware);
+  explicit LibcurlHttpFetcher(HardwareInterface* hardware);
 
   // Cleans up all internal state. Does not notify delegate
   ~LibcurlHttpFetcher() override;
