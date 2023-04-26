@@ -677,6 +677,10 @@ bool DeltaReadPartition(vector<AnnotatedOperation>* aops,
 
   size_t max_threads = GetMaxThreads();
 
+  if (config.max_threads > 0) {
+    max_threads = config.max_threads;
+  }
+
   // Sort the files in descending order based on number of new blocks to make
   // sure we start the largest ones first.
   if (file_delta_processors.size() > max_threads) {
