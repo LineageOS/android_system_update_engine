@@ -221,8 +221,14 @@ class UpdateAttempterAndroid
   // Helper of public VerifyPayloadApplicable. Return the parsed manifest in
   // |manifest|.
   static bool VerifyPayloadParseManifest(const std::string& metadata_filename,
+                                         std::string_view metadata_hash,
                                          DeltaArchiveManifest* manifest,
                                          brillo::ErrorPtr* error);
+  static bool VerifyPayloadParseManifest(const std::string& metadata_filename,
+                                         DeltaArchiveManifest* manifest,
+                                         brillo::ErrorPtr* error) {
+    return VerifyPayloadParseManifest(metadata_filename, "", manifest, error);
+  }
 
   // Enqueue and run a CleanupPreviousUpdateAction.
   void ScheduleCleanupPreviousUpdate();
