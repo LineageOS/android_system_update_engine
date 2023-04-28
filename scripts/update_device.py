@@ -517,10 +517,12 @@ def main():
 
   metadata_path = "/data/ota_package/metadata"
   if args.allocate_only:
+    with zipfile.ZipFile(args.otafile, "r") as zfp:
+      headers = zfp.read("payload_properties.txt").decode()
     if PushMetadata(dut, args.otafile, metadata_path):
       dut.adb([
           "shell", "update_engine_client", "--allocate",
-          "--metadata={}".format(metadata_path)])
+          "--metadata={} --headers='{}'".format(metadata_path, headers)])
     # Return 0, as we are executing ADB commands here, no work needed after
     # this point
     return 0
