@@ -464,8 +464,19 @@ bool UpdateAttempterAndroid::ResetStatus(brillo::ErrorPtr* error) {
   return true;
 }
 
+bool operator==(const std::vector<unsigned char>& a, std::string_view b) {
+  if (a.size() != b.size()) {
+    return false;
+  }
+  return memcmp(a.data(), b.data(), a.size()) == 0;
+}
+bool operator!=(const std::vector<unsigned char>& a, std::string_view b) {
+  return !(a == b);
+}
+
 bool UpdateAttempterAndroid::VerifyPayloadParseManifest(
     const std::string& metadata_filename,
+    std::string_view expected_metadata_hash,
     DeltaArchiveManifest* manifest,
     brillo::ErrorPtr* error) {
   FileDescriptorPtr fd(new EintrSafeFileDescriptor);
@@ -508,6 +519,21 @@ bool UpdateAttempterAndroid::VerifyPayloadParseManifest(
         "Failed to read metadata and signature from " + metadata_filename);
   }
   fd->Close();
+  if (!expected_metadata_hash.empty()) {
+    brillo::Blob metadata_hash;
+    TEST_AND_RETURN_FALSE(HashCalculator::RawHashOfBytes(
+        metadata.data(), payload_metadata.GetMetadataSize(), &metadata_hash));
+    if (metadata_hash != expected_metadata_hash) {
+      return LogAndSetError(error,
+                            FROM_HERE,
+                            "Metadata hash mismatch. Expected hash: " +
+                                HexEncode(expected_metadata_hash) +
+                                " actual hash: " + HexEncode(metadata_hash));
+    } else {
+      LOG(INFO) << "Payload metadata hash check passed : "
+                << HexEncode(metadata_hash);
+    }
+  }
 
   auto payload_verifier = PayloadVerifier::CreateInstanceFromZipPath(
       constants::kUpdateCertificatesPath);
@@ -1097,12 +1123,18 @@ uint64_t UpdateAttempterAndroid::AllocateSpaceForPayload(
     const std::string& metadata_filename,
     const vector<string>& key_value_pair_headers,
     brillo::ErrorPtr* error) {
-  DeltaArchiveManifest manifest;
-  if (!VerifyPayloadParseManifest(metadata_filename, &manifest, error)) {
-    return 0;
-  }
   std::map<string, string> headers;
   if (!ParseKeyValuePairHeaders(key_value_pair_headers, &headers, error)) {
+    return 0;
+  }
+  DeltaArchiveManifest manifest;
+  brillo::Blob metadata_hash;
+  if (!brillo::data_encoding::Base64Decode(
+          headers[kPayloadPropertyMetadataHash], &metadata_hash)) {
+    metadata_hash.clear();
+  }
+  if (!VerifyPayloadParseManifest(
+          metadata_filename, ToStringView(metadata_hash), &manifest, error)) {
     return 0;
   }
 
