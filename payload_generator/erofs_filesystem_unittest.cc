@@ -102,11 +102,11 @@ TEST_F(ErofsFilesystemTest, ParseGeneratedImages) {
       "/dir1/dir2/file4",
       "/dir1/file0",
       "/dir1/file2",
+      "/etc/update_engine.conf",
       "/file1",
       // Files < 4K are stored inline, and therefore ignored, as they are often
       // stored not on block boundary.
-      // "/generate_test_erofs_images.sh"
-  };
+      "/generate_test_erofs_images.sh"};
   ASSERT_EQ(filenames, expected_filenames);
   const auto delta_generator = files[0];
   ASSERT_GT(delta_generator.compressed_file_info.blocks.size(), 0UL);
