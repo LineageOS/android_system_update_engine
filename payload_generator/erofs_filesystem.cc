@@ -28,7 +28,6 @@
 #include "erofs_iterate.h"
 #include "lz4diff/lz4diff.pb.h"
 #include "lz4diff/lz4patch.h"
-#include "lz4diff/lz4diff.h"
 #include "update_engine/common/utils.h"
 #include "update_engine/payload_generator/delta_diff_generator.h"
 #include "update_engine/payload_generator/extent_ranges.h"
@@ -78,7 +77,8 @@ static constexpr bool IsBlockCompressed(const struct erofs_map_blocks& block) {
 
 static void FillExtentInfo(FilesystemInterface::File* p_file,
                            std::string_view image_filename,
-                           struct erofs_inode* inode) {
+                           struct erofs_inode* inode,
+                           size_t* const unaligned_bytes) {
   auto& file = *p_file;
 
   struct erofs_map_blocks block {};
@@ -88,9 +88,11 @@ static void FillExtentInfo(FilesystemInterface::File* p_file,
   auto& compressed_blocks = file.compressed_file_info.blocks;
   auto last_pa = block.m_pa;
   auto last_plen = 0;
-  LOG(INFO) << file.name << ", isize: " << inode->i_size;
   while (block.m_la < inode->i_size) {
     auto error = ErofsMapBlocks(inode, &block, EROFS_GET_BLOCKS_FIEMAP);
+    DEFER {
+      block.m_la += block.m_llen;
+    };
     if (error) {
       LOG(FATAL) << "Failed to map blocks for " << file.name << " in "
                  << image_filename;
@@ -105,9 +107,10 @@ static void FillExtentInfo(FilesystemInterface::File* p_file,
                    << "` has unaligned blocks: at physical byte offset: "
                    << block.m_pa << ", "
                    << " length: " << block.m_plen
-                   << ", logical offset: " << block.m_la;
+                   << ", logical offset: " << block.m_la << ", remaining data: "
+                   << inode->i_size - (block.m_la + block.m_llen);
       }
-      break;
+      (*unaligned_bytes) += block.m_plen;
     }
     // Certain uncompressed blocks have physical size > logical size. Usually
     // the physical block contains bunch of trailing zeros. Include thees
@@ -140,11 +143,11 @@ static void FillExtentInfo(FilesystemInterface::File* p_file,
             CompressedBlock(block.m_la, block.m_plen, block.m_llen));
       }
     }
-
-    block.m_la += block.m_llen;
   }
-  file.extents.push_back(ExtentForRange(
-      last_pa / kBlockSize, utils::DivRoundUp(last_plen, kBlockSize)));
+  if (last_plen != 0) {
+    file.extents.push_back(ExtentForRange(
+        last_pa / kBlockSize, utils::DivRoundUp(last_plen, kBlockSize)));
+  }
   return;
 }
 
@@ -203,6 +206,7 @@ bool ErofsFilesystem::GetFiles(std::vector<File>* files) const {
 bool ErofsFilesystem::GetFiles(const std::string& filename,
                                std::vector<File>* files,
                                const CompressionAlgorithm& algo) {
+  size_t unaligned_bytes = 0;
   erofs_iterate_root_dir(&sbi, [&](struct erofs_iterate_dir_context* p_info) {
     const auto& info = *p_info;
     if (info.ctx.de_ftype != EROFS_FT_REG_FILE) {
@@ -225,14 +229,10 @@ bool ErofsFilesystem::GetFiles(const std::string& filename,
       LOG(FATAL) << "Failed to get occupied size for " << filename;
       return err;
     }
-    // If data is packed inline, likely this node is stored on block unalighed
-    // addresses. OTA doesn't work for non-block aligned files. All blocks not
-    // reported by |GetFiles| will be updated in 1 operation. Ignore inline
-    // files for now.
-    // TODO(b/206729162) Support un-aligned files.
-    if (inode.datalayout == EROFS_INODE_FLAT_INLINE) {
-      return 0;
-    }
+    // For EROFS_INODE_FLAT_INLINE , most blocks are stored on aligned
+    // addresses. Except the last block, which is stored right after the
+    // inode. These nodes will have a slight amount of data unaligned, which
+    // is fine.
 
     File file;
     file.name = info.path;
@@ -242,7 +242,7 @@ bool ErofsFilesystem::GetFiles(const std::string& filename,
 
     file.file_stat.st_size = uncompressed_size;
     file.file_stat.st_ino = inode.nid;
-    FillExtentInfo(&file, filename, &inode);
+    FillExtentInfo(&file, filename, &inode, &unaligned_bytes);
     file.compressed_file_info.algo = algo;
 
     files->emplace_back(std::move(file));
@@ -252,6 +252,11 @@ bool ErofsFilesystem::GetFiles(const std::string& filename,
   for (auto& file : *files) {
     NormalizeExtents(&file.extents);
   }
+  LOG(INFO) << "EROFS image " << filename << " has " << unaligned_bytes
+            << " unaligned bytes, which is "
+            << static_cast<float>(unaligned_bytes) / utils::FileSize(filename) *
+                   100.0f
+            << "% of partition data";
   return true;
 }
 
