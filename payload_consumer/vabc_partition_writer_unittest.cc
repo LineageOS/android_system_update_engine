@@ -57,7 +57,7 @@ class VABCPartitionWriterTest : public ::testing::Test {
   }
 
  protected:
-  void EmitBlockTest(bool xor_enabled);
+  void AddBlockTest(bool xor_enabled);
   CowMergeOperation* AddMergeOp(PartitionUpdate* partition,
                                 std::array<size_t, 2> src_extent,
                                 std::array<size_t, 2> dst_extent,
@@ -75,7 +75,7 @@ class VABCPartitionWriterTest : public ::testing::Test {
 
   android::snapshot::CowOptions options_ = {
       .block_size = static_cast<uint32_t>(kBlockSize)};
-  android::snapshot::MockSnapshotWriter cow_writer_{options_};
+  android::snapshot::MockSnapshotWriter cow_writer_;
   MockDynamicPartitionControl dynamic_control_;
   PartitionUpdate partition_update_;
   InstallPlan install_plan_;
@@ -98,15 +98,14 @@ TEST_F(VABCPartitionWriterTest, MergeSequenceWriteTest) {
                           const std::optional<std::string>&,
                           bool) {
         auto cow_writer =
-            std::make_unique<android::snapshot::MockSnapshotWriter>(
-                android::snapshot::CowOptions{});
+            std::make_unique<android::snapshot::MockSnapshotWriter>();
         auto expected_merge_sequence = {10, 14, 13, 20, 25, 40, 41, 42, 43, 44};
         EXPECT_CALL(*cow_writer, Initialize()).WillOnce(Return(true));
-        EXPECT_CALL(*cow_writer, EmitSequenceData(_, _))
+        EXPECT_CALL(*cow_writer, AddSequenceData(_, _))
             .With(Args<1, 0>(ElementsAreArray(expected_merge_sequence)))
             .WillOnce(Return(true));
-        ON_CALL(*cow_writer, EmitCopy(_, _, _)).WillByDefault(Return(true));
-        ON_CALL(*cow_writer, EmitLabel(_)).WillByDefault(Return(true));
+        ON_CALL(*cow_writer, AddCopy(_, _, _)).WillByDefault(Return(true));
+        ON_CALL(*cow_writer, AddLabel(_)).WillByDefault(Return(true));
         return cow_writer;
       }));
   EXPECT_CALL(dynamic_control_, GetVirtualAbCompressionXorFeatureFlag())
@@ -123,15 +122,14 @@ TEST_F(VABCPartitionWriterTest, MergeSequenceXorSameBlock) {
       .WillOnce(Invoke(
           [](const std::string&, const std::optional<std::string>&, bool) {
             auto cow_writer =
-                std::make_unique<android::snapshot::MockSnapshotWriter>(
-                    android::snapshot::CowOptions{});
+                std::make_unique<android::snapshot::MockSnapshotWriter>();
             auto expected_merge_sequence = {19, 20, 21};
             EXPECT_CALL(*cow_writer, Initialize()).WillOnce(Return(true));
-            EXPECT_CALL(*cow_writer, EmitSequenceData(_, _))
+            EXPECT_CALL(*cow_writer, AddSequenceData(_, _))
                 .With(Args<1, 0>(ElementsAreArray(expected_merge_sequence)))
                 .WillOnce(Return(true));
-            ON_CALL(*cow_writer, EmitCopy(_, _, _)).WillByDefault(Return(true));
-            ON_CALL(*cow_writer, EmitLabel(_)).WillByDefault(Return(true));
+            ON_CALL(*cow_writer, AddCopy(_, _, _)).WillByDefault(Return(true));
+            ON_CALL(*cow_writer, AddLabel(_)).WillByDefault(Return(true));
             return cow_writer;
           }));
   EXPECT_CALL(dynamic_control_, GetVirtualAbCompressionXorFeatureFlag())
@@ -139,15 +137,15 @@ TEST_F(VABCPartitionWriterTest, MergeSequenceXorSameBlock) {
   ASSERT_TRUE(writer_.Init(&install_plan_, true, 0));
 }
 
-TEST_F(VABCPartitionWriterTest, EmitBlockTestXor) {
-  return EmitBlockTest(true);
+TEST_F(VABCPartitionWriterTest, AddBlockTestXor) {
+  return AddBlockTest(true);
 }
 
-TEST_F(VABCPartitionWriterTest, EmitBlockTestNoXor) {
-  return EmitBlockTest(false);
+TEST_F(VABCPartitionWriterTest, AddBlockTestNoXor) {
+  return AddBlockTest(false);
 }
 
-void VABCPartitionWriterTest::EmitBlockTest(bool xor_enabled) {
+void VABCPartitionWriterTest::AddBlockTest(bool xor_enabled) {
   if (xor_enabled) {
     ON_CALL(dynamic_control_, GetVirtualAbCompressionXorFeatureFlag())
         .WillByDefault(Return(FeatureFlag(FeatureFlag::Value::LAUNCH)));
@@ -177,33 +175,32 @@ void VABCPartitionWriterTest::EmitBlockTest(bool xor_enabled) {
                                      const std::optional<std::string>&,
                                      bool) {
         auto cow_writer =
-            std::make_unique<android::snapshot::MockSnapshotWriter>(
-                android::snapshot::CowOptions{});
-        ON_CALL(*cow_writer, EmitCopy(_, _, _)).WillByDefault(Return(true));
-        ON_CALL(*cow_writer, EmitLabel(_)).WillByDefault(Return(true));
+            std::make_unique<android::snapshot::MockSnapshotWriter>();
+        ON_CALL(*cow_writer, AddCopy(_, _, _)).WillByDefault(Return(true));
+        ON_CALL(*cow_writer, AddLabel(_)).WillByDefault(Return(true));
         ON_CALL(*cow_writer, Initialize()).WillByDefault(Return(true));
         EXPECT_CALL(*cow_writer, Initialize());
         if (xor_enabled) {
-          EXPECT_CALL(*cow_writer, EmitSequenceData(_, _))
+          EXPECT_CALL(*cow_writer, AddSequenceData(_, _))
               .WillOnce(Return(true));
-          EXPECT_CALL(*cow_writer, EmitCopy(10, 5, 1));
-          EXPECT_CALL(*cow_writer, EmitCopy(15, 10, 1));
+          EXPECT_CALL(*cow_writer, AddCopy(10, 5, 1));
+          EXPECT_CALL(*cow_writer, AddCopy(15, 10, 1));
           // libsnapshot want blocks in reverser order, so 21 goes before 20
-          EXPECT_CALL(*cow_writer, EmitCopy(20, 15, 2));
+          EXPECT_CALL(*cow_writer, AddCopy(20, 15, 2));
 
-          EXPECT_CALL(*cow_writer, EmitCopy(25, 20, 1));
-          EXPECT_CALL(*cow_writer, EmitRawBlocks(26, _, 4096))
+          EXPECT_CALL(*cow_writer, AddCopy(25, 20, 1));
+          EXPECT_CALL(*cow_writer, AddRawBlocks(26, _, 4096))
               .WillOnce(Return(true));
           EXPECT_CALL(*cow_writer, Finalize());
         } else {
           Sequence s;
-          EXPECT_CALL(*cow_writer, EmitCopy(10, 5, 1)).InSequence(s);
-          EXPECT_CALL(*cow_writer, EmitCopy(15, 10, 1)).InSequence(s);
+          EXPECT_CALL(*cow_writer, AddCopy(10, 5, 1)).InSequence(s);
+          EXPECT_CALL(*cow_writer, AddCopy(15, 10, 1)).InSequence(s);
           // libsnapshot want blocks in reverser order, so 21 goes before 20
-          EXPECT_CALL(*cow_writer, EmitCopy(20, 15, 2)).InSequence(s);
+          EXPECT_CALL(*cow_writer, AddCopy(20, 15, 2)).InSequence(s);
 
-          EXPECT_CALL(*cow_writer, EmitCopy(25, 20, 1)).InSequence(s);
-          EXPECT_CALL(*cow_writer, EmitRawBlocks(26, _, 4096))
+          EXPECT_CALL(*cow_writer, AddCopy(25, 20, 1)).InSequence(s);
+          EXPECT_CALL(*cow_writer, AddRawBlocks(26, _, 4096))
               .InSequence(s)
               .WillOnce(Return(true));
         }
@@ -254,29 +251,28 @@ TEST_F(VABCPartitionWriterTest, StreamXORBlockTest) {
                           const std::optional<std::string>&,
                           bool) {
         auto cow_writer =
-            std::make_unique<android::snapshot::MockSnapshotWriter>(
-                android::snapshot::CowOptions{});
-        ON_CALL(*cow_writer, EmitLabel(_)).WillByDefault(Return(true));
+            std::make_unique<android::snapshot::MockSnapshotWriter>();
+        ON_CALL(*cow_writer, AddLabel(_)).WillByDefault(Return(true));
         auto expected_merge_sequence = {10, 11, 13, 14};
         auto expected_merge_sequence_rev = {11, 10, 14, 13};
         const bool is_ascending = android::base::GetBoolProperty(
             "ro.virtual_ab.userspace.snapshots.enabled", false);
         ON_CALL(*cow_writer, Initialize()).WillByDefault(Return(true));
         if (!is_ascending) {
-          EXPECT_CALL(*cow_writer, EmitSequenceData(_, _))
+          EXPECT_CALL(*cow_writer, AddSequenceData(_, _))
               .With(Args<1, 0>(ElementsAreArray(expected_merge_sequence_rev)))
               .WillOnce(Return(true));
         } else {
-          EXPECT_CALL(*cow_writer, EmitSequenceData(_, _))
+          EXPECT_CALL(*cow_writer, AddSequenceData(_, _))
               .With(Args<1, 0>(ElementsAreArray(expected_merge_sequence)))
               .WillOnce(Return(true));
         }
         EXPECT_CALL(*cow_writer, Initialize()).Times(1);
-        EXPECT_CALL(*cow_writer, EmitCopy(_, _, _)).Times(0);
-        EXPECT_CALL(*cow_writer, EmitRawBlocks(_, _, _)).WillOnce(Return(true));
-        EXPECT_CALL(*cow_writer, EmitXorBlocks(10, _, kBlockSize * 2, 5, 0))
+        EXPECT_CALL(*cow_writer, AddCopy(_, _, _)).Times(0);
+        EXPECT_CALL(*cow_writer, AddRawBlocks(_, _, _)).WillOnce(Return(true));
+        EXPECT_CALL(*cow_writer, AddXorBlocks(10, _, kBlockSize * 2, 5, 0))
             .WillOnce(Return(true));
-        EXPECT_CALL(*cow_writer, EmitXorBlocks(13, _, kBlockSize * 2, 8, 0))
+        EXPECT_CALL(*cow_writer, AddXorBlocks(13, _, kBlockSize * 2, 8, 0))
             .WillOnce(Return(true));
         return cow_writer;
       }));

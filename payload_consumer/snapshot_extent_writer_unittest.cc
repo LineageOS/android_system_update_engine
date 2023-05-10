@@ -43,9 +43,9 @@ class FakeCowWriter : public android::snapshot::ICowWriter {
   using ICowWriter::ICowWriter;
   ~FakeCowWriter() = default;
 
-  bool EmitCopy(uint64_t new_block,
-                uint64_t old_block,
-                uint64_t num_blocks) override {
+  bool AddCopy(uint64_t new_block,
+               uint64_t old_block,
+               uint64_t num_blocks) override {
     for (size_t i = 0; i < num_blocks; i++) {
       operations_[new_block + i] = {
           .type = CowOp::COW_COPY,
@@ -53,23 +53,23 @@ class FakeCowWriter : public android::snapshot::ICowWriter {
     }
     return true;
   }
-  bool EmitRawBlocks(uint64_t new_block_start,
-                     const void* data,
-                     size_t size) override {
+  bool AddRawBlocks(uint64_t new_block_start,
+                    const void* data,
+                    size_t size) override {
     auto&& op = operations_[new_block_start];
     const auto uint8_ptr = static_cast<const unsigned char*>(data);
     op.data.insert(op.data.end(), uint8_ptr, uint8_ptr + size);
     return true;
   }
-  bool EmitZeroBlocks(uint64_t new_block_start, uint64_t num_blocks) override {
+  bool AddZeroBlocks(uint64_t new_block_start, uint64_t num_blocks) override {
     operations_[new_block_start] = {.type = CowOp::COW_ZERO};
     return true;
   }
-  bool EmitXorBlocks(uint32_t new_block_start,
-                     const void* data,
-                     size_t size,
-                     uint32_t old_block,
-                     uint16_t offset) override {
+  bool AddXorBlocks(uint32_t new_block_start,
+                    const void* data,
+                    size_t size,
+                    uint32_t old_block,
+                    uint16_t offset) override {
     return false;
   }
   bool Finalize() override {
@@ -77,14 +77,17 @@ class FakeCowWriter : public android::snapshot::ICowWriter {
     return true;
   }
 
-  bool EmitLabel(uint64_t label) {
+  bool AddLabel(uint64_t label) {
     label_count_++;
     return true;
   }
 
-  bool EmitSequenceData(size_t num_ops, const uint32_t* data) override {
+  bool AddSequenceData(size_t num_ops, const uint32_t* data) override {
     return false;
   }
+
+  uint32_t GetBlockSize() const override { return 4096; }
+  std::optional<uint32_t> GetMaxBlocks() const override { return {}; }
 
   // Return number of bytes the cow image occupies on disk.
   uint64_t GetCowSize() override {
@@ -108,7 +111,7 @@ class SnapshotExtentWriterTest : public ::testing::Test {
  protected:
   android::snapshot::CowOptions options_ = {
       .block_size = static_cast<uint32_t>(kBlockSize)};
-  FakeCowWriter cow_writer_{options_};
+  FakeCowWriter cow_writer_;
   SnapshotExtentWriter writer_{&cow_writer_};
 };
 
