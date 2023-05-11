@@ -20,7 +20,7 @@
 
 #include <android-base/file.h>
 #include <gtest/gtest.h>
-#include <libsnapshot/mock_snapshot_writer.h>
+#include <libsnapshot/mock_cow_writer.h>
 
 #include "common/utils.h"
 #include "update_engine/payload_consumer/extent_map.h"
@@ -60,7 +60,7 @@ class XorExtentWriterTest : public ::testing::Test {
   InstallOperation op_;
   FileDescriptorPtr source_fd_ = std::make_shared<EintrSafeFileDescriptor>();
   ExtentMap<const CowMergeOperation*> xor_map_;
-  android::snapshot::MockSnapshotWriter cow_writer_;
+  android::snapshot::MockCowWriter cow_writer_;
   TemporaryFile source_part_;
   TemporaryFile target_part_;
 };

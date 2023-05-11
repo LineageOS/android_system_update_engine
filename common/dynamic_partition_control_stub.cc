@@ -100,11 +100,11 @@ bool DynamicPartitionControlStub::VerifyExtentsForUntouchedPartitions(
   return true;
 }
 
-std::unique_ptr<android::snapshot::ISnapshotWriter>
+std::unique_ptr<android::snapshot::ICowWriter>
 DynamicPartitionControlStub::OpenCowWriter(
     const std::string& /*unsuffixed_partition_name*/,
     const std::optional<std::string>& /*source_path*/,
-    bool /*is_append*/) {
+    std::optional<uint64_t>) {
   return nullptr;
 }
 

@@ -22,7 +22,7 @@
 #include <string>
 #include <vector>
 
-#include <libsnapshot/snapshot_writer.h>
+#include <libsnapshot/cow_writer.h>
 
 #include "update_engine/payload_consumer/extent_map.h"
 #include "update_engine/payload_consumer/install_operation_executor.h"
@@ -73,7 +73,7 @@ class VABCPartitionWriter final : public PartitionWriterInterface {
   [[nodiscard]] bool DoesDeviceSupportsXor();
   bool IsXorEnabled() const noexcept { return xor_map_.size() > 0; }
   [[nodiscard]] bool WriteAllCopyOps();
-  std::unique_ptr<android::snapshot::ISnapshotWriter> cow_writer_;
+  std::unique_ptr<android::snapshot::ICowWriter> cow_writer_;
 
   [[nodiscard]] std::unique_ptr<ExtentWriter> CreateBaseExtentWriter();
 

@@ -17,7 +17,9 @@
 #include <array>
 #include <cstring>
 #include <map>
+#include <memory>
 #include <numeric>
+#include <string>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -88,6 +90,14 @@ class FakeCowWriter : public android::snapshot::ICowWriter {
 
   uint32_t GetBlockSize() const override { return 4096; }
   std::optional<uint32_t> GetMaxBlocks() const override { return {}; }
+
+  std::unique_ptr<android::snapshot::ICowReader> OpenReader() override {
+    return nullptr;
+  }
+  std::unique_ptr<FileDescriptor> OpenFileDescriptor(
+      const std::optional<std::string>&) override {
+    return nullptr;
+  }
 
   // Return number of bytes the cow image occupies on disk.
   uint64_t GetCowSize() override {

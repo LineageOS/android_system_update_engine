@@ -1424,11 +1424,11 @@ bool DynamicPartitionControlAndroid::EnsureMetadataMounted() {
   return metadata_device_ != nullptr;
 }
 
-std::unique_ptr<android::snapshot::ISnapshotWriter>
+std::unique_ptr<android::snapshot::ICowWriter>
 DynamicPartitionControlAndroid::OpenCowWriter(
     const std::string& partition_name,
     const std::optional<std::string>& source_path,
-    bool) {
+    std::optional<uint64_t> label) {
   auto suffix = SlotSuffixForSlotNumber(target_slot_);
 
   auto super_device = GetSuperDevice();
@@ -1443,29 +1443,26 @@ DynamicPartitionControlAndroid::OpenCowWriter(
       .timeout_ms = kMapSnapshotTimeout};
   // TODO(zhangkelvin) Open an APPEND mode CowWriter once there's an API to do
   // it.
-  return snapshot_->OpenSnapshotWriter(params, std::move(source_path));
+  return snapshot_->OpenSnapshotWriter(params, label);
 }  // namespace chromeos_update_engine
 
 std::unique_ptr<FileDescriptor> DynamicPartitionControlAndroid::OpenCowFd(
     const std::string& unsuffixed_partition_name,
     const std::optional<std::string>& source_path,
     bool is_append) {
-  auto cow_writer =
-      OpenCowWriter(unsuffixed_partition_name, source_path, is_append);
+  auto cow_writer = OpenCowWriter(
+      unsuffixed_partition_name, source_path, {kEndOfInstallLabel});
   if (cow_writer == nullptr) {
+    LOG(ERROR) << "OpenCowWriter failed";
     return nullptr;
   }
-  if (!cow_writer->InitializeAppend(kEndOfInstallLabel)) {
-    LOG(ERROR) << "Failed to InitializeAppend(" << kEndOfInstallLabel << ")";
+  auto fd = cow_writer->OpenFileDescriptor(source_path);
+  if (fd == nullptr) {
+    LOG(ERROR) << "ICowReader::OpenFileDescriptor failed";
     return nullptr;
   }
-  auto reader = cow_writer->OpenReader();
-  if (reader == nullptr) {
-    LOG(ERROR) << "ICowWriter::OpenReader() failed.";
-    return nullptr;
-  }
-  return std::make_unique<CowWriterFileDescriptor>(std::move(cow_writer),
-                                                   std::move(reader));
+  return std::make_unique<CowWriterFileDescriptor>(
+      std::move(cow_writer), std::move(fd), source_path);
 }
 
 std::optional<base::FilePath> DynamicPartitionControlAndroid::GetSuperDevice() {
