@@ -1170,3 +1170,11 @@ cc_binary_host {
         "update_metadata-protos",
     ],
 }
+
+python_library_host {
+    name: "update_metadata-protos-python",
+    srcs: ["update_metadata.proto"],
+    proto: {
+        canonical_path_from_root: false,
+    },
+}
