@@ -95,7 +95,7 @@ VABCPartitionWriter::VABCPartitionWriter(
     }
     copy_blocks_.AddExtent(cow_op.dst_extent());
   }
-  LOG(INFO) << "Partition `" << partition_update.partition_name() << " has "
+  LOG(INFO) << "Partition `" << partition_update.partition_name() << "` has "
             << copy_blocks_.blocks() << " copy blocks";
 }
 

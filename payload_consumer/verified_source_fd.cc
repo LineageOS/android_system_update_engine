@@ -26,11 +26,17 @@
 #include <base/strings/string_util.h>
 #include <base/strings/stringprintf.h>
 
+#include "update_engine/common/error_code.h"
+#include "update_engine/common/hash_calculator.h"
 #include "update_engine/common/utils.h"
-#include "update_engine/payload_consumer/fec_file_descriptor.h"
+#include "update_engine/payload_consumer/extent_writer.h"
+#include "update_engine/payload_consumer/file_descriptor.h"
 #include "update_engine/payload_consumer/file_descriptor_utils.h"
-#include "update_engine/payload_consumer/mount_history.h"
 #include "update_engine/payload_consumer/partition_writer.h"
+#include "update_engine/update_metadata.pb.h"
+#if USE_FEC
+#include "update_engine/payload_consumer/fec_file_descriptor.h"
+#endif
 
 namespace chromeos_update_engine {
 using std::string;
@@ -45,7 +51,7 @@ bool VerifiedSourceFd::OpenCurrentECCPartition() {
     return false;
 
 #if USE_FEC
-  FileDescriptorPtr fd(new FecFileDescriptor());
+  auto fd = std::make_shared<FecFileDescriptor>();
   if (!fd->Open(source_path_.c_str(), O_RDONLY, 0)) {
     PLOG(ERROR) << "Unable to open ECC source partition " << source_path_;
     source_ecc_open_failure_ = true;
@@ -60,11 +66,24 @@ bool VerifiedSourceFd::OpenCurrentECCPartition() {
   return !source_ecc_open_failure_;
 }
 
+bool VerifiedSourceFd::WriteBackCorrectedSourceBlocks(
+    const std::vector<unsigned char>& source_data,
+    const google::protobuf::RepeatedPtrField<Extent>& extents) {
+  auto fd = std::make_shared<EintrSafeFileDescriptor>();
+  TEST_AND_RETURN_FALSE_ERRNO(fd->Open(source_path_.c_str(), O_RDWR));
+  DirectExtentWriter writer(fd);
+  TEST_AND_RETURN_FALSE(writer.Init(extents, block_size_));
+  return writer.Write(source_data.data(), source_data.size());
+}
+
 FileDescriptorPtr VerifiedSourceFd::ChooseSourceFD(
     const InstallOperation& operation, ErrorCode* error) {
   if (source_fd_ == nullptr) {
     LOG(ERROR) << "ChooseSourceFD fail: source_fd_ == nullptr";
     return nullptr;
+  }
+  if (error) {
+    *error = ErrorCode::kSuccess;
   }
   if (!operation.has_src_sha256_hash()) {
     // When the operation doesn't include a source hash, we attempt the error
@@ -74,6 +93,9 @@ FileDescriptorPtr VerifiedSourceFd::ChooseSourceFD(
     if (OpenCurrentECCPartition() &&
         fd_utils::ReadAndHashExtents(
             source_ecc_fd_, operation.src_extents(), block_size_, nullptr)) {
+      if (error) {
+        *error = ErrorCode::kDownloadOperationHashMissingError;
+      }
       return source_ecc_fd_;
     }
     return source_fd_;
@@ -86,6 +108,9 @@ FileDescriptorPtr VerifiedSourceFd::ChooseSourceFD(
           source_fd_, operation.src_extents(), block_size_, &source_hash) &&
       source_hash == expected_source_hash) {
     return source_fd_;
+  }
+  if (error) {
+    *error = ErrorCode::kDownloadOperationHashMismatch;
   }
   // We fall back to use the error corrected device if the hash of the raw
   // device doesn't match or there was an error reading the source partition.
@@ -103,11 +128,23 @@ FileDescriptorPtr VerifiedSourceFd::ChooseSourceFD(
                << base::HexEncode(expected_source_hash.data(),
                                   expected_source_hash.size());
 
-  if (fd_utils::ReadAndHashExtents(
-          source_ecc_fd_, operation.src_extents(), block_size_, &source_hash) &&
-      PartitionWriter::ValidateSourceHash(
+  std::vector<unsigned char> source_data;
+  if (!utils::ReadExtents(
+          source_ecc_fd_, operation.src_extents(), &source_data, block_size_)) {
+    return nullptr;
+  }
+  if (!HashCalculator::RawHashOfData(source_data, &source_hash)) {
+    return nullptr;
+  }
+  if (PartitionWriter::ValidateSourceHash(
           source_hash, operation, source_ecc_fd_, error)) {
     source_ecc_recovered_failures_++;
+    if (WriteBackCorrectedSourceBlocks(source_data, operation.src_extents())) {
+      if (error) {
+        *error = ErrorCode::kSuccess;
+      }
+      return source_fd_;
+    }
     return source_ecc_fd_;
   }
   return nullptr;
