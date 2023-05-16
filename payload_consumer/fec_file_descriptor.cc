@@ -34,7 +34,7 @@ bool FecFileDescriptor::Open(const char* path, int flags, mode_t mode) {
     return false;
   }
 
-  fec_status status;
+  fec_status status{};
   if (!fh_.get_status(status)) {
     LOG(ERROR) << "Couldn't load ECC status";
     fh_.close();
