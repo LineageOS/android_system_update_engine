@@ -16,14 +16,18 @@
 
 #include "update_engine/payload_generator/erofs_filesystem.h"
 
+#include <endian.h>
+#include <fcntl.h>
 #include <time.h>
 
+#include <array>
 #include <string>
 #include <mutex>
 
-#include <erofs/internal.h>
+#include <android-base/unique_fd.h>
 #include <erofs/dir.h>
 #include <erofs/io.h>
+#include <erofs_fs.h>
 
 #include "erofs_iterate.h"
 #include "lz4diff/lz4diff.pb.h"
@@ -151,12 +155,24 @@ static void FillExtentInfo(FilesystemInterface::File* p_file,
   return;
 }
 
+bool IsErofsImage(const char* path) {
+  android::base::unique_fd fd(open(path, O_RDONLY));
+  uint32_t buf{};
+  if (pread(fd.get(), &buf, 4, EROFS_SUPER_OFFSET) < 0) {
+    return false;
+  }
+  return le32toh(buf) == EROFS_SUPER_MAGIC_V1;
+}
+
 }  // namespace
 
 static_assert(kBlockSize == EROFS_BLKSIZ);
 
 std::unique_ptr<ErofsFilesystem> ErofsFilesystem::CreateFromFile(
     const std::string& filename, const CompressionAlgorithm& algo) {
+  if (!IsErofsImage(filename.c_str())) {
+    return {};
+  }
   // erofs-utils makes heavy use of global variables. Hence its functions aren't
   // thread safe. For example, it stores a global int holding file descriptors
   // to the opened EROFS image. It doesn't even support opening more than 1
