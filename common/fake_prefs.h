@@ -59,6 +59,9 @@ class FakePrefs : public PrefsInterface {
   void AddObserver(std::string_view key, ObserverInterface* observer) override;
   void RemoveObserver(std::string_view key,
                       ObserverInterface* observer) override;
+  bool StartTransaction() override { return false; }
+  bool CancelTransaction() override { return false; }
+  bool SubmitTransaction() override { return false; }
 
  private:
   enum class PrefType {
