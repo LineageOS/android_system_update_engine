@@ -16,10 +16,15 @@
 
 #include "update_engine/payload_generator/boot_img_filesystem.h"
 
+#include <array>
+
+#include <android-base/unique_fd.h>
+#include <android-base/file.h>
 #include <base/logging.h>
 #include <bootimg.h>
 #include <brillo/secure_blob.h>
 #include <puffin/utils.h>
+#include <sys/stat.h>
 
 #include "update_engine/common/utils.h"
 #include "update_engine/payload_generator/delta_diff_generator.h"
@@ -33,11 +38,26 @@ namespace chromeos_update_engine {
 
 unique_ptr<BootImgFilesystem> BootImgFilesystem::CreateFromFile(
     const string& filename) {
-  if (filename.empty())
+  if (filename.empty()) {
     return nullptr;
-
-  if (brillo::Blob header_magic;
-      !utils::ReadFileChunk(filename, 0, BOOT_MAGIC_SIZE, &header_magic) ||
+  }
+  android::base::unique_fd fd(open(filename.c_str(), O_RDONLY));
+  if (!fd.ok()) {
+    PLOG(ERROR) << "Failed to open " << filename;
+    return nullptr;
+  }
+  struct stat st {};
+  if (fstat(fd.get(), &st) < 0) {
+    return nullptr;
+  }
+  if (static_cast<size_t>(st.st_size) < sizeof(boot_img_hdr_v0)) {
+    LOG(INFO) << "Image " << filename
+              << " is too small to be a boot image. file size: " << st.st_size;
+    return nullptr;
+  }
+  std::array<char, BOOT_MAGIC_SIZE> header_magic{};
+  if (!android::base::ReadFullyAtOffset(
+          fd, header_magic.data(), BOOT_MAGIC_SIZE, 0) ||
       memcmp(header_magic.data(), BOOT_MAGIC, BOOT_MAGIC_SIZE) != 0) {
     return nullptr;
   }
@@ -48,11 +68,11 @@ unique_ptr<BootImgFilesystem> BootImgFilesystem::CreateFromFile(
   // See details in system/tools/mkbootimg/include/bootimg/bootimg.h
   constexpr size_t header_version_offset =
       BOOT_MAGIC_SIZE + 8 * sizeof(uint32_t);
-  brillo::Blob header_version_blob;
-  if (!utils::ReadFileChunk(filename,
-                            header_version_offset,
-                            sizeof(uint32_t),
-                            &header_version_blob)) {
+  std::array<char, sizeof(uint32_t)> header_version_blob{};
+  if (!android::base::ReadFullyAtOffset(fd,
+                                        header_version_blob.data(),
+                                        sizeof(uint32_t),
+                                        header_version_offset)) {
     return nullptr;
   }
   uint32_t header_version =
@@ -66,8 +86,8 @@ unique_ptr<BootImgFilesystem> BootImgFilesystem::CreateFromFile(
   // Read the bytes of boot image header based on the header version.
   size_t header_size =
       header_version == 3 ? sizeof(boot_img_hdr_v3) : sizeof(boot_img_hdr_v0);
-  brillo::Blob header_blob;
-  if (!utils::ReadFileChunk(filename, 0, header_size, &header_blob)) {
+  brillo::Blob header_blob(header_size);
+  if (!ReadFullyAtOffset(fd, header_blob.data(), header_size, 0)) {
     return nullptr;
   }
 
@@ -120,7 +140,8 @@ FilesystemInterface::File BootImgFilesystem::GetFile(const string& name,
   file.extents = {ExtentForBytes(kBlockSize, offset, size)};
 
   brillo::Blob data;
-  if (utils::ReadFileChunk(filename_, offset, size, &data)) {
+  if (utils::ReadFileChunk(filename_, offset, size, &data) &&
+      data.size() == size) {
     constexpr size_t kGZipHeaderSize = 10;
     // Check GZip header magic.
     if (data.size() > kGZipHeaderSize && data[0] == 0x1F && data[1] == 0x8B) {
