@@ -455,6 +455,11 @@ DEFINE_string(erofs_compression_param,
               "Compression parameter passed to mkfs.erofs's -z option. "
               "Example: lz4 lz4hc,9");
 
+DEFINE_int64(max_threads,
+             0,
+             "The maximum number of threads allowed for generating "
+             "ota.");
+
 void RoundDownPartitions(const ImageConfig& config) {
   for (const auto& part : config.partitions) {
     if (part.path.empty()) {
@@ -763,6 +768,8 @@ int Main(int argc, char** argv) {
   payload_config.max_timestamp = FLAGS_max_timestamp;
 
   payload_config.security_patch_level = FLAGS_security_patch_level;
+
+  payload_config.max_threads = FLAGS_max_threads;
 
   if (!FLAGS_partition_timestamps.empty()) {
     CHECK(ParsePerPartitionTimestamps(FLAGS_partition_timestamps,
