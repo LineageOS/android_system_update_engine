@@ -28,6 +28,7 @@ namespace chromeos_update_engine {
 // Cache data upto size of one extent before writing.
 class BlockExtentWriter : public chromeos_update_engine::ExtentWriter {
  public:
+  static constexpr size_t BUFFER_SIZE = 1024 * 1024;
   BlockExtentWriter() = default;
   ~BlockExtentWriter() = default;
   // Returns true on success.
@@ -44,15 +45,18 @@ class BlockExtentWriter : public chromeos_update_engine::ExtentWriter {
   size_t BlockSize() const { return block_size_; }
 
  private:
+  bool WriteExtent(const void* bytes, size_t count);
   bool NextExtent();
-  [[nodiscard]] size_t ConsumeWithBuffer(const uint8_t* bytes, size_t count);
+  [[nodiscard]] size_t ConsumeWithBuffer(const uint8_t* const bytes,
+                                         const size_t count);
   // It's a non-owning pointer, because PartitionWriter owns the CowWruter. This
   // allows us to use a single instance of CowWriter for all operations applied
   // to the same partition.
   google::protobuf::RepeatedPtrField<Extent> extents_;
-  size_t cur_extent_idx_;
+  size_t cur_extent_idx_{};
   std::vector<uint8_t> buffer_;
-  size_t block_size_;
+  size_t block_size_{};
+  size_t offset_in_extent_{};
 };
 
 }  // namespace chromeos_update_engine
