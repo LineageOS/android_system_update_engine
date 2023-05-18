@@ -57,7 +57,9 @@
 
 #include "update_engine/common/constants.h"
 #include "update_engine/common/subprocess.h"
+#ifdef __ANDROID__
 #include "update_engine/common/platform_constants.h"
+#endif
 #include "update_engine/payload_consumer/file_descriptor.h"
 
 using base::Time;

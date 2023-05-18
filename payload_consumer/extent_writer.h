@@ -23,7 +23,6 @@
 #include <base/logging.h>
 #include <brillo/secure_blob.h>
 
-#include "update_engine/common/utils.h"
 #include "update_engine/payload_consumer/file_descriptor.h"
 #include "update_engine/update_metadata.pb.h"
 
