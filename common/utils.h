@@ -31,6 +31,8 @@
 #include <vector>
 
 #include <android-base/strings.h>
+#include <android-base/mapped_file.h>
+#include <android-base/scopeguard.h>
 #include <base/files/file_path.h>
 #include <base/posix/eintr_wrapper.h>
 #include <base/strings/string_number_conversions.h>
@@ -38,9 +40,6 @@
 #include <brillo/key_value_store.h>
 #include <brillo/secure_blob.h>
 
-#include "android-base/mapped_file.h"
-#include "android-base/scopeguard.h"
-#include "google/protobuf/repeated_field.h"
 #include "update_engine/common/action.h"
 #include "update_engine/common/action_processor.h"
 #include "update_engine/common/constants.h"
