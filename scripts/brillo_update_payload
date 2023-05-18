@@ -222,6 +222,8 @@ a subset of partitions on device."
     "Compression parameter passed to mkfs.erofs's -z option."
   DEFINE_string security_patch_level "" \
     "Optional: security patch level of this OTA"
+  DEFINE_string max_threads "" \
+    "Optional: specifies max_threads used to generate OTA"
 fi
 if [[ "${COMMAND}" == "hash" || "${COMMAND}" == "sign" ]]; then
   DEFINE_string unsigned_payload "" "Path to the input unsigned payload."
@@ -759,6 +761,11 @@ cmd_generate() {
   if [[ -n "${FLAGS_disable_vabc}" ]]; then
     GENERATOR_ARGS+=(
       --disable_vabc="${FLAGS_disable_vabc}" )
+  fi
+
+  if [[ -n "${FLAGS_max_threads}" ]]; then
+    GENERATOR_ARGS+=(
+      --max_threads="${FLAGS_max_threads}" )
   fi
 
   # minor version is set only for delta or partial payload.
