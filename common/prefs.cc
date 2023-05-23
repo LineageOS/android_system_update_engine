@@ -17,6 +17,8 @@
 #include "update_engine/common/prefs.h"
 
 #include <algorithm>
+#include <filesystem>
+#include <unistd.h>
 
 #include <base/files/file_enumerator.h>
 #include <base/files/file_util.h>
@@ -25,6 +27,7 @@
 #include <base/strings/string_split.h>
 #include <base/strings/string_util.h>
 
+#include "update_engine/common/platform_constants.h"
 #include "update_engine/common/utils.h"
 
 using std::string;
@@ -160,8 +163,62 @@ bool Prefs::Init(const base::FilePath& prefs_dir) {
   return file_storage_.Init(prefs_dir);
 }
 
+bool PrefsBase::StartTransaction() {
+  return storage_->CreateTemporaryPrefs();
+}
+
+bool PrefsBase::CancelTransaction() {
+  return storage_->DeleteTemporaryPrefs();
+}
+
+bool PrefsBase::SubmitTransaction() {
+  return storage_->SwapPrefs();
+}
+
+std::string Prefs::FileStorage::GetTemporaryDir() const {
+  return prefs_dir_.value() + "_tmp";
+}
+
+bool Prefs::FileStorage::CreateTemporaryPrefs() {
+  // Delete any existing prefs_tmp
+  DeleteTemporaryPrefs();
+  // Get the paths to the source and destination directories.
+  std::filesystem::path source_directory(prefs_dir_.value());
+  std::filesystem::path destination_directory(GetTemporaryDir());
+
+  if (!std::filesystem::exists(source_directory)) {
+    LOG(ERROR) << "prefs directory does not exist: " << source_directory;
+    return false;
+  }
+  // Copy the directory.
+  std::filesystem::copy(source_directory, destination_directory);
+
+  return true;
+}
+
+bool Prefs::FileStorage::DeleteTemporaryPrefs() {
+  std::filesystem::path destination_directory(GetTemporaryDir());
+
+  if (std::filesystem::exists(destination_directory)) {
+    return std::filesystem::remove_all(destination_directory);
+  }
+  return true;
+}
+
+bool Prefs::FileStorage::SwapPrefs() {
+  if (std::filesystem::exists(prefs_dir_.value())) {
+    std::filesystem::remove_all(prefs_dir_.value());
+  }
+  if (rename(GetTemporaryDir().c_str(), prefs_dir_.value().c_str()) != 0) {
+    LOG(ERROR) << "Error replacing prefs with prefs_tmp" << strerror(errno);
+    return false;
+  }
+  return true;
+}
+
 bool Prefs::FileStorage::Init(const base::FilePath& prefs_dir) {
   prefs_dir_ = prefs_dir;
+
   // Delete empty directories. Ignore errors when deleting empty directories.
   DeleteEmptyDirectories(prefs_dir_);
   return true;
@@ -231,8 +288,14 @@ bool Prefs::FileStorage::GetFileNameForKey(std::string_view key,
   for (char c : key)
     TEST_AND_RETURN_FALSE(base::IsAsciiAlpha(c) || base::IsAsciiDigit(c) ||
                           c == '_' || c == '-' || c == kKeySeparator);
-  *filename = prefs_dir_.Append(
-      base::FilePath::StringPieceType(key.data(), key.size()));
+  if (std::filesystem::exists(GetTemporaryDir())) {
+    *filename =
+        base::FilePath(GetTemporaryDir())
+            .Append(base::FilePath::StringPieceType(key.data(), key.size()));
+  } else {
+    *filename = prefs_dir_.Append(
+        base::FilePath::StringPieceType(key.data(), key.size()));
+  }
   return true;
 }
 
