@@ -105,6 +105,17 @@ class PrefsInterface {
   virtual void RemoveObserver(std::string_view key,
                               ObserverInterface* observer) = 0;
 
+  // create tmp_prefs to write to during checkpointing. Flush will replace prefs
+  // with tmp_prefs
+  virtual bool StartTransaction() = 0;
+
+  // cancel any pending transaction by deleting tmp_prefs
+  virtual bool CancelTransaction() = 0;
+
+  // swap prefs with tmp_prefs checkpointing will use new tmp prefs to resume
+  // updates, otherwise we fall back on old prefs
+  virtual bool SubmitTransaction() = 0;
+
  protected:
   // Key separator used to create sub key and get file names,
   static const char kKeySeparator = '/';

@@ -151,9 +151,9 @@ class DeltaPerformer : public FileWriter {
 
   // Attempts to parse the update metadata starting from the beginning of
   // |payload|. On success, returns kMetadataParseSuccess. Returns
-  // kMetadataParseInsufficientData if more data is needed to parse the complete
-  // metadata. Returns kMetadataParseError if the metadata can't be parsed given
-  // the payload.
+  // kMetadataParseInsufficientData if more data is needed to parse the
+  // complete metadata. Returns kMetadataParseError if the metadata can't be
+  // parsed given the payload.
   MetadataParseResult ParsePayloadMetadata(const brillo::Blob& payload,
                                            ErrorCode* error);
 
