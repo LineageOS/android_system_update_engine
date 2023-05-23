@@ -58,3 +58,22 @@ python_library_host {
         "update_metadata-protos-python",
     ],
 }
+
+python_binary_host {
+    name: "update_device",
+    srcs: [
+        "update_device.py",
+    ],
+    main: "update_device.py",
+    libs: [
+        "update_payload",
+    ],
+    version: {
+        py2: {
+            enabled: false,
+        },
+        py3: {
+            enabled: true,
+        },
+    },
+}
