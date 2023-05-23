@@ -85,7 +85,7 @@ void SetVbmetaDigestProp(const std::string& value) {
 }
 
 std::string CalculateVbmetaDigestForInactiveSlot() {
-  AvbSlotVerifyData* avb_slot_data;
+  AvbSlotVerifyData* avb_slot_data{};
 
   auto suffix = fs_mgr_get_other_slot_suffix();
   const char* requested_partitions[] = {nullptr};
@@ -105,8 +105,9 @@ std::string CalculateVbmetaDigestForInactiveSlot() {
   avb_slot_verify_data_calculate_vbmeta_digest(
       avb_slot_data, AVB_DIGEST_TYPE_SHA256, vbmeta_digest);
 
-  std::string encoded_digest =
+  const std::string encoded_digest =
       base::HexEncode(vbmeta_digest, AVB_SHA256_DIGEST_SIZE);
+  LOG(INFO) << "vbmeta digest for target slot: " << encoded_digest;
   return base::ToLowerASCII(encoded_digest);
 }
 
