@@ -1404,9 +1404,12 @@ bool DeltaPerformer::CheckpointUpdateProgress(bool force) {
     return false;
   }
   Terminator::set_exit_blocked(true);
+  LOG_IF(WARNING, !prefs_->StartTransaction())
+      << "unable to start transaction in checkpointing";
+  DEFER {
+    prefs_->CancelTransaction();
+  };
   if (last_updated_operation_num_ != next_operation_num_ || force) {
-    // Resets the progress in case we die in the middle of the state update.
-    ResetUpdateProgress(prefs_, true);
     if (!signatures_message_data_.empty()) {
       // Save the signature blob because if the update is interrupted after the
       // download phase we don't go through this path anymore. Some alternatives
@@ -1458,6 +1461,9 @@ bool DeltaPerformer::CheckpointUpdateProgress(bool force) {
   }
   TEST_AND_RETURN_FALSE(
       prefs_->SetInt64(kPrefsUpdateStateNextOperation, next_operation_num_));
+  if (!prefs_->SubmitTransaction()) {
+    LOG(ERROR) << "Failed to submit transaction in checkpointing";
+  }
   return true;
 }
 
