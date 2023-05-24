@@ -136,6 +136,13 @@ void FilesystemVerifierAction::Cleanup(ErrorCode code) {
   partition_fd_.reset();
   // This memory is not used anymore.
   buffer_.clear();
+  if (code == ErrorCode::kSuccess && !cancelled_) {
+    if (!dynamic_control_->FinishUpdate(install_plan_.powerwash_required)) {
+      LOG(ERROR) << "Failed to FinishUpdate("
+                 << install_plan_.powerwash_required << ")";
+      code = ErrorCode::kFilesystemVerifierError;
+    }
+  }
 
   // If we didn't write verity, partitions were maped. Releaase resource now.
   if (!install_plan_.write_verity &&
