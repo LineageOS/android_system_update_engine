@@ -110,7 +110,11 @@ bool PartitionUpdateGeneratorAndroid::
 std::vector<std::string>
 PartitionUpdateGeneratorAndroid::GetAbPartitionsOnDevice() const {
   auto partition_list_str =
-      android::base::GetProperty("ro.product.ab_ota_partitions", "");
+      android::base::GetProperty("ro.vendor.build.ab_ota_partitions", "");
+  if (partition_list_str.empty()) {
+    partition_list_str =
+        android::base::GetProperty("ro.product.ab_ota_partitions", "");
+  }
   return base::SplitString(partition_list_str,
                            ",",
                            base::TRIM_WHITESPACE,
