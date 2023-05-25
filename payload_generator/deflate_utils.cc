@@ -27,7 +27,6 @@
 #include "update_engine/common/utils.h"
 #include "update_engine/payload_generator/delta_diff_generator.h"
 #include "update_engine/payload_generator/extent_ranges.h"
-#include "update_engine/payload_generator/extent_utils.h"
 #include "update_engine/payload_generator/squashfs_filesystem.h"
 #include "update_engine/update_metadata.pb.h"
 
@@ -316,9 +315,8 @@ bool PreprocessPartitionFiles(const PartitionConfig& part,
       TEST_AND_RETURN_FALSE(
           CopyExtentsToFile(part.path, file.extents, path.value(), kBlockSize));
       // Test if it is actually a Squashfs file.
-      auto sqfs = SquashfsFilesystem::CreateFromFile(path.value(),
-                                                     extract_deflates,
-                                                     /*load_settings=*/false);
+      auto sqfs =
+          SquashfsFilesystem::CreateFromFile(path.value(), extract_deflates);
       if (sqfs) {
         // It is an squashfs file. Get its files to replace with itself.
         vector<FilesystemInterface::File> files;

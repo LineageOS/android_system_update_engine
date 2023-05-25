@@ -27,7 +27,6 @@
 
 #include "update_engine/common/utils.h"
 #include "update_engine/payload_generator/extent_ranges.h"
-#include "update_engine/payload_generator/extent_utils.h"
 #include "update_engine/update_metadata.pb.h"
 
 using std::string;
@@ -139,12 +138,6 @@ bool MapfileFilesystem::GetFiles(vector<File>* files) const {
   }
 
   return true;
-}
-
-bool MapfileFilesystem::LoadSettings(brillo::KeyValueStore* store) const {
-  // Settings not supported in mapfile since the storage format is unknown.
-  LOG(ERROR) << "mapfile doesn't support LoadSettings().";
-  return false;
 }
 
 }  // namespace chromeos_update_engine
