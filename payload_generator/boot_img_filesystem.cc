@@ -178,8 +178,4 @@ bool BootImgFilesystem::GetFiles(vector<File>* files) const {
   return true;
 }
 
-bool BootImgFilesystem::LoadSettings(brillo::KeyValueStore* store) const {
-  return false;
-}
-
 }  // namespace chromeos_update_engine
