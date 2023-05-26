@@ -226,6 +226,10 @@ bool DownloadAction::ReceivedBytes(HttpFetcher* fetcher,
       LOG(ERROR) << "Error " << utils::ErrorCodeToString(code_) << " (" << code_
                  << ") in DeltaPerformer's Write method when "
                  << "processing the received payload -- Terminating processing";
+    } else {
+      LOG(ERROR) << "Unknown error in DeltaPerformer's Write method when "
+                 << "processing the received payload -- Terminating processing";
+      code_ = ErrorCode::kDownloadWriteError;
     }
     // Don't tell the action processor that the action is complete until we get
     // the TransferTerminated callback. Otherwise, this and the HTTP fetcher
