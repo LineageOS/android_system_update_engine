@@ -108,8 +108,7 @@ bool PartitionConfig::OpenFilesystem() {
   }
 
   fs_interface = SquashfsFilesystem::CreateFromFile(path,
-                                                    /*extract_deflates=*/true,
-                                                    /*load_settings=*/true);
+                                                    /*extract_deflates=*/true);
   if (fs_interface) {
     TEST_AND_RETURN_FALSE(fs_interface->GetBlockSize() == kBlockSize);
     return true;

@@ -34,7 +34,6 @@
 #include "update_engine/payload_generator/deflate_utils.h"
 #include "update_engine/payload_generator/delta_diff_generator.h"
 #include "update_engine/payload_generator/extent_ranges.h"
-#include "update_engine/payload_generator/extent_utils.h"
 #include "update_engine/update_metadata.pb.h"
 
 using base::FilePath;
@@ -51,8 +50,6 @@ namespace {
 constexpr size_t kSquashfsSuperBlockSize = 96;
 constexpr uint64_t kSquashfsCompressedBit = 1 << 24;
 constexpr uint32_t kSquashfsZlibCompression = 1;
-
-constexpr char kUpdateEngineConf[] = "etc/update_engine.conf";
 
 bool ReadSquashfsHeader(const brillo::Blob blob,
                         SquashfsFilesystem::SquashfsHeader* header) {
@@ -85,47 +82,6 @@ bool GetFileMapContent(const string& sqfs_path, string* map) {
     return false;
   }
   TEST_AND_RETURN_FALSE(utils::ReadFile(map_file.path(), map));
-  return true;
-}
-
-bool GetUpdateEngineConfig(const std::string& sqfs_path, string* config) {
-  ScopedTempDir unsquash_dir;
-  if (!unsquash_dir.CreateUniqueTempDir()) {
-    PLOG(ERROR) << "Failed to create a temporary directory.";
-    return false;
-  }
-
-  // Run unsquashfs to extract update_engine.conf
-  // -f: To force overriding if the target directory exists.
-  // -d: The directory to unsquash the files.
-  vector<string> cmd = {"unsquashfs",
-                        "-f",
-                        "-d",
-                        unsquash_dir.GetPath().value(),
-                        sqfs_path,
-                        kUpdateEngineConf};
-  string stdout_str, stderr_str;
-  int exit_code;
-  if (!Subprocess::SynchronousExec(cmd, &exit_code, &stdout_str, &stderr_str) ||
-      exit_code != 0) {
-    PLOG(ERROR) << "Failed to unsquashfs etc/update_engine.conf with stdout: "
-                << stdout_str << " and stderr: " << stderr_str;
-    return false;
-  }
-
-  auto config_path = unsquash_dir.GetPath().Append(kUpdateEngineConf);
-  string config_content;
-  if (!utils::ReadFile(config_path.value(), &config_content)) {
-    PLOG(ERROR) << "Failed to read " << config_path.value();
-    return false;
-  }
-
-  if (config_content.empty()) {
-    LOG(ERROR) << "update_engine config file was empty!!";
-    return false;
-  }
-
-  *config = std::move(config_content);
   return true;
 }
 
@@ -292,7 +248,7 @@ bool SquashfsFilesystem::Init(const string& map,
 }
 
 unique_ptr<SquashfsFilesystem> SquashfsFilesystem::CreateFromFile(
-    const string& sqfs_path, bool extract_deflates, bool load_settings) {
+    const string& sqfs_path, bool extract_deflates) {
   if (sqfs_path.empty())
     return nullptr;
 
@@ -331,12 +287,6 @@ unique_ptr<SquashfsFilesystem> SquashfsFilesystem::CreateFromFile(
     return nullptr;
   }
 
-  if (load_settings) {
-    if (!GetUpdateEngineConfig(sqfs_path, &sqfs->update_engine_config_)) {
-      return nullptr;
-    }
-  }
-
   return sqfs;
 }
 
@@ -366,15 +316,6 @@ size_t SquashfsFilesystem::GetBlockCount() const {
 
 bool SquashfsFilesystem::GetFiles(vector<File>* files) const {
   files->insert(files->end(), files_.begin(), files_.end());
-  return true;
-}
-
-bool SquashfsFilesystem::LoadSettings(brillo::KeyValueStore* store) const {
-  if (!store->LoadFromString(update_engine_config_)) {
-    LOG(ERROR) << "Failed to load the settings with config: "
-               << update_engine_config_;
-    return false;
-  }
   return true;
 }
 
