@@ -731,23 +731,8 @@ int Main(int argc, char** argv) {
     // Autodetect minor_version by looking at the update_engine.conf in the old
     // image.
     if (payload_config.is_delta) {
-      brillo::KeyValueStore store;
-      uint32_t minor_version{};
-      bool minor_version_found = false;
-      for (const PartitionConfig& part : payload_config.source.partitions) {
-        if (part.fs_interface && part.fs_interface->LoadSettings(&store) &&
-            utils::GetMinorVersion(store, &minor_version)) {
-          payload_config.version.minor = minor_version;
-          minor_version_found = true;
-          LOG(INFO) << "Auto-detected minor_version="
-                    << payload_config.version.minor;
-          break;
-        }
-      }
-      if (!minor_version_found) {
-        LOG(FATAL) << "Failed to detect the minor version.";
-        return 1;
-      }
+      LOG(FATAL) << "Minor version is required for delta update!";
+      return 1;
     } else {
       payload_config.version.minor = kFullPayloadMinorVersion;
       LOG(INFO) << "Using non-delta minor_version="
