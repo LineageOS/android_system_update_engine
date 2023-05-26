@@ -184,26 +184,4 @@ TEST_F(Ext2FilesystemTest, ParseGeneratedImages) {
   }
 }
 
-TEST_F(Ext2FilesystemTest, LoadSettingsFailsTest) {
-  unique_ptr<Ext2Filesystem> fs = Ext2Filesystem::CreateFromFile(
-      GetBuildArtifactsPath("gen/disk_ext2_1k.img"));
-  ASSERT_NE(nullptr, fs.get());
-
-  brillo::KeyValueStore store;
-  // disk_ext2_1k.img doesn't have the /etc/update_engine.conf file.
-  EXPECT_FALSE(fs->LoadSettings(&store));
-}
-
-TEST_F(Ext2FilesystemTest, LoadSettingsWorksTest) {
-  unique_ptr<Ext2Filesystem> fs = Ext2Filesystem::CreateFromFile(
-      GetBuildArtifactsPath("gen/disk_ext2_unittest.img"));
-  ASSERT_NE(nullptr, fs.get());
-
-  brillo::KeyValueStore store;
-  EXPECT_TRUE(fs->LoadSettings(&store));
-  string minor_version;
-  EXPECT_TRUE(store.GetString("PAYLOAD_MINOR_VERSION", &minor_version));
-  EXPECT_EQ("1234", minor_version);
-}
-
 }  // namespace chromeos_update_engine

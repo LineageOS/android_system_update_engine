@@ -46,8 +46,6 @@ class MapfileFilesystem : public FilesystemInterface {
   // Files may overlap with other files in the same block.
   bool GetFiles(std::vector<File>* files) const override;
 
-  bool LoadSettings(brillo::KeyValueStore* store) const override;
-
  private:
   MapfileFilesystem(const std::string& mapfile_filename, off_t num_blocks);
 
