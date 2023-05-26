@@ -56,11 +56,6 @@ class ErofsFilesystem final : public FilesystemInterface {
 
   bool GetFiles(std::vector<File>* files) const override;
 
-  bool LoadSettings(
-      [[maybe_unused]] brillo::KeyValueStore* store) const override {
-    return true;
-  }
-
  private:
   ErofsFilesystem(std::string filename, size_t fs_size, std::vector<File> files)
       : filename_(filename), fs_size_(fs_size), files_(std::move(files)) {}
