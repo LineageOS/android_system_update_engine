@@ -379,7 +379,10 @@ bool CleanupPreviousUpdateAction::OnMergePercentageUpdate() {
 }
 
 bool CleanupPreviousUpdateAction::BeforeCancel() {
-  if (DeltaPerformer::ResetUpdateProgress(prefs_, false /* quick */)) {
+  if (DeltaPerformer::ResetUpdateProgress(
+          prefs_,
+          false /* quick */,
+          false /* skip dynamic partitions metadata*/)) {
     return true;
   }
 
