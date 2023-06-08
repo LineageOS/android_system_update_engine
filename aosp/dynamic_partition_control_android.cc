@@ -1314,8 +1314,8 @@ bool DynamicPartitionControlAndroid::ResetUpdate(PrefsInterface* prefs) {
   // ResetUpdateProgress may pass but CancelUpdate fails.
   // This is expected. A scheduled CleanupPreviousUpdateAction should free
   // space when it is done.
-  TEST_AND_RETURN_FALSE(
-      DeltaPerformer::ResetUpdateProgress(prefs, false /* quick */));
+  TEST_AND_RETURN_FALSE(DeltaPerformer::ResetUpdateProgress(
+      prefs, false /* quick */, false /* skip dynamic partitions metadata */));
 
   if (ExpectMetadataMounted()) {
     TEST_AND_RETURN_FALSE(snapshot_->CancelUpdate());
