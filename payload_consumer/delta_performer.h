@@ -147,7 +147,10 @@ class DeltaPerformer : public FileWriter {
   // If |skip_dynamic_partititon_metadata_updated| is true, do not reset
   // dynamic-partition-metadata-updated.
   // Returns true on success, false otherwise.
-  static bool ResetUpdateProgress(PrefsInterface* prefs, bool quick);
+  static bool ResetUpdateProgress(
+      PrefsInterface* prefs,
+      bool quick,
+      bool skip_dynamic_partititon_metadata_updated = false);
 
   // Attempts to parse the update metadata starting from the beginning of
   // |payload|. On success, returns kMetadataParseSuccess. Returns
