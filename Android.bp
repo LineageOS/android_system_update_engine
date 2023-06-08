@@ -1318,3 +1318,23 @@ cc_binary_host {
         "update_metadata-protos",
     ],
 }
+
+cc_binary_host {
+    name: "map_file_generator",
+    defaults: [
+        "ue_defaults",
+        "libpayload_generator_exports",
+    ],
+    srcs: [
+        "aosp/map_file_generator.cc",
+    ],
+    static_libs: [
+        "liblog",
+        "libbase",
+        "libpayload_generator",
+        "libpayload_extent_ranges",
+        "libpayload_extent_utils",
+        "libgflags",
+        "update_metadata-protos",
+    ],
+}
