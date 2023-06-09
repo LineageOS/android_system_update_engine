@@ -14,8 +14,14 @@
 // limitations under the License.
 //
 
-#include "android-base/stringprintf.h"
-#include "android-base/unique_fd.h"
+#include <array>
+
+#include <android-base/stringprintf.h>
+#include <android-base/unique_fd.h>
+#include <fcntl.h>
+#include <sparse/sparse.h>
+
+#include "android-base/file.h"
 #include "common/utils.h"
 #include "update_engine/payload_generator/ext2_filesystem.h"
 #include "update_engine/payload_generator/erofs_filesystem.h"
@@ -67,9 +73,38 @@ int WriteBlockMap(const char* img,
   return 0;
 }
 
+bool IsSparseImage(int fd) {
+  static constexpr std::string_view kSparseMagic = "\x3A\xFF\x26\xED";
+
+  std::array<char, kSparseMagic.size()> buf{};
+  if (pread(fd, buf.data(), kSparseMagic.size(), 0) != 4) {
+    return false;
+  }
+  return memcmp(buf.data(), kSparseMagic.data(), kSparseMagic.size()) == 0;
+}
+
 int Main(int argc, const char* argv[]) {
   const char* img = argv[1];
   const char* output_file = argv[2];
+  android::base::unique_fd fd(open(img, O_RDONLY | O_CLOEXEC));
+  if (!fd.ok()) {
+    PLOG(ERROR) << "Failed to open " << img;
+    return -errno;
+  }
+  TemporaryFile tmpfile;
+  if (IsSparseImage(fd.get())) {
+    LOG(INFO) << "Detected sparse image " << img << ", unsparsing...";
+    struct sparse_file* s = sparse_file_import(fd, true, false);
+    if (s == nullptr) {
+      LOG(ERROR) << "Failed to unsparse " << img;
+      return -2;
+    }
+    if (sparse_file_write(s, tmpfile.fd, false, false, false) < 0) {
+      LOG(ERROR) << "Failed to write unsparsed output to " << tmpfile.path;
+      return -1;
+    }
+    img = tmpfile.path;
+  }
   std::unique_ptr<FilesystemInterface> fs;
   fs = ErofsFilesystem::CreateFromFile(img);
   if (fs != nullptr) {

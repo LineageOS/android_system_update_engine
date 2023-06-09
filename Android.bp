@@ -1335,6 +1335,7 @@ cc_binary_host {
         "libpayload_extent_ranges",
         "libpayload_extent_utils",
         "libgflags",
+        "libsparse",
         "update_metadata-protos",
     ],
 }
