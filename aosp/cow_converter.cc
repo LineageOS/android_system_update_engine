@@ -35,7 +35,6 @@
 #include "update_engine/payload_generator/cow_size_estimator.h"
 #include "update_engine/update_metadata.pb.h"
 
-using android::snapshot::CowWriter;
 DEFINE_string(partitions,
               "",
               "Comma separated list of partitions to extract, leave empty for "
@@ -43,9 +42,10 @@ DEFINE_string(partitions,
 
 namespace chromeos_update_engine {
 
-bool ProcessPartition(const chromeos_update_engine::PartitionUpdate& partition,
-                      const char* image_dir,
-                      size_t block_size) {
+bool ProcessPartition(
+    const chromeos_update_engine::DeltaArchiveManifest& manifest,
+    const chromeos_update_engine::PartitionUpdate& partition,
+    const char* image_dir) {
   base::FilePath img_dir{image_dir};
   auto target_img = img_dir.Append(partition.partition_name() + ".img");
   auto output_cow = img_dir.Append(partition.partition_name() + ".cow");
@@ -61,18 +61,23 @@ bool ProcessPartition(const chromeos_update_engine::PartitionUpdate& partition,
     return false;
   }
 
-  android::snapshot::CowWriter cow_writer{
-      {.block_size = static_cast<uint32_t>(block_size), .compression = "gz"}};
-  TEST_AND_RETURN_FALSE(cow_writer.Initialize(output_fd));
+  const auto& dap = manifest.dynamic_partition_metadata();
+
+  android::snapshot::CowOptions options{
+      .block_size = static_cast<uint32_t>(manifest.block_size()),
+      .compression = dap.vabc_compression_param()};
+  auto cow_writer = android::snapshot::CreateCowWriter(
+      dap.cow_version(), options, std::move(output_fd));
+  TEST_AND_RETURN_FALSE(cow_writer);
   TEST_AND_RETURN_FALSE(CowDryRun(nullptr,
                                   target_img_fd,
                                   partition.operations(),
                                   partition.merge_operations(),
-                                  block_size,
-                                  &cow_writer,
+                                  manifest.block_size(),
+                                  cow_writer.get(),
                                   partition.new_partition_info().size(),
                                   false));
-  TEST_AND_RETURN_FALSE(cow_writer.Finalize());
+  TEST_AND_RETURN_FALSE(cow_writer->Finalize());
   return true;
 }
 
@@ -148,7 +153,7 @@ int main(int argc, char* argv[]) {
       continue;
     }
     LOG(INFO) << partition.partition_name();
-    if (!ProcessPartition(partition, images_dir, manifest.block_size())) {
+    if (!ProcessPartition(manifest, partition, images_dir)) {
       return 6;
     }
     base::FilePath img_dir{images_dir};
