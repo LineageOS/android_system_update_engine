@@ -75,8 +75,7 @@ MATCHER_P2(BytesEqual,
 
 TEST_F(XorExtentWriterTest, StreamTest) {
   constexpr auto COW_XOR = CowMergeOperation::COW_XOR;
-  ON_CALL(cow_writer_, EmitXorBlocks(_, _, _, _, _))
-      .WillByDefault(Return(true));
+  ON_CALL(cow_writer_, AddXorBlocks(_, _, _, _, _)).WillByDefault(Return(true));
   const auto op1 = CreateCowMergeOperation(
       ExtentForRange(5, 2), ExtentForRange(5, 2), COW_XOR);
   ASSERT_TRUE(xor_map_.AddExtent(op1.dst_extent(), &op1));
@@ -109,23 +108,23 @@ TEST_F(XorExtentWriterTest, StreamTest) {
 
   auto zeros = utils::GetReadonlyZeroBlock(kBlockSize * 10);
   EXPECT_CALL(cow_writer_,
-              EmitRawBlocks(455, zeros->data() + 2 * kBlockSize, kBlockSize))
+              AddRawBlocks(455, zeros->data() + 2 * kBlockSize, kBlockSize))
       .With(Args<1, 2>(BytesEqual(zeros->data(), kBlockSize)))
       .WillOnce(Return(true));
   EXPECT_CALL(cow_writer_,
-              EmitRawBlocks(320, zeros->data() + 5 * kBlockSize, kBlockSize))
+              AddRawBlocks(320, zeros->data() + 5 * kBlockSize, kBlockSize))
       .With(Args<1, 2>(BytesEqual(zeros->data(), kBlockSize)))
       .WillOnce(Return(true));
   EXPECT_CALL(cow_writer_,
-              EmitRawBlocks(323, zeros->data() + 8 * kBlockSize, kBlockSize))
+              AddRawBlocks(323, zeros->data() + 8 * kBlockSize, kBlockSize))
       .With(Args<1, 2>(BytesEqual(zeros->data(), kBlockSize)))
       .WillOnce(Return(true));
 
-  EXPECT_CALL(cow_writer_, EmitXorBlocks(5, _, kBlockSize * 2, 5, 0))
+  EXPECT_CALL(cow_writer_, AddXorBlocks(5, _, kBlockSize * 2, 5, 0))
       .WillOnce(Return(true));
-  EXPECT_CALL(cow_writer_, EmitXorBlocks(456, _, kBlockSize * 2, 45, 0))
+  EXPECT_CALL(cow_writer_, AddXorBlocks(456, _, kBlockSize * 2, 45, 0))
       .WillOnce(Return(true));
-  EXPECT_CALL(cow_writer_, EmitXorBlocks(321, _, kBlockSize * 2, 12, 777))
+  EXPECT_CALL(cow_writer_, AddXorBlocks(321, _, kBlockSize * 2, 12, 777))
       .WillOnce(Return(true));
 
   ASSERT_TRUE(writer_.Init(op_.dst_extents(), kBlockSize));
@@ -134,8 +133,7 @@ TEST_F(XorExtentWriterTest, StreamTest) {
 
 TEST_F(XorExtentWriterTest, SubsetExtentTest) {
   constexpr auto COW_XOR = CowMergeOperation::COW_XOR;
-  ON_CALL(cow_writer_, EmitXorBlocks(_, _, _, _, _))
-      .WillByDefault(Return(true));
+  ON_CALL(cow_writer_, AddXorBlocks(_, _, _, _, _)).WillByDefault(Return(true));
 
   const auto op3 = CreateCowMergeOperation(
       ExtentForRange(12, 4), ExtentForRange(320, 4), COW_XOR, 777);
@@ -161,14 +159,13 @@ TEST_F(XorExtentWriterTest, SubsetExtentTest) {
   // [420-422] should be regular replace blocks
 
   auto zeros = utils::GetReadonlyZeroBlock(kBlockSize * 7);
-  EXPECT_CALL(
-      cow_writer_,
-      EmitRawBlocks(420, zeros->data() + 3 * kBlockSize, kBlockSize * 3))
+  EXPECT_CALL(cow_writer_,
+              AddRawBlocks(420, zeros->data() + 3 * kBlockSize, kBlockSize * 3))
       .WillOnce(Return(true));
 
-  EXPECT_CALL(cow_writer_, EmitXorBlocks(320, _, kBlockSize * 3, 12, 777))
+  EXPECT_CALL(cow_writer_, AddXorBlocks(320, _, kBlockSize * 3, 12, 777))
       .WillOnce(Return(true));
-  EXPECT_CALL(cow_writer_, EmitXorBlocks(323, _, kBlockSize, 15, 777))
+  EXPECT_CALL(cow_writer_, AddXorBlocks(323, _, kBlockSize, 15, 777))
       .WillOnce(Return(true));
 
   ASSERT_TRUE(writer_.Init(op_.dst_extents(), kBlockSize));
@@ -177,8 +174,7 @@ TEST_F(XorExtentWriterTest, SubsetExtentTest) {
 
 TEST_F(XorExtentWriterTest, LastBlockTest) {
   constexpr auto COW_XOR = CowMergeOperation::COW_XOR;
-  ON_CALL(cow_writer_, EmitXorBlocks(_, _, _, _, _))
-      .WillByDefault(Return(true));
+  ON_CALL(cow_writer_, AddXorBlocks(_, _, _, _, _)).WillByDefault(Return(true));
 
   const auto op3 = CreateCowMergeOperation(
       ExtentForRange(NUM_BLOCKS - 1, 1), ExtentForRange(2, 1), COW_XOR, 777);
@@ -207,18 +203,17 @@ TEST_F(XorExtentWriterTest, LastBlockTest) {
   // [2-4] should be REPLACE blocks
 
   auto zeros = utils::GetReadonlyZeroBlock(kBlockSize * 9);
-  EXPECT_CALL(cow_writer_, EmitRawBlocks(320, zeros->data(), kBlockSize * 3))
+  EXPECT_CALL(cow_writer_, AddRawBlocks(320, zeros->data(), kBlockSize * 3))
       .WillOnce(Return(true));
-  EXPECT_CALL(
-      cow_writer_,
-      EmitRawBlocks(420, zeros->data() + 3 * kBlockSize, kBlockSize * 3))
+  EXPECT_CALL(cow_writer_,
+              AddRawBlocks(420, zeros->data() + 3 * kBlockSize, kBlockSize * 3))
       .WillOnce(Return(true));
 
   EXPECT_CALL(cow_writer_,
-              EmitRawBlocks(2, zeros->data() + 6 * kBlockSize, kBlockSize))
+              AddRawBlocks(2, zeros->data() + 6 * kBlockSize, kBlockSize))
       .WillOnce(Return(true));
   EXPECT_CALL(cow_writer_,
-              EmitRawBlocks(3, zeros->data() + 7 * kBlockSize, kBlockSize * 2))
+              AddRawBlocks(3, zeros->data() + 7 * kBlockSize, kBlockSize * 2))
       .WillOnce(Return(true));
 
   ASSERT_TRUE(writer_.Init(op_.dst_extents(), kBlockSize));
