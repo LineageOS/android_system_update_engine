@@ -106,7 +106,8 @@ class DynamicPartitionControlInterface {
                                           uint32_t target_slot,
                                           const DeltaArchiveManifest& manifest,
                                           bool update,
-                                          uint64_t* required_size) = 0;
+                                          uint64_t* required_size,
+                                          ErrorCode* error = nullptr) = 0;
 
   // After writing to new partitions, before rebooting into the new slot, call
   // this function to indicate writes to new partitions are done.

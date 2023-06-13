@@ -87,6 +87,7 @@ enum class ErrorCode : int {
   kDeviceCorrupted = 61,
   kPackageExcludedFromUpdate = 62,
   kPostInstallMountError = 63,
+  kOverlayfsenabledError = 64,
 
   // VERY IMPORTANT! When adding new error codes:
   //

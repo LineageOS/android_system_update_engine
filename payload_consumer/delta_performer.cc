@@ -440,6 +440,9 @@ bool DeltaPerformer::CheckSPLDowngrade() {
 // were written, or false on any error, regardless of progress
 // and stores an action exit code in |error|.
 bool DeltaPerformer::Write(const void* bytes, size_t count, ErrorCode* error) {
+  if (!error) {
+    return false;
+  }
   *error = ErrorCode::kSuccess;
   const char* c_bytes = reinterpret_cast<const char*>(bytes);
 
@@ -730,8 +733,10 @@ bool DeltaPerformer::ParseManifestPartitions(ErrorCode* error) {
   // slot suffix of the partitions in the metadata.
   if (install_plan_->target_slot != BootControlInterface::kInvalidSlot) {
     uint64_t required_size = 0;
-    if (!PreparePartitionsForUpdate(&required_size)) {
-      if (required_size > 0) {
+    if (!PreparePartitionsForUpdate(&required_size, error)) {
+      if (*error == ErrorCode::kOverlayfsenabledError) {
+        return false;
+      } else if (required_size > 0) {
         *error = ErrorCode::kNotEnoughSpace;
       } else {
         *error = ErrorCode::kInstallDeviceOpenError;
@@ -802,7 +807,8 @@ bool DeltaPerformer::ParseManifestPartitions(ErrorCode* error) {
   return true;
 }
 
-bool DeltaPerformer::PreparePartitionsForUpdate(uint64_t* required_size) {
+bool DeltaPerformer::PreparePartitionsForUpdate(uint64_t* required_size,
+                                                ErrorCode* error) {
   // Call static PreparePartitionsForUpdate with hash from
   // kPrefsUpdateCheckResponseHash to ensure hash of payload that space is
   // preallocated for is the same as the hash of payload being applied.
@@ -814,7 +820,8 @@ bool DeltaPerformer::PreparePartitionsForUpdate(uint64_t* required_size) {
                                     install_plan_->target_slot,
                                     manifest_,
                                     update_check_response_hash,
-                                    required_size);
+                                    required_size,
+                                    error);
 }
 
 bool DeltaPerformer::PreparePartitionsForUpdate(
@@ -823,7 +830,8 @@ bool DeltaPerformer::PreparePartitionsForUpdate(
     BootControlInterface::Slot target_slot,
     const DeltaArchiveManifest& manifest,
     const std::string& update_check_response_hash,
-    uint64_t* required_size) {
+    uint64_t* required_size,
+    ErrorCode* error) {
   string last_hash;
   ignore_result(
       prefs->GetString(kPrefsDynamicPartitionMetadataUpdated, &last_hash));
@@ -845,9 +853,11 @@ bool DeltaPerformer::PreparePartitionsForUpdate(
           target_slot,
           manifest,
           !is_resume /* should update */,
-          required_size)) {
+          required_size,
+          error)) {
     LOG(ERROR) << "Unable to initialize partition metadata for slot "
-               << BootControlInterface::SlotName(target_slot);
+               << BootControlInterface::SlotName(target_slot) << " "
+               << utils::ErrorCodeToString(*error);
     return false;
   }
 
