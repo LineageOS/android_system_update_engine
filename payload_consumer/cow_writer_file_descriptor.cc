@@ -87,9 +87,9 @@ ssize_t CowWriterFileDescriptor::Read(void* buf, size_t count) {
 
 ssize_t CowWriterFileDescriptor::Write(const void* buf, size_t count) {
   auto offset = cow_reader_->Seek(0, SEEK_CUR);
-  CHECK_EQ(offset % cow_writer_->options().block_size, 0);
+  CHECK_EQ(offset % cow_writer_->GetBlockSize(), 0);
   auto success = cow_writer_->AddRawBlocks(
-      offset / cow_writer_->options().block_size, buf, count);
+      offset / cow_writer_->GetBlockSize(), buf, count);
   if (success) {
     if (cow_reader_->Seek(count, SEEK_CUR) < 0) {
       return -1;
