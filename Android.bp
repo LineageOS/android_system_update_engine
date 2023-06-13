@@ -1338,4 +1338,7 @@ cc_binary_host {
         "libsparse",
         "update_metadata-protos",
     ],
+    required: [
+        "unsquashfs",
+    ],
 }
