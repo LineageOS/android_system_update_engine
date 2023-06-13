@@ -47,7 +47,7 @@ bool CowDryRun(
     const google::protobuf::RepeatedPtrField<CowMergeOperation>&
         merge_operations,
     size_t block_size,
-    android::snapshot::CowWriter* cow_writer,
+    android::snapshot::ICowWriter* cow_writer,
     size_t partition_size,
     bool xor_enabled);
 
