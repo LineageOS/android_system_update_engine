@@ -72,7 +72,11 @@ bool GetFileMapContent(const string& sqfs_path, string* map) {
   ScopedTempFile map_file("squashfs_file_map.XXXXXX");
   // Run unsquashfs to get the system file map.
   // unsquashfs -m <map-file> <squashfs-file>
-  vector<string> cmd = {"unsquashfs", "-m", map_file.path(), sqfs_path};
+  const char* unsquashfs = getenv("UNSQUASHFS");
+  if (unsquashfs == nullptr || unsquashfs[0] == '\0') {
+    unsquashfs = "unsquashfs";
+  }
+  vector<string> cmd = {unsquashfs, "-m", map_file.path(), sqfs_path};
   string stdout_str, stderr_str;
   int exit_code;
   if (!Subprocess::SynchronousExec(cmd, &exit_code, &stdout_str, &stderr_str) ||
