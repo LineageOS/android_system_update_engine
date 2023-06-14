@@ -1342,3 +1342,28 @@ cc_binary_host {
         "unsquashfs",
     ],
 }
+
+cc_fuzz {
+    name: "update_engine_service_fuzzer",
+    defaults: [
+        "ue_defaults",
+        "libupdate_engine_android_exports",
+        "service_fuzzer_defaults",
+        "fuzzer_disable_leaks",
+    ],
+    static_libs: [
+        "libupdate_engine_android",
+        "libgflags",
+    ],
+    srcs: [
+        "fuzzers/update_engine_service_fuzzer.cpp",
+        "aosp/metrics_reporter_android.cc",
+    ],
+    fuzz_config: {
+        triage_assignee: "waghpawan@google.com",
+        cc: [
+            "elsk@google.com",
+            "zhangkelvin@google.com",
+        ]
+    },
+}
