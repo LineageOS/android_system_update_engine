@@ -27,6 +27,8 @@ using android::fuzzService;
 using android::sp;
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
+  brillo::BaseMessageLoop message_loop_;
+  message_loop_.SetAsCurrent();
   auto daemonStateAndroid = std::make_unique<DaemonStateAndroid>();
   daemonStateAndroid->Initialize();
 
