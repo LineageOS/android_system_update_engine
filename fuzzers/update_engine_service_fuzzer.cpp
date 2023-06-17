@@ -16,6 +16,8 @@
 
 #include <fuzzbinder/libbinder_driver.h>
 
+#include <binderwrapper/binder_wrapper.h>
+
 #include "update_engine/aosp/daemon_android.h"
 #include "update_engine/aosp/daemon_state_android.h"
 
@@ -27,8 +29,11 @@ using android::fuzzService;
 using android::sp;
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
+  android::BinderWrapper::Create();
+
   brillo::BaseMessageLoop message_loop_;
   message_loop_.SetAsCurrent();
+
   auto daemonStateAndroid = std::make_unique<DaemonStateAndroid>();
   daemonStateAndroid->Initialize();
 
@@ -40,5 +45,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
   // urls
   fuzzService({binderService, stableBinderService},
               FuzzedDataProvider(data, size));
+
+  android::BinderWrapper::Destroy();
   return 0;
 }
