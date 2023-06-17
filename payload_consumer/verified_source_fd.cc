@@ -69,11 +69,16 @@ bool VerifiedSourceFd::OpenCurrentECCPartition() {
 bool VerifiedSourceFd::WriteBackCorrectedSourceBlocks(
     const std::vector<unsigned char>& source_data,
     const google::protobuf::RepeatedPtrField<Extent>& extents) {
+  utils::SetBlockDeviceReadOnly(source_path_, false);
+  DEFER {
+    utils::SetBlockDeviceReadOnly(source_path_, true);
+  };
   auto fd = std::make_shared<EintrSafeFileDescriptor>();
   TEST_AND_RETURN_FALSE_ERRNO(fd->Open(source_path_.c_str(), O_RDWR));
   DirectExtentWriter writer(fd);
   TEST_AND_RETURN_FALSE(writer.Init(extents, block_size_));
-  return writer.Write(source_data.data(), source_data.size());
+  TEST_AND_RETURN_FALSE(writer.Write(source_data.data(), source_data.size()));
+  return true;
 }
 
 FileDescriptorPtr VerifiedSourceFd::ChooseSourceFD(
