@@ -27,7 +27,8 @@
 
 namespace chromeos_update_engine {
 
-class DynamicPartitionControlStub final : public DynamicPartitionControlInterface {
+class DynamicPartitionControlStub final
+    : public DynamicPartitionControlInterface {
  public:
   FeatureFlag GetDynamicPartitionsFeatureFlag() override;
   FeatureFlag GetVirtualAbFeatureFlag() override;
@@ -62,10 +63,10 @@ class DynamicPartitionControlStub final : public DynamicPartitionControlInterfac
       uint32_t target_slot,
       const std::vector<std::string>& partitions) override;
 
-  std::unique_ptr<android::snapshot::ISnapshotWriter> OpenCowWriter(
+  std::unique_ptr<android::snapshot::ICowWriter> OpenCowWriter(
       const std::string& unsuffixed_partition_name,
       const std::optional<std::string>&,
-      bool is_append) override;
+      std::optional<uint64_t> label) override;
 
   std::unique_ptr<FileDescriptor> OpenCowFd(
       const std::string& unsuffixed_partition_name,
