@@ -16,8 +16,9 @@
 
 #include <cstdint>
 #include <memory>
+#include <string>
 
-#include <libsnapshot/snapshot_writer.h>
+#include <libsnapshot/cow_writer.h>
 
 #include "update_engine/payload_consumer/file_descriptor.h"
 
@@ -28,13 +29,12 @@ namespace chromeos_update_engine {
 // FEC. Writes must be block aligned(4096) or write will fail.
 class CowWriterFileDescriptor final : public FileDescriptor {
  public:
-  explicit CowWriterFileDescriptor(
-      std::unique_ptr<android::snapshot::ISnapshotWriter> cow_writer);
-
-  // |cow_reader| should be obtained by calling |cow_writer->OpenReader()|
+  // |cow_reader| should be obtained by calling
+  // |cow_writer->OpenReader()->OpenFileDescriptor()|
   CowWriterFileDescriptor(
-      std::unique_ptr<android::snapshot::ISnapshotWriter> cow_writer,
-      std::unique_ptr<FileDescriptor> cow_reader);
+      std::unique_ptr<android::snapshot::ICowWriter> cow_writer,
+      std::unique_ptr<FileDescriptor> cow_reader,
+      const std::optional<std::string>& source_device);
   ~CowWriterFileDescriptor();
 
   bool Open(const char* path, int flags, mode_t mode) override;
@@ -64,8 +64,9 @@ class CowWriterFileDescriptor final : public FileDescriptor {
   bool IsOpen() override;
 
  private:
-  std::unique_ptr<android::snapshot::ISnapshotWriter> cow_writer_;
+  std::unique_ptr<android::snapshot::ICowWriter> cow_writer_;
   FileDescriptorPtr cow_reader_;
+  std::optional<std::string> source_device_;
   bool dirty_ = false;
 };
 }  // namespace chromeos_update_engine

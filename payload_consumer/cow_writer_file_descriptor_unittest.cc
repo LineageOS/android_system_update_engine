@@ -18,13 +18,14 @@
 
 #include <cstring>
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 
 #include <android-base/unique_fd.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include <libsnapshot/snapshot_writer.h>
+#include <libsnapshot/cow_writer.h>
 
 #include "update_engine/common/utils.h"
 
@@ -33,9 +34,8 @@ constexpr size_t BLOCK_SIZE = 4096;
 constexpr size_t PARTITION_SIZE = BLOCK_SIZE * 10;
 
 using android::base::unique_fd;
-using android::snapshot::CompressedSnapshotWriter;
 using android::snapshot::CowOptions;
-using android::snapshot::ISnapshotWriter;
+using android::snapshot::ICowWriter;
 
 class CowWriterFileDescriptorUnittest : public ::testing::Test {
  public:
@@ -48,18 +48,22 @@ class CowWriterFileDescriptorUnittest : public ::testing::Test {
         << strerror(errno);
   }
 
-  std::unique_ptr<CompressedSnapshotWriter> GetCowWriter() {
+  std::unique_ptr<ICowWriter> GetCowWriter() {
+    static constexpr uint32_t kTestCowVersion = 2;
     const CowOptions options{.block_size = BLOCK_SIZE, .compression = "gz"};
-    auto snapshot_writer = std::make_unique<CompressedSnapshotWriter>(options);
     int fd = open(cow_device_file_.path().c_str(), O_RDWR);
     EXPECT_NE(fd, -1);
-    EXPECT_TRUE(snapshot_writer->SetCowDevice(unique_fd{fd}));
-    snapshot_writer->SetSourceDevice(cow_source_file_.path());
-    return snapshot_writer;
+    return android::snapshot::CreateCowWriter(
+        kTestCowVersion, options, unique_fd{fd});
   }
-  CowWriterFileDescriptor GetCowFd() {
+  std::unique_ptr<CowWriterFileDescriptor> GetCowFd() {
     auto cow_writer = GetCowWriter();
-    return CowWriterFileDescriptor{std::move(cow_writer)};
+    EXPECT_NE(cow_writer, nullptr);
+    auto fd = cow_writer->OpenFileDescriptor({cow_source_file_.path()});
+    EXPECT_NE(fd, nullptr);
+    auto source_path = std::optional<std::string>{cow_source_file_.path()};
+    return std::make_unique<CowWriterFileDescriptor>(
+        std::move(cow_writer), std::move(fd), source_path);
   }
 
   ScopedTempFile cow_source_file_{"cow_source.XXXXXX", true};
@@ -76,7 +80,6 @@ TEST_F(CowWriterFileDescriptorUnittest, ReadAfterWrite) {
   std::fill(verity_data.begin(), verity_data.end(), 0xAA);
 
   auto cow_writer = GetCowWriter();
-  cow_writer->Initialize();
 
   // Simulate Writing InstallOp data
   ASSERT_TRUE(cow_writer->AddRawBlocks(0, buffer.data(), buffer.size()));
@@ -88,11 +91,7 @@ TEST_F(CowWriterFileDescriptorUnittest, ReadAfterWrite) {
       cow_writer->AddRawBlocks(4, verity_data.data(), verity_data.size()));
   ASSERT_TRUE(cow_writer->Finalize());
 
-  cow_writer = GetCowWriter();
-  ASSERT_NE(nullptr, cow_writer);
-  ASSERT_TRUE(cow_writer->InitializeAppend(23));
-  auto cow_fd =
-      std::make_unique<CowWriterFileDescriptor>(std::move(cow_writer));
+  auto cow_fd = GetCowFd();
 
   ASSERT_EQ((ssize_t)BLOCK_SIZE * 4, cow_fd->Seek(BLOCK_SIZE * 4, SEEK_SET));
   std::vector<unsigned char> read_back(4096);
@@ -103,16 +102,13 @@ TEST_F(CowWriterFileDescriptorUnittest, ReadAfterWrite) {
   // Since we didn't write anything to this instance of cow_fd, destructor
   // should not call Finalize(). As finalize will drop ops after resume label,
   // causing subsequent reads to fail.
-  cow_writer = GetCowWriter();
-  ASSERT_NE(nullptr, cow_writer);
-  ASSERT_TRUE(cow_writer->InitializeAppend(23));
-  cow_fd = std::make_unique<CowWriterFileDescriptor>(std::move(cow_writer));
+  cow_fd = GetCowFd();
 
   ASSERT_EQ((ssize_t)BLOCK_SIZE * 4, cow_fd->Seek(BLOCK_SIZE * 4, SEEK_SET));
   ASSERT_EQ((ssize_t)read_back.size(),
             cow_fd->Read(read_back.data(), read_back.size()));
   ASSERT_EQ(verity_data, read_back)
-      << "Could not read verity data afeter InitializeAppend() => Read() => "
+      << "Could not read verity data after InitializeAppend() => Read() => "
          "InitializeAppend() sequence. If no writes happened while CowWriterFd "
          "is open, Finalize() should not be called.";
 }
