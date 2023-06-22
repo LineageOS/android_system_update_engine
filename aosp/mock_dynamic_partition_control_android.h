@@ -17,13 +17,13 @@
 #include <stdint.h>
 
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 
 #include <gmock/gmock.h>
 
 #include <libsnapshot/cow_writer.h>
-#include <libsnapshot/snapshot_writer.h>
 
 #include "payload_consumer/file_descriptor.h"
 #include "update_engine/aosp/dynamic_partition_control_android.h"
@@ -96,11 +96,11 @@ class MockDynamicPartitionControlAndroid
               PrepareDynamicPartitionsForUpdate,
               (uint32_t, uint32_t, const DeltaArchiveManifest&, bool),
               (override));
-  MOCK_METHOD(std::unique_ptr<android::snapshot::ISnapshotWriter>,
+  MOCK_METHOD(std::unique_ptr<android::snapshot::ICowWriter>,
               OpenCowWriter,
               (const std::string& unsuffixed_partition_name,
                const std::optional<std::string>& source_path,
-               bool is_append),
+               std::optional<uint64_t> label),
               (override));
   MOCK_METHOD(std::unique_ptr<FileDescriptor>,
               OpenCowFd,

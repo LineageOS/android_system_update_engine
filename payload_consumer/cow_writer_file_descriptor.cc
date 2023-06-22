@@ -17,6 +17,7 @@
 #include "update_engine/payload_consumer/cow_writer_file_descriptor.h"
 
 #include <memory>
+#include <string>
 #include <utility>
 
 #include <base/logging.h>
@@ -25,18 +26,14 @@
 #include "update_engine/payload_consumer/file_descriptor.h"
 
 namespace chromeos_update_engine {
-CowWriterFileDescriptor::CowWriterFileDescriptor(
-    std::unique_ptr<android::snapshot::ISnapshotWriter> cow_writer)
-    : cow_writer_(std::move(cow_writer)),
-      cow_reader_(cow_writer_->OpenReader()) {
-  CHECK_NE(cow_writer_, nullptr);
-  CHECK_NE(cow_reader_, nullptr);
-}
 
 CowWriterFileDescriptor::CowWriterFileDescriptor(
-    std::unique_ptr<android::snapshot::ISnapshotWriter> cow_writer,
-    std::unique_ptr<FileDescriptor> cow_reader)
-    : cow_writer_(std::move(cow_writer)), cow_reader_(std::move(cow_reader)) {
+    std::unique_ptr<android::snapshot::ICowWriter> cow_writer,
+    std::unique_ptr<FileDescriptor> cow_reader,
+    const std::optional<std::string>& source_device)
+    : cow_writer_(std::move(cow_writer)),
+      cow_reader_(std::move(cow_reader)),
+      source_device_(source_device) {
   CHECK_NE(cow_writer_, nullptr);
   CHECK_NE(cow_reader_, nullptr);
 }
@@ -68,9 +65,10 @@ ssize_t CowWriterFileDescriptor::Read(void* buf, size_t count) {
       LOG(ERROR) << "Failed to Finalize() cow writer";
       return -1;
     }
-    cow_reader_ = cow_writer_->OpenReader();
+    cow_reader_ = cow_writer_->OpenFileDescriptor(source_device_);
     if (cow_reader_ == nullptr) {
-      LOG(ERROR) << "Failed to re-open cow reader after writing to COW";
+      LOG(ERROR)
+          << "Failed to re-open cow file descriptor after writing to COW";
       return -1;
     }
     const auto pos = cow_reader_->Seek(offset, SEEK_SET);

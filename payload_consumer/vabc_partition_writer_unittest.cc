@@ -22,7 +22,7 @@
 #include <bsdiff/bsdiff.h>
 #include <gtest/gtest.h>
 #include <libsnapshot/cow_writer.h>
-#include <libsnapshot/mock_snapshot_writer.h>
+#include <libsnapshot/mock_cow_writer.h>
 
 #include "update_engine/common/error_code.h"
 #include "update_engine/common/hash_calculator.h"
@@ -75,7 +75,7 @@ class VABCPartitionWriterTest : public ::testing::Test {
 
   android::snapshot::CowOptions options_ = {
       .block_size = static_cast<uint32_t>(kBlockSize)};
-  android::snapshot::MockSnapshotWriter cow_writer_;
+  android::snapshot::MockCowWriter cow_writer_;
   MockDynamicPartitionControl dynamic_control_;
   PartitionUpdate partition_update_;
   InstallPlan install_plan_;
@@ -93,14 +93,12 @@ TEST_F(VABCPartitionWriterTest, MergeSequenceWriteTest) {
   AddMergeOp(&partition_update_, {42, 5}, {40, 5}, CowMergeOperation::COW_XOR);
   VABCPartitionWriter writer_{
       partition_update_, install_part_, &dynamic_control_, kBlockSize};
-  EXPECT_CALL(dynamic_control_, OpenCowWriter(fake_part_name, _, false))
+  EXPECT_CALL(dynamic_control_, OpenCowWriter(fake_part_name, _, _))
       .WillOnce(Invoke([](const std::string&,
                           const std::optional<std::string>&,
-                          bool) {
-        auto cow_writer =
-            std::make_unique<android::snapshot::MockSnapshotWriter>();
+                          std::optional<uint64_t>) {
+        auto cow_writer = std::make_unique<android::snapshot::MockCowWriter>();
         auto expected_merge_sequence = {10, 14, 13, 20, 25, 40, 41, 42, 43, 44};
-        EXPECT_CALL(*cow_writer, Initialize()).WillOnce(Return(true));
         EXPECT_CALL(*cow_writer, AddSequenceData(_, _))
             .With(Args<1, 0>(ElementsAreArray(expected_merge_sequence)))
             .WillOnce(Return(true));
@@ -118,13 +116,14 @@ TEST_F(VABCPartitionWriterTest, MergeSequenceXorSameBlock) {
       ->set_src_offset(1);
   VABCPartitionWriter writer_{
       partition_update_, install_part_, &dynamic_control_, kBlockSize};
-  EXPECT_CALL(dynamic_control_, OpenCowWriter(fake_part_name, _, false))
-      .WillOnce(Invoke(
-          [](const std::string&, const std::optional<std::string>&, bool) {
+  EXPECT_CALL(dynamic_control_, OpenCowWriter(fake_part_name, _, _))
+      .WillOnce(
+          Invoke([](const std::string&,
+                    const std::optional<std::string>&,
+                    std::optional<uint64_t>) {
             auto cow_writer =
-                std::make_unique<android::snapshot::MockSnapshotWriter>();
+                std::make_unique<android::snapshot::MockCowWriter>();
             auto expected_merge_sequence = {19, 20, 21};
-            EXPECT_CALL(*cow_writer, Initialize()).WillOnce(Return(true));
             EXPECT_CALL(*cow_writer, AddSequenceData(_, _))
                 .With(Args<1, 0>(ElementsAreArray(expected_merge_sequence)))
                 .WillOnce(Return(true));
@@ -170,16 +169,13 @@ void VABCPartitionWriterTest::AddBlockTest(bool xor_enabled) {
   AddMergeOp(&partition_update_, {20, 1}, {25, 1}, CowMergeOperation::COW_COPY);
   VABCPartitionWriter writer_{
       partition_update_, install_part_, &dynamic_control_, kBlockSize};
-  EXPECT_CALL(dynamic_control_, OpenCowWriter(fake_part_name, _, false))
+  EXPECT_CALL(dynamic_control_, OpenCowWriter(fake_part_name, _, _))
       .WillOnce(Invoke([xor_enabled](const std::string&,
                                      const std::optional<std::string>&,
-                                     bool) {
-        auto cow_writer =
-            std::make_unique<android::snapshot::MockSnapshotWriter>();
+                                     std::optional<uint64_t>) {
+        auto cow_writer = std::make_unique<android::snapshot::MockCowWriter>();
         ON_CALL(*cow_writer, AddCopy(_, _, _)).WillByDefault(Return(true));
         ON_CALL(*cow_writer, AddLabel(_)).WillByDefault(Return(true));
-        ON_CALL(*cow_writer, Initialize()).WillByDefault(Return(true));
-        EXPECT_CALL(*cow_writer, Initialize());
         if (xor_enabled) {
           EXPECT_CALL(*cow_writer, AddSequenceData(_, _))
               .WillOnce(Return(true));
@@ -246,18 +242,16 @@ TEST_F(VABCPartitionWriterTest, StreamXORBlockTest) {
   data_hash->assign(reinterpret_cast<const char*>(expected_hash.data()),
                     expected_hash.size());
 
-  EXPECT_CALL(dynamic_control_, OpenCowWriter(fake_part_name, _, false))
+  EXPECT_CALL(dynamic_control_, OpenCowWriter(fake_part_name, _, _))
       .WillOnce(Invoke([](const std::string&,
                           const std::optional<std::string>&,
-                          bool) {
-        auto cow_writer =
-            std::make_unique<android::snapshot::MockSnapshotWriter>();
+                          std::optional<uint64_t>) {
+        auto cow_writer = std::make_unique<android::snapshot::MockCowWriter>();
         ON_CALL(*cow_writer, AddLabel(_)).WillByDefault(Return(true));
         auto expected_merge_sequence = {10, 11, 13, 14};
         auto expected_merge_sequence_rev = {11, 10, 14, 13};
         const bool is_ascending = android::base::GetBoolProperty(
             "ro.virtual_ab.userspace.snapshots.enabled", false);
-        ON_CALL(*cow_writer, Initialize()).WillByDefault(Return(true));
         if (!is_ascending) {
           EXPECT_CALL(*cow_writer, AddSequenceData(_, _))
               .With(Args<1, 0>(ElementsAreArray(expected_merge_sequence_rev)))
@@ -267,7 +261,6 @@ TEST_F(VABCPartitionWriterTest, StreamXORBlockTest) {
               .With(Args<1, 0>(ElementsAreArray(expected_merge_sequence)))
               .WillOnce(Return(true));
         }
-        EXPECT_CALL(*cow_writer, Initialize()).Times(1);
         EXPECT_CALL(*cow_writer, AddCopy(_, _, _)).Times(0);
         EXPECT_CALL(*cow_writer, AddRawBlocks(_, _, _)).WillOnce(Return(true));
         EXPECT_CALL(*cow_writer, AddXorBlocks(10, _, kBlockSize * 2, 5, 0))
