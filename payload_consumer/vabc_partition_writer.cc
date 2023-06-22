@@ -157,22 +157,25 @@ bool VABCPartitionWriter::Init(const InstallPlan* install_plan,
     // TODO(zhangkelvin) Make |source_path| a std::optional<std::string>
     source_path = install_part_.source_path;
   }
-  cow_writer_ = dynamic_control_->OpenCowWriter(
-      install_part_.name, source_path, install_plan->is_resume);
-  TEST_AND_RETURN_FALSE(cow_writer_ != nullptr);
 
   // ===== Resume case handling code goes here ====
   // It is possible that the SOURCE_COPY are already written but
   // |next_op_index_| is still 0. In this case we discard previously written
   // SOURCE_COPY, and start over.
+  std::optional<uint64_t> label;
   if (install_plan->is_resume && next_op_index > 0) {
     LOG(INFO) << "Resuming update on partition `"
               << partition_update_.partition_name() << "` op index "
               << next_op_index;
-    TEST_AND_RETURN_FALSE(cow_writer_->InitializeAppend(next_op_index));
+    label = {next_op_index};
+  }
+
+  cow_writer_ =
+      dynamic_control_->OpenCowWriter(install_part_.name, source_path, label);
+  TEST_AND_RETURN_FALSE(cow_writer_ != nullptr);
+
+  if (label) {
     return true;
-  } else {
-    TEST_AND_RETURN_FALSE(cow_writer_->Initialize());
   }
 
   // ==============================================
@@ -383,7 +386,10 @@ void VABCPartitionWriter::CheckpointUpdateProgress(size_t next_op_index) {
   TEST_AND_RETURN_FALSE(cow_writer_ != nullptr);
   TEST_AND_RETURN_FALSE(cow_writer_->AddLabel(kEndOfInstallLabel));
   TEST_AND_RETURN_FALSE(cow_writer_->Finalize());
-  TEST_AND_RETURN_FALSE(cow_writer_->VerifyMergeOps());
+
+  auto cow_reader = cow_writer_->OpenReader();
+  TEST_AND_RETURN_FALSE(cow_reader);
+  TEST_AND_RETURN_FALSE(cow_reader->VerifyMergeOps());
   return true;
 }
 

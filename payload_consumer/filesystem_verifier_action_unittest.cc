@@ -29,7 +29,7 @@
 #include <brillo/secure_blob.h>
 #include <fec/ecc.h>
 #include <gtest/gtest.h>
-#include <libsnapshot/snapshot_writer.h>
+#include <libsnapshot/cow_writer.h>
 #include <sys/stat.h>
 
 #include "gmock/gmock-spec-builders.h"
