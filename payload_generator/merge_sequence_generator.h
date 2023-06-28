@@ -61,6 +61,7 @@ class MergeSequenceGenerator {
   explicit MergeSequenceGenerator(std::vector<CowMergeOperation> transfers,
                                   std::string_view partition_name)
       : operations_(std::move(Sort(transfers))),
+        merge_after_(FindDependency(operations_)),
         partition_name_(partition_name) {}
   // Checks that no read after write happens in the given sequence.
   static bool ValidateSequence(const std::vector<CowMergeOperation>& sequence);
@@ -69,15 +70,24 @@ class MergeSequenceGenerator {
   // |sequence|. Returns false on failure.
   bool Generate(std::vector<CowMergeOperation>* sequence) const;
 
+  const std::vector<CowMergeOperation>& GetOperations() const {
+    return operations_;
+  }
+  const std::map<CowMergeOperation, std::set<CowMergeOperation>>&
+  GetDependencyMap() const {
+    return merge_after_;
+  }
+
  private:
   friend class MergeSequenceGeneratorTest;
 
   // For a given merge operation, finds all the operations that should merge
-  // after myself. Put the result in |merge_after|.
-  bool FindDependency(std::map<CowMergeOperation, std::set<CowMergeOperation>>*
-                          merge_after) const;
+  // after myself. Put the result in |merge_after|. |operations| must be sorted
+  static std::map<CowMergeOperation, std::set<CowMergeOperation>>
+  FindDependency(const std::vector<CowMergeOperation>& operations);
   // The list of CowMergeOperations to sort.
   const std::vector<CowMergeOperation> operations_;
+  const std::map<CowMergeOperation, std::set<CowMergeOperation>> merge_after_;
   const std::string_view partition_name_;
 };
 
