@@ -1048,6 +1048,8 @@ cc_test_host {
         "unittest_key_RSA4096.pem",
         "unittest_key_EC.pem",
         "update_engine.conf",
+        "testdata/cycle_nodes_product.bin",
+        "testdata/cycle_nodes_product_no_xor.bin",
     ],
     static_libs: [
         "libgmock",
@@ -1164,6 +1166,8 @@ cc_test {
         "unittest_key_RSA4096.pem",
         "unittest_key_EC.pem",
         "update_engine.conf",
+        "testdata/cycle_nodes_product.bin",
+        "testdata/cycle_nodes_product_no_xor.bin",
     ],
 
     // We cannot use the default generated AndroidTest.xml because of the use of helper modules
