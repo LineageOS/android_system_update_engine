@@ -20,6 +20,8 @@
 #include <string>
 #include <vector>
 
+#include "brillo/errors/error.h"
+
 #include <binder/Status.h>
 
 namespace chromeos_update_engine {
