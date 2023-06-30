@@ -110,7 +110,7 @@ class PartitionProcessor : public base::DelegateSimpleThread::Delegate {
       return;
     }
     if (!old_part_.path.empty()) {
-      auto generator = MergeSequenceGenerator::Create(*aops_);
+      auto generator = MergeSequenceGenerator::Create(*aops_, new_part_.name);
       if (!generator || !generator->Generate(cow_merge_sequence_)) {
         LOG(FATAL) << "Failed to generate merge sequence";
       }

@@ -46,13 +46,13 @@ class MergeSequenceGeneratorTest : public ::testing::Test {
       std::vector<CowMergeOperation> transfers,
       std::map<CowMergeOperation, std::set<CowMergeOperation>>* result) {
     std::sort(transfers.begin(), transfers.end());
-    MergeSequenceGenerator generator(std::move(transfers));
+    MergeSequenceGenerator generator(std::move(transfers), "");
     ASSERT_TRUE(generator.FindDependency(result));
   }
 
   void GenerateSequence(std::vector<CowMergeOperation> transfers) {
     std::sort(transfers.begin(), transfers.end());
-    MergeSequenceGenerator generator(std::move(transfers));
+    MergeSequenceGenerator generator(std::move(transfers), "");
     std::vector<CowMergeOperation> sequence;
     ASSERT_TRUE(generator.Generate(&sequence));
   }
@@ -428,7 +428,7 @@ TEST_F(MergeSequenceGeneratorTest, ActualPayloadTest) {
   for (const auto& op : part.merge_operations()) {
     ops.emplace_back(op);
   }
-  MergeSequenceGenerator generator(ops);
+  MergeSequenceGenerator generator(ops, part.partition_name());
   std::vector<CowMergeOperation> sequence;
   ASSERT_TRUE(generator.Generate(&sequence));
 }
