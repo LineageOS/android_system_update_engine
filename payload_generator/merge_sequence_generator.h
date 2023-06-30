@@ -24,8 +24,6 @@
 #include <vector>
 
 #include "update_engine/payload_generator/annotated_operation.h"
-#include "update_engine/payload_generator/extent_ranges.h"
-#include "update_engine/payload_generator/extent_utils.h"
 #include "update_engine/update_metadata.pb.h"
 
 namespace chromeos_update_engine {
@@ -46,12 +44,21 @@ std::ostream& operator<<(std::ostream& os,
 // read after write will happen by following the sequence. When there is a
 // cycle, we will omit some operations in the list. Therefore, the result
 // sequence may not contain all blocks in the input list.
+
+template <typename T>
+T&& Sort(T&& container) {
+  std::sort(container.begin(), container.end());
+  return container;
+}
+
 class MergeSequenceGenerator {
  public:
-  // Creates an object from a list of OTA InstallOperations. Returns nullptr on
-  // failure.
+  // Creates an object from a list of OTA InstallOperations. Returns nullptr
+  // on failure.
   static std::unique_ptr<MergeSequenceGenerator> Create(
       const std::vector<AnnotatedOperation>& aops);
+  explicit MergeSequenceGenerator(std::vector<CowMergeOperation> transfers)
+      : operations_(std::move(Sort(transfers))) {}
   // Checks that no read after write happens in the given sequence.
   static bool ValidateSequence(const std::vector<CowMergeOperation>& sequence);
 
@@ -61,8 +68,6 @@ class MergeSequenceGenerator {
 
  private:
   friend class MergeSequenceGeneratorTest;
-  explicit MergeSequenceGenerator(std::vector<CowMergeOperation> transfers)
-      : operations_(std::move(transfers)) {}
 
   // For a given merge operation, finds all the operations that should merge
   // after myself. Put the result in |merge_after|.

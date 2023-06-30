@@ -19,7 +19,6 @@
 #include <algorithm>
 #include <limits>
 
-#include "update_engine/payload_generator/delta_diff_generator.h"
 #include "update_engine/payload_generator/extent_ranges.h"
 #include "update_engine/payload_generator/extent_utils.h"
 #include "update_engine/update_metadata.pb.h"
@@ -192,7 +191,6 @@ std::unique_ptr<MergeSequenceGenerator> MergeSequenceGenerator::Create(
     }
   }
 
-  std::sort(sequence.begin(), sequence.end());
   return std::unique_ptr<MergeSequenceGenerator>(
       new MergeSequenceGenerator(sequence));
 }
