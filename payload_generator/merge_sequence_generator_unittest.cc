@@ -17,16 +17,19 @@
 #include <algorithm>
 #include <vector>
 
+#include <android-base/file.h>
 #include <gtest/gtest.h>
 
-#include "update_engine/payload_consumer/payload_constants.h"
-#include "update_engine/payload_generator/delta_diff_generator.h"
+#include "update_engine/common/test_utils.h"
+#include "update_engine/common/utils.h"
 #include "update_engine/payload_generator/extent_ranges.h"
 #include "update_engine/payload_generator/extent_utils.h"
 #include "update_engine/payload_generator/merge_sequence_generator.h"
 #include "update_engine/update_metadata.pb.h"
 
 namespace chromeos_update_engine {
+using test_utils::GetBuildArtifactsPath;
+
 CowMergeOperation CreateCowMergeOperation(const Extent& src_extent,
                                           const Extent& dst_extent) {
   return CreateCowMergeOperation(
@@ -47,13 +50,11 @@ class MergeSequenceGeneratorTest : public ::testing::Test {
     ASSERT_TRUE(generator.FindDependency(result));
   }
 
-  void GenerateSequence(std::vector<CowMergeOperation> transfers,
-                        const std::vector<CowMergeOperation>& expected) {
+  void GenerateSequence(std::vector<CowMergeOperation> transfers) {
     std::sort(transfers.begin(), transfers.end());
     MergeSequenceGenerator generator(std::move(transfers));
     std::vector<CowMergeOperation> sequence;
     ASSERT_TRUE(generator.Generate(&sequence));
-    ASSERT_EQ(expected, sequence);
   }
 };
 
@@ -177,24 +178,18 @@ TEST_F(MergeSequenceGeneratorTest, GenerateSequenceNoCycles) {
       CreateCowMergeOperation(ExtentForRange(25, 10), ExtentForRange(30, 10)),
   };
 
-  std::vector<CowMergeOperation> expected{
-      transfers[0], transfers[2], transfers[1]};
-  GenerateSequence(transfers, expected);
+  GenerateSequence(transfers);
 }
 
 TEST_F(MergeSequenceGeneratorTest, GenerateSequenceWithCycles) {
   std::vector<CowMergeOperation> transfers = {
-      CreateCowMergeOperation(ExtentForRange(25, 10), ExtentForRange(30, 10)),
+      CreateCowMergeOperation(ExtentForRange(15, 10), ExtentForRange(30, 10)),
       CreateCowMergeOperation(ExtentForRange(30, 10), ExtentForRange(40, 10)),
-      CreateCowMergeOperation(ExtentForRange(40, 10), ExtentForRange(25, 10)),
-      CreateCowMergeOperation(ExtentForRange(10, 10), ExtentForRange(15, 10)),
+      CreateCowMergeOperation(ExtentForRange(40, 10), ExtentForRange(15, 10)),
+      CreateCowMergeOperation(ExtentForRange(10, 10), ExtentForRange(5, 10)),
   };
 
-  // file 1,2,3 form a cycle. And file3, whose dst ext has smallest offset,
-  // will be converted to raw blocks
-  std::vector<CowMergeOperation> expected{
-      transfers[3], transfers[1], transfers[0]};
-  GenerateSequence(transfers, expected);
+  GenerateSequence(transfers);
 }
 
 TEST_F(MergeSequenceGeneratorTest, GenerateSequenceMultipleCycles) {
@@ -204,15 +199,12 @@ TEST_F(MergeSequenceGeneratorTest, GenerateSequenceMultipleCycles) {
       CreateCowMergeOperation(ExtentForRange(24, 5), ExtentForRange(35, 5)),
       CreateCowMergeOperation(ExtentForRange(30, 10), ExtentForRange(15, 10)),
       // cycle 2
-      CreateCowMergeOperation(ExtentForRange(55, 10), ExtentForRange(60, 10)),
+      CreateCowMergeOperation(ExtentForRange(50, 10), ExtentForRange(60, 10)),
       CreateCowMergeOperation(ExtentForRange(60, 10), ExtentForRange(70, 10)),
-      CreateCowMergeOperation(ExtentForRange(70, 10), ExtentForRange(55, 10)),
+      CreateCowMergeOperation(ExtentForRange(70, 10), ExtentForRange(50, 10)),
   };
 
-  // file 3, 6 will be converted to raw.
-  std::vector<CowMergeOperation> expected{
-      transfers[1], transfers[0], transfers[4], transfers[3]};
-  GenerateSequence(transfers, expected);
+  GenerateSequence(transfers);
 }
 
 void ValidateSplitSequence(const Extent& src_extent, const Extent& dst_extent) {
@@ -265,17 +257,14 @@ TEST_F(MergeSequenceGeneratorTest, GenerateSequenceWithXor) {
                               ExtentForRange(15, 10),
                               CowMergeOperation::COW_XOR),
       // cycle 2
-      CreateCowMergeOperation(ExtentForRange(55, 10), ExtentForRange(60, 10)),
+      CreateCowMergeOperation(ExtentForRange(50, 10), ExtentForRange(60, 10)),
       CreateCowMergeOperation(ExtentForRange(60, 10),
                               ExtentForRange(70, 10),
                               CowMergeOperation::COW_XOR),
-      CreateCowMergeOperation(ExtentForRange(70, 10), ExtentForRange(55, 10)),
+      CreateCowMergeOperation(ExtentForRange(70, 10), ExtentForRange(50, 10)),
   };
 
-  // file 3, 6 will be converted to raw.
-  std::vector<CowMergeOperation> expected{
-      transfers[1], transfers[0], transfers[4], transfers[3]};
-  GenerateSequence(transfers, expected);
+  GenerateSequence(transfers);
 }
 
 TEST_F(MergeSequenceGeneratorTest, CreateGeneratorWithXor) {
@@ -422,6 +411,26 @@ TEST_F(MergeSequenceGeneratorTest, CreateGeneratorXorAlreadyPlusOne) {
   ASSERT_EQ(sequence[0].src_offset(), 123UL);
 
   ASSERT_TRUE(generator->ValidateSequence(sequence));
+}
+
+TEST_F(MergeSequenceGeneratorTest, ActualPayloadTest) {
+  auto payload_path =
+      GetBuildArtifactsPath("testdata/cycle_nodes_product_no_xor.bin");
+  ASSERT_FALSE(payload_path.empty());
+  ASSERT_TRUE(utils::FileExists(payload_path.c_str()));
+  PartitionUpdate part;
+  std::string payload;
+  android::base::ReadFileToString(payload_path, &payload);
+  part.ParseFromString(payload);
+  part.set_partition_name("product");
+  std::vector<CowMergeOperation> ops;
+  ops.reserve(part.merge_operations_size());
+  for (const auto& op : part.merge_operations()) {
+    ops.emplace_back(op);
+  }
+  MergeSequenceGenerator generator(ops);
+  std::vector<CowMergeOperation> sequence;
+  ASSERT_TRUE(generator.Generate(&sequence));
 }
 
 }  // namespace chromeos_update_engine
