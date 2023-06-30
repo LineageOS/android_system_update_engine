@@ -176,7 +176,8 @@ static bool ProcessCopyOps(std::vector<CowMergeOperation>* sequence,
 }
 
 std::unique_ptr<MergeSequenceGenerator> MergeSequenceGenerator::Create(
-    const std::vector<AnnotatedOperation>& aops) {
+    const std::vector<AnnotatedOperation>& aops,
+    std::string_view partition_name) {
   std::vector<CowMergeOperation> sequence;
 
   for (const auto& aop : aops) {
@@ -192,7 +193,7 @@ std::unique_ptr<MergeSequenceGenerator> MergeSequenceGenerator::Create(
   }
 
   return std::unique_ptr<MergeSequenceGenerator>(
-      new MergeSequenceGenerator(sequence));
+      new MergeSequenceGenerator(sequence, partition_name));
 }
 
 bool MergeSequenceGenerator::FindDependency(
@@ -345,7 +346,8 @@ bool MergeSequenceGenerator::Generate(
   }
 
   LOG(INFO) << "Blocks in merge sequence " << blocks_in_sequence
-            << ", blocks in raw " << blocks_in_raw;
+            << ", blocks in raw " << blocks_in_raw << ", partition "
+            << partition_name_;
   if (!ValidateSequence(merge_sequence)) {
     LOG(ERROR) << "Invalid Sequence";
     return false;
