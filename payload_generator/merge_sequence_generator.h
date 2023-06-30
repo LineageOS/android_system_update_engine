@@ -56,9 +56,12 @@ class MergeSequenceGenerator {
   // Creates an object from a list of OTA InstallOperations. Returns nullptr
   // on failure.
   static std::unique_ptr<MergeSequenceGenerator> Create(
-      const std::vector<AnnotatedOperation>& aops);
-  explicit MergeSequenceGenerator(std::vector<CowMergeOperation> transfers)
-      : operations_(std::move(Sort(transfers))) {}
+      const std::vector<AnnotatedOperation>& aops,
+      std::string_view partition_name = "");
+  explicit MergeSequenceGenerator(std::vector<CowMergeOperation> transfers,
+                                  std::string_view partition_name)
+      : operations_(std::move(Sort(transfers))),
+        partition_name_(partition_name) {}
   // Checks that no read after write happens in the given sequence.
   static bool ValidateSequence(const std::vector<CowMergeOperation>& sequence);
 
@@ -75,6 +78,7 @@ class MergeSequenceGenerator {
                           merge_after) const;
   // The list of CowMergeOperations to sort.
   const std::vector<CowMergeOperation> operations_;
+  const std::string_view partition_name_;
 };
 
 void SplitSelfOverlapping(const Extent& src_extent,
