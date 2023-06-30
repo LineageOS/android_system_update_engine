@@ -46,8 +46,7 @@ class MergeSequenceGeneratorTest : public ::testing::Test {
       std::vector<CowMergeOperation> transfers,
       std::map<CowMergeOperation, std::set<CowMergeOperation>>* result) {
     std::sort(transfers.begin(), transfers.end());
-    MergeSequenceGenerator generator(std::move(transfers), "");
-    ASSERT_TRUE(generator.FindDependency(result));
+    *result = MergeSequenceGenerator::FindDependency(transfers);
   }
 
   void GenerateSequence(std::vector<CowMergeOperation> transfers) {
