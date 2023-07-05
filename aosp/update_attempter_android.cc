@@ -1262,10 +1262,9 @@ void UpdateAttempterAndroid::CleanupSuccessfulUpdate(
   if (callback) {
     auto callback_ptr = callback.get();
     cleanup_previous_update_callbacks_.emplace_back(std::move(callback));
-    callback_ptr->RegisterForDeathNotifications(
-        base::Bind(&UpdateAttempterAndroid::RemoveCleanupPreviousUpdateCallback,
-                   base::Unretained(this),
-                   base::Unretained(callback_ptr)));
+    callback_ptr->RegisterForDeathNotifications([this, callback_ptr]() {
+      RemoveCleanupPreviousUpdateCallback(callback_ptr);
+    });
   }
   ScheduleCleanupPreviousUpdate();
 }
