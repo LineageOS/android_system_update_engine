@@ -21,7 +21,6 @@
 #include <base/bind.h>
 #include <base/logging.h>
 #include <binderwrapper/binder_wrapper.h>
-#include <brillo/errors/error.h>
 #include <utils/String8.h>
 
 #include "update_engine/aosp/binder_service_android_common.h"
@@ -111,7 +110,7 @@ Status BinderUpdateEngineAndroidStableService::applyPayloadFd(
     const vector<android::String16>& header_kv_pairs) {
   vector<string> str_headers = ToVecString(header_kv_pairs);
 
-  brillo::ErrorPtr error;
+  Error error;
   if (!service_delegate_->ApplyPayload(
           pfd.get(), payload_offset, payload_size, str_headers, &error)) {
     return ErrorPtrToStatus(error);

@@ -20,16 +20,16 @@
 #include <string>
 #include <vector>
 
-#include "brillo/errors/error.h"
+#include "update_engine/common/error.h"
 
 #include <binder/Status.h>
 
 namespace chromeos_update_engine {
 
-static inline android::binder::Status ErrorPtrToStatus(
-    const brillo::ErrorPtr& error) {
+static inline android::binder::Status ErrorPtrToStatus(const Error& error) {
   return android::binder::Status::fromServiceSpecificError(
-      1, android::String8{error->GetMessage().c_str()});
+      static_cast<int>(error.error_code),
+      android::String8{error.message.c_str()});
 }
 
 static inline std::vector<std::string> ToVecString(
