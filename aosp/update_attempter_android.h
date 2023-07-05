@@ -77,28 +77,28 @@ class UpdateAttempterAndroid
                     int64_t payload_offset,
                     int64_t payload_size,
                     const std::vector<std::string>& key_value_pair_headers,
-                    brillo::ErrorPtr* error) override;
+                    Error* error) override;
   bool ApplyPayload(int fd,
                     int64_t payload_offset,
                     int64_t payload_size,
                     const std::vector<std::string>& key_value_pair_headers,
-                    brillo::ErrorPtr* error) override;
-  bool SuspendUpdate(brillo::ErrorPtr* error) override;
-  bool ResumeUpdate(brillo::ErrorPtr* error) override;
-  bool CancelUpdate(brillo::ErrorPtr* error) override;
-  bool ResetStatus(brillo::ErrorPtr* error) override;
+                    Error* error) override;
+  bool SuspendUpdate(Error* error) override;
+  bool ResumeUpdate(Error* error) override;
+  bool CancelUpdate(Error* error) override;
+  bool ResetStatus(Error* error) override;
   bool VerifyPayloadApplicable(const std::string& metadata_filename,
-                               brillo::ErrorPtr* error) override;
+                               Error* error) override;
   uint64_t AllocateSpaceForPayload(
       const std::string& metadata_filename,
       const std::vector<std::string>& key_value_pair_headers,
-      brillo::ErrorPtr* error) override;
+      Error* error) override;
   void CleanupSuccessfulUpdate(
       std::unique_ptr<CleanupSuccessfulUpdateCallbackInterface> callback,
-      brillo::ErrorPtr* error) override;
+      Error* error) override;
   bool setShouldSwitchSlotOnReboot(const std::string& metadata_filename,
-                                   brillo::ErrorPtr* error) override;
-  bool resetShouldSwitchSlotOnReboot(brillo::ErrorPtr* error) override;
+                                   Error* error) override;
+  bool resetShouldSwitchSlotOnReboot(Error* error) override;
 
   // ActionProcessorDelegate methods:
   void ProcessingDone(const ActionProcessor* processor,
@@ -223,10 +223,10 @@ class UpdateAttempterAndroid
   static bool VerifyPayloadParseManifest(const std::string& metadata_filename,
                                          std::string_view metadata_hash,
                                          DeltaArchiveManifest* manifest,
-                                         brillo::ErrorPtr* error);
+                                         Error* error);
   static bool VerifyPayloadParseManifest(const std::string& metadata_filename,
                                          DeltaArchiveManifest* manifest,
-                                         brillo::ErrorPtr* error) {
+                                         Error* error) {
     return VerifyPayloadParseManifest(metadata_filename, "", manifest, error);
   }
 
