@@ -23,8 +23,7 @@
 #include <string>
 #include <vector>
 
-#include "base/callback_forward.h"
-#include "common/error.h"
+#include "update_engine/common/error.h"
 
 namespace chromeos_update_engine {
 
@@ -37,7 +36,8 @@ class CleanupSuccessfulUpdateCallbackInterface {
   virtual void OnCleanupProgressUpdate(double progress) = 0;
   virtual void OnCleanupComplete(int32_t error_code) = 0;
   // Call RegisterForDeathNotifications on the internal binder object.
-  virtual void RegisterForDeathNotifications(base::Closure unbind) = 0;
+  virtual void RegisterForDeathNotifications(
+      const std::function<void()>& unbind) = 0;
 };
 
 // This class defines the interface exposed by the Android version of the

@@ -117,8 +117,7 @@ void UpdateEngineClientAndroid::RegisterDeathNotification() {
   android::BinderWrapper::Create();
   android::BinderWrapper::Get()->RegisterForDeathNotifications(
       android::os::IUpdateEngine::asBinder(service_),
-      base::Bind(&UpdateEngineClientAndroid::UpdateEngineServiceDied,
-                 base::Unretained(this)));
+      [this]() { UpdateEngineServiceDied(); });
 }
 
 int UpdateEngineClientAndroid::OnInit() {
@@ -207,7 +206,7 @@ int UpdateEngineClientAndroid::OnInit() {
   if (FLAGS_follow) {
     // Register a callback object with the service.
     callback_ = new UECallback(this);
-    bool bound;
+    bool bound = false;
     if (!service_->bind(callback_, &bound).isOk() || !bound) {
       LOG(ERROR) << "Failed to bind() the UpdateEngine daemon.";
       return 1;

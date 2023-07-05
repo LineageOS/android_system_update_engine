@@ -77,10 +77,7 @@ Status BinderUpdateEngineAndroidService::bind(
   auto binder_wrapper = android::BinderWrapper::Get();
   binder_wrapper->RegisterForDeathNotifications(
       callback_binder,
-      base::Bind(
-          base::IgnoreResult(&BinderUpdateEngineAndroidService::UnbindCallback),
-          base::Unretained(this),
-          base::Unretained(callback_binder.get())));
+      [this, callback = callback_binder.get()]() { UnbindCallback(callback); });
 
   *return_value = true;
   return Status::ok();
@@ -236,7 +233,7 @@ class CleanupSuccessfulUpdateCallback
             update_engine::UpdateStatus::CLEANUP_PREVIOUS_UPDATE),
         progress));
   }
-  void RegisterForDeathNotifications(base::Closure unbind) {
+  void RegisterForDeathNotifications(const std::function<void()>& unbind) {
     const android::sp<android::IBinder>& callback_binder =
         IUpdateEngineCallback::asBinder(callback_);
     auto binder_wrapper = android::BinderWrapper::Get();
