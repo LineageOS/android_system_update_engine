@@ -82,10 +82,7 @@ Status BinderUpdateEngineAndroidStableService::bind(
   auto binder_wrapper = android::BinderWrapper::Get();
   binder_wrapper->RegisterForDeathNotifications(
       callback_binder,
-      base::Bind(base::IgnoreResult(
-                     &BinderUpdateEngineAndroidStableService::UnbindCallback),
-                 base::Unretained(this),
-                 base::Unretained(callback_binder.get())));
+      [this, callback = callback_binder.get()]() { UnbindCallback(callback); });
 
   *return_value = true;
   return Status::ok();
