@@ -48,6 +48,7 @@
 #include "update_engine/aosp/dynamic_partition_utils.h"
 #include "update_engine/common/boot_control_interface.h"
 #include "update_engine/common/dynamic_partition_control_interface.h"
+#include "update_engine/common/error_code.h"
 #include "update_engine/common/platform_constants.h"
 #include "update_engine/common/utils.h"
 #include "update_engine/payload_consumer/cow_writer_file_descriptor.h"
@@ -449,7 +450,8 @@ bool DynamicPartitionControlAndroid::PreparePartitionsForUpdate(
     uint32_t target_slot,
     const DeltaArchiveManifest& manifest,
     bool update,
-    uint64_t* required_size) {
+    uint64_t* required_size,
+    ErrorCode* error) {
   source_slot_ = source_slot;
   target_slot_ = target_slot;
   if (required_size != nullptr) {
@@ -458,10 +460,14 @@ bool DynamicPartitionControlAndroid::PreparePartitionsForUpdate(
 
   if (fs_mgr_overlayfs_is_setup()) {
     // Non DAP devices can use overlayfs as well.
-    LOG(WARNING)
+    LOG(ERROR)
         << "overlayfs overrides are active and can interfere with our "
            "resources.\n"
         << "run adb enable-verity to deactivate if required and try again.";
+    if (error) {
+      *error = ErrorCode::kOverlayfsenabledError;
+      return false;
+    }
   }
 
   // If metadata is erased but not formatted, it is possible to not mount
@@ -852,6 +858,7 @@ bool DynamicPartitionControlAndroid::PrepareDynamicPartitionsForUpdate(
 
   auto target_device =
       device_dir.Append(GetSuperPartitionName(target_slot)).value();
+
   return StoreMetadata(target_device, builder.get(), target_slot);
 }
 
