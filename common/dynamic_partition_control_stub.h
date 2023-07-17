@@ -43,7 +43,8 @@ class DynamicPartitionControlStub final
                                   uint32_t target_slot,
                                   const DeltaArchiveManifest& manifest,
                                   bool update,
-                                  uint64_t* required_size) override;
+                                  uint64_t* required_size,
+                                  ErrorCode* error = nullptr) override;
 
   bool FinishUpdate(bool powerwash_required) override;
   std::unique_ptr<AbstractAction> GetCleanupPreviousUpdateAction(

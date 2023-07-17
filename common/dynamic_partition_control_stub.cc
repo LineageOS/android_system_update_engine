@@ -62,7 +62,8 @@ bool DynamicPartitionControlStub::PreparePartitionsForUpdate(
     uint32_t target_slot,
     const DeltaArchiveManifest& manifest,
     bool update,
-    uint64_t* required_size) {
+    uint64_t* required_size,
+    ErrorCode* error) {
   return true;
 }
 
