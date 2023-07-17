@@ -66,11 +66,15 @@ class MockDynamicPartitionControl : public DynamicPartitionControlInterface {
                std::optional<uint64_t> label),
               (override));
 
-  MOCK_METHOD(
-      bool,
-      PreparePartitionsForUpdate,
-      (uint32_t, uint32_t, const DeltaArchiveManifest&, bool, uint64_t*),
-      (override));
+  MOCK_METHOD(bool,
+              PreparePartitionsForUpdate,
+              (uint32_t,
+               uint32_t,
+               const DeltaArchiveManifest&,
+               bool,
+               uint64_t*,
+               ErrorCode*),
+              (override));
 
   MOCK_METHOD(bool, ResetUpdate, (PrefsInterface*), (override));
   MOCK_METHOD(std::unique_ptr<AbstractAction>,

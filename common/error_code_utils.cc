@@ -175,6 +175,8 @@ string ErrorCodeToString(ErrorCode code) {
       return "ErrorCode::kPackageExcludedFromUpdate";
     case ErrorCode::kPostInstallMountError:
       return "ErrorCode::kPostInstallMountError";
+    case ErrorCode::kOverlayfsenabledError:
+      return "ErrorCode::kOverlayfsenabledError";
       // Don't add a default case to let the compiler warn about newly added
       // error codes which should be added here.
   }
