@@ -73,6 +73,7 @@ metrics::AttemptResult GetAttemptResult(ErrorCode code) {
     case ErrorCode::kVerityCalculationError:
     case ErrorCode::kNotEnoughSpace:
     case ErrorCode::kDeviceCorrupted:
+    case ErrorCode::kOverlayfsenabledError:
       return metrics::AttemptResult::kOperationExecutionError;
 
     case ErrorCode::kDownloadMetadataSignatureMismatch:
@@ -190,6 +191,7 @@ metrics::DownloadErrorCode GetDownloadErrorCode(ErrorCode code) {
     case ErrorCode::kFilesystemCopierError:
     case ErrorCode::kPostinstallRunnerError:
     case ErrorCode::kPostInstallMountError:
+    case ErrorCode::kOverlayfsenabledError:
     case ErrorCode::kPayloadMismatchedType:
     case ErrorCode::kInstallDeviceOpenError:
     case ErrorCode::kKernelDeviceOpenError:
@@ -367,8 +369,8 @@ bool LoadAndReportTimeToReboot(MetricsReporterInterface* metrics_reporter,
   TimeDelta time_to_reboot = current_time - system_updated_at;
   if (time_to_reboot.ToInternalValue() < 0) {
     LOG(WARNING) << "time_to_reboot is negative - system_updated_at: "
-                 << utils::ToString(system_updated_at) << " current time: "
-                 << utils::ToString(current_time);
+                 << utils::ToString(system_updated_at)
+                 << " current time: " << utils::ToString(current_time);
     return false;
   }
   metrics_reporter->ReportTimeToReboot(time_to_reboot.InMinutes());

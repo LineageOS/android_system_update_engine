@@ -158,7 +158,7 @@ class DeltaPerformer : public FileWriter {
   // complete metadata. Returns kMetadataParseError if the metadata can't be
   // parsed given the payload.
   MetadataParseResult ParsePayloadMetadata(const brillo::Blob& payload,
-                                           ErrorCode* error);
+                                           ErrorCode* error = nullptr);
 
   void set_public_key_path(const std::string& public_key_path) {
     public_key_path_ = public_key_path;
@@ -189,7 +189,8 @@ class DeltaPerformer : public FileWriter {
       BootControlInterface::Slot target_slot,
       const DeltaArchiveManifest& manifest,
       const std::string& update_check_response_hash,
-      uint64_t* required_size);
+      uint64_t* required_size,
+      ErrorCode* error = nullptr);
 
  protected:
   // Exposed as virtual for testing purposes.
@@ -221,7 +222,7 @@ class DeltaPerformer : public FileWriter {
   // Parse and move the update instructions of all partitions into our local
   // |partitions_| variable based on the version of the payload. Requires the
   // manifest to be parsed and valid.
-  bool ParseManifestPartitions(ErrorCode* error);
+  bool ParseManifestPartitions(ErrorCode* error = nullptr);
 
   // Appends up to |*count_p| bytes from |*bytes_p| to |buffer_|, but only to
   // the extent that the size of |buffer_| does not exceed |max|. Advances
@@ -233,7 +234,7 @@ class DeltaPerformer : public FileWriter {
   // sets |*error| accordingly. Otherwise does nothing. Returns |op_result|.
   bool HandleOpResult(bool op_result,
                       const char* op_type_name,
-                      ErrorCode* error);
+                      ErrorCode* error = nullptr);
 
   // Logs the progress of downloading/applying an update.
   void LogProgress(const char* message_prefix);
@@ -263,9 +264,9 @@ class DeltaPerformer : public FileWriter {
   bool PerformReplaceOperation(const InstallOperation& operation);
   bool PerformZeroOrDiscardOperation(const InstallOperation& operation);
   bool PerformSourceCopyOperation(const InstallOperation& operation,
-                                  ErrorCode* error);
+                                  ErrorCode* error = nullptr);
   bool PerformDiffOperation(const InstallOperation& operation,
-                            ErrorCode* error);
+                            ErrorCode* error = nullptr);
 
   // Extracts the payload signature message from the current |buffer_| if the
   // offset matches the one specified by the manifest. Returns whether the
@@ -300,7 +301,8 @@ class DeltaPerformer : public FileWriter {
   // After install_plan_ is filled with partition names and sizes, initialize
   // metadata of partitions and map necessary devices before opening devices.
   // Also see comment for the static PreparePartitionsForUpdate().
-  bool PreparePartitionsForUpdate(uint64_t* required_size);
+  bool PreparePartitionsForUpdate(uint64_t* required_size,
+                                  ErrorCode* error = nullptr);
 
   // Check if current manifest contains timestamp errors.
   // Return:
