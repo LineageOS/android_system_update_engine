@@ -38,6 +38,7 @@
 #include "update_engine/payload_generator/mapfile_filesystem.h"
 #include "update_engine/payload_generator/raw_filesystem.h"
 #include "update_engine/payload_generator/squashfs_filesystem.h"
+#include "update_engine/update_metadata.pb.h"
 
 using std::string;
 
@@ -393,6 +394,8 @@ bool PayloadGenerationConfig::OperationEnabled(
     case InstallOperation::LZ4DIFF_BSDIFF:
     case InstallOperation::LZ4DIFF_PUFFDIFF:
       return enable_lz4diff;
+    case InstallOperation::PUFFDIFF:
+      return enable_puffdiff;
     default:
       return true;
   }
