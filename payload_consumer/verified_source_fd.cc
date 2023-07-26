@@ -159,7 +159,9 @@ bool VerifiedSourceFd::Open() {
   source_fd_ = std::make_shared<EintrSafeFileDescriptor>();
   if (source_fd_ == nullptr)
     return false;
-  TEST_AND_RETURN_FALSE_ERRNO(source_fd_->Open(source_path_.c_str(), O_RDONLY));
+  if (!source_fd_->Open(source_path_.c_str(), O_RDONLY)) {
+    PLOG(ERROR) << "Failed to open " << source_path_;
+  }
   return true;
 }
 
