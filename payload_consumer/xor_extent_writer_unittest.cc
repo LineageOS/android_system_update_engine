@@ -14,6 +14,7 @@
 // limitations under the License.
 //
 
+#include <algorithm>
 #include <memory>
 
 #include <unistd.h>
@@ -22,7 +23,7 @@
 #include <gtest/gtest.h>
 #include <libsnapshot/mock_cow_writer.h>
 
-#include "common/utils.h"
+#include "update_engine/common/utils.h"
 #include "update_engine/payload_consumer/extent_map.h"
 #include "update_engine/payload_consumer/file_descriptor.h"
 #include "update_engine/payload_consumer/xor_extent_writer.h"
@@ -44,11 +45,13 @@ class XorExtentWriterTest : public ::testing::Test {
     ASSERT_EQ(ftruncate64(source_part_.fd, kBlockSize * NUM_BLOCKS), 0);
     ASSERT_EQ(ftruncate64(target_part_.fd, kBlockSize * NUM_BLOCKS), 0);
 
-    // Fill source part with 1s, as we are computing XOR between source and
-    // target data later.
+    // Fill source part with arbitrary data, as we are computing XOR between
+    // source and target data later.
     ASSERT_EQ(lseek(source_part_.fd, 0, SEEK_SET), 0);
     brillo::Blob buffer(kBlockSize);
-    std::fill(buffer.begin(), buffer.end(), 1);
+    for (size_t i = 0; i < kBlockSize; i++) {
+      buffer[i] = i & 0xFF;
+    }
     for (size_t i = 0; i < NUM_BLOCKS; i++) {
       ASSERT_EQ(write(source_part_.fd, buffer.data(), buffer.size()),
                 static_cast<ssize_t>(buffer.size()));
@@ -195,12 +198,13 @@ TEST_F(XorExtentWriterTest, LastBlockTest) {
   // [12-14] => [320-322], [20-22] => [420-422], [NUM_BLOCKS-3] => [2-5]
 
   // merge op:
-  // [NUM_BLOCKS-1] => [2-3]
+  // [NUM_BLOCKS-1] => [2]
 
   // Expected result:
-  // [12-16] should be REPLACE blocks
+  // [320-322] should be REPLACE blocks
   // [420-422] should be REPLACE blocks
-  // [2-4] should be REPLACE blocks
+  // [2] should be XOR blocks, with 0 offset to avoid out of bound read
+  // [3-5] should be REPLACE BLOCKS
 
   auto zeros = utils::GetReadonlyZeroBlock(kBlockSize * 9);
   EXPECT_CALL(cow_writer_, AddRawBlocks(320, zeros->data(), kBlockSize * 3))
@@ -209,15 +213,84 @@ TEST_F(XorExtentWriterTest, LastBlockTest) {
               AddRawBlocks(420, zeros->data() + 3 * kBlockSize, kBlockSize * 3))
       .WillOnce(Return(true));
 
-  EXPECT_CALL(cow_writer_,
-              AddRawBlocks(2, zeros->data() + 6 * kBlockSize, kBlockSize))
+  EXPECT_CALL(cow_writer_, AddXorBlocks(2, _, kBlockSize, NUM_BLOCKS - 1, 0))
       .WillOnce(Return(true));
   EXPECT_CALL(cow_writer_,
-              AddRawBlocks(3, zeros->data() + 7 * kBlockSize, kBlockSize * 2))
+              AddRawBlocks(3, zeros->data() + kBlockSize * 7, kBlockSize * 2))
       .WillOnce(Return(true));
 
   ASSERT_TRUE(writer_.Init(op_.dst_extents(), kBlockSize));
   ASSERT_TRUE(writer_.Write(zeros->data(), zeros->size()));
+}
+
+TEST_F(XorExtentWriterTest, LastMultiBlockTest) {
+  constexpr auto COW_XOR = CowMergeOperation::COW_XOR;
+
+  const auto op3 = CreateCowMergeOperation(
+      ExtentForRange(NUM_BLOCKS - 4, 4), ExtentForRange(2, 4), COW_XOR, 777);
+  ASSERT_TRUE(xor_map_.AddExtent(op3.dst_extent(), &op3));
+
+  *op_.add_src_extents() = ExtentForRange(NUM_BLOCKS - 4, 4);
+  *op_.add_dst_extents() = ExtentForRange(2, 4);
+  XORExtentWriter writer_{
+      op_, source_fd_, &cow_writer_, xor_map_, NUM_BLOCKS * kBlockSize};
+
+  // OTA op:
+  // [NUM_BLOCKS-4] => [2-5]
+
+  // merge op:
+  // [NUM_BLOCKS-4] => [2-5]
+
+  // Expected result:
+  // [12-16] should be REPLACE blocks
+  // [420-422] should be REPLACE blocks
+  // [2-3] should be XOR blocks
+  // [4] should be XOR blocks with 0 offset to avoid out of bound read
+
+  // Send arbitrary data, just to confirm that XORExtentWriter did XOR the
+  // source data with target data
+  std::vector<uint8_t> op_data(kBlockSize * 4);
+  for (size_t i = 0; i < op_data.size(); i++) {
+    if (i % kBlockSize == 0) {
+      op_data[i] = 1;
+    } else {
+      op_data[i] = (op_data[i - 1] * 3) & 0xFF;
+    }
+  }
+  auto&& verify_xor_data = [source_fd_(source_fd_), &op_data](
+                               uint32_t new_block_start,
+                               const void* data,
+                               size_t size,
+                               uint32_t old_block,
+                               uint16_t offset) -> bool {
+    std::vector<uint8_t> source_data(size);
+    ssize_t bytes_read{};
+    TEST_AND_RETURN_FALSE_ERRNO(utils::PReadAll(source_fd_,
+                                                source_data.data(),
+                                                source_data.size(),
+                                                old_block * kBlockSize + offset,
+                                                &bytes_read));
+    TEST_EQ(bytes_read, static_cast<ssize_t>(source_data.size()));
+    std::transform(source_data.begin(),
+                   source_data.end(),
+                   static_cast<const uint8_t*>(data),
+                   source_data.begin(),
+                   std::bit_xor<uint8_t>{});
+    if (memcmp(source_data.data(), op_data.data(), source_data.size()) != 0) {
+      LOG(ERROR) << "XOR data received does not appear to be an XOR between "
+                    "source and target data";
+      return false;
+    }
+    return true;
+  };
+  EXPECT_CALL(cow_writer_,
+              AddXorBlocks(2, _, kBlockSize * 3, NUM_BLOCKS - 4, 777))
+      .WillOnce(verify_xor_data);
+  EXPECT_CALL(cow_writer_, AddXorBlocks(5, _, kBlockSize, NUM_BLOCKS - 1, 0))
+      .WillOnce(verify_xor_data);
+
+  ASSERT_TRUE(writer_.Init(op_.dst_extents(), kBlockSize));
+  ASSERT_TRUE(writer_.Write(op_data.data(), op_data.size()));
 }
 
 }  // namespace chromeos_update_engine
