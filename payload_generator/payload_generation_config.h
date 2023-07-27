@@ -261,6 +261,9 @@ struct PayloadGenerationConfig {
   // Whether to enable zucchini ops
   bool enable_zucchini = true;
 
+  // Whether to enable puffdiff ops
+  bool enable_puffdiff = true;
+
   std::string security_patch_level;
 
   uint32_t max_threads = 0;
