@@ -148,6 +148,12 @@ string GetPayloadId(const std::map<string, string>& headers) {
               : "");
 }
 
+std::string GetCurrentBuildVersion() {
+  // Example: [ro.build.fingerprint]:
+  // [generic/aosp_cf_x86_64_phone/vsoc_x86_64:VanillaIceCream/AOSP.MAIN/user08011303:userdebug/test-keys]
+  return android::base::GetProperty("ro.build.fingerprint", "");
+}
+
 }  // namespace
 
 UpdateAttempterAndroid::UpdateAttempterAndroid(
@@ -1026,8 +1032,7 @@ void UpdateAttempterAndroid::CollectAndReportUpdateMetricsOnUpdateFinished(
 
 bool UpdateAttempterAndroid::OTARebootSucceeded() const {
   const auto current_slot = boot_control_->GetCurrentSlot();
-  const string current_version =
-      android::base::GetProperty("ro.build.version.incremental", "");
+  const string current_version = GetCurrentBuildVersion();
   int64_t previous_slot = -1;
   TEST_AND_RETURN_FALSE(prefs_->GetInt64(kPrefsPreviousSlot, &previous_slot));
   string previous_version;
@@ -1080,9 +1085,7 @@ OTAResult UpdateAttempterAndroid::GetOTAUpdateResult() const {
 }
 
 void UpdateAttempterAndroid::UpdateStateAfterReboot(const OTAResult result) {
-  // Example: [ro.build.version.incremental]: [4292972]
-  string current_version =
-      android::base::GetProperty("ro.build.version.incremental", "");
+  const string current_version = GetCurrentBuildVersion();
   TEST_AND_RETURN(!current_version.empty());
 
   // |UpdateStateAfterReboot()| is only called after system reboot, so record
