@@ -75,12 +75,6 @@ cc_defaults {
     ],
     ldflags: ["-Wl,--gc-sections"],
 
-    product_variables: {
-        pdk: {
-            enabled: false,
-        },
-    },
-
     target: {
         android: {
             cflags: [
