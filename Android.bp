@@ -342,6 +342,7 @@ cc_defaults {
         "libcutils",
         "libfs_mgr_binder",
         "libgsi",
+        "libsnapshot_static",
         "libstatslog_ue",
         "libz",
     ],
@@ -349,7 +350,6 @@ cc_defaults {
         "libbootloader_message",
         "libhidlbase",
         "liblp",
-        "libsnapshot",
         "libutils",
         "android.hardware.boot@1.0",
         "android.hardware.boot@1.1",
@@ -368,10 +368,8 @@ cc_defaults {
             ],
             exclude_static_libs: [
                 "libfs_mgr_binder",
+                "libsnapshot_static",
                 "libstatslog_ue"
-            ],
-            exclude_shared_libs: [
-                "libsnapshot",
             ],
         },
     },
