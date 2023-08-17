@@ -99,7 +99,7 @@ Status BinderUpdateEngineAndroidService::applyPayload(
     int64_t payload_offset,
     int64_t payload_size,
     const vector<android::String16>& header_kv_pairs) {
-  const string payload_url{android::String8{url}.string()};
+  const string payload_url{android::String8{url}.c_str()};
   vector<string> str_headers = ToVecString(header_kv_pairs);
 
   Error error;
@@ -157,7 +157,7 @@ Status BinderUpdateEngineAndroidService::setShouldSwitchSlotOnReboot(
     const android::String16& metadata_filename) {
   Error error;
   if (!service_delegate_->setShouldSwitchSlotOnReboot(
-          android::String8(metadata_filename).string(), &error)) {
+          android::String8(metadata_filename).c_str(), &error)) {
     return ErrorPtrToStatus(error);
   }
   return Status::ok();
@@ -174,7 +174,7 @@ Status BinderUpdateEngineAndroidService::resetShouldSwitchSlotOnReboot() {
 Status BinderUpdateEngineAndroidService::verifyPayloadApplicable(
     const android::String16& metadata_filename, bool* return_value) {
   const std::string payload_metadata{
-      android::String8{metadata_filename}.string()};
+      android::String8{metadata_filename}.c_str()};
   LOG(INFO) << "Received a request of verifying payload metadata in "
             << payload_metadata << ".";
   Error error;
@@ -205,7 +205,7 @@ Status BinderUpdateEngineAndroidService::allocateSpaceForPayload(
     const vector<android::String16>& header_kv_pairs,
     int64_t* return_value) {
   const std::string payload_metadata{
-      android::String8{metadata_filename}.string()};
+      android::String8{metadata_filename}.c_str()};
   vector<string> str_headers = ToVecString(header_kv_pairs);
   LOG(INFO) << "Received a request of allocating space for " << payload_metadata
             << ".";

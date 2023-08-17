@@ -37,7 +37,7 @@ static inline std::vector<std::string> ToVecString(
   std::vector<std::string> out;
   out.reserve(inp.size());
   for (const auto& e : inp) {
-    out.emplace_back(android::String8{e}.string());
+    out.emplace_back(android::String8{e}.c_str());
   }
   return out;
 }
