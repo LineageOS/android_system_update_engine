@@ -31,6 +31,14 @@ package {
     default_applicable_licenses: ["system_update_engine_license"],
 }
 
+filegroup {
+    name: "update_device_script",
+    srcs: [
+        "**/*.py",
+    ],
+    path: ".",
+}
+
 python_library_host {
     name: "update_payload",
 
