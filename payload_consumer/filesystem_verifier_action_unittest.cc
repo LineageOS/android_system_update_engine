@@ -32,6 +32,7 @@
 #include <libsnapshot/snapshot_writer.h>
 #include <sys/stat.h>
 
+#include "gmock/gmock-spec-builders.h"
 #include "update_engine/common/dynamic_partition_control_stub.h"
 #include "update_engine/common/hash_calculator.h"
 #include "update_engine/common/mock_dynamic_partition_control.h"
@@ -556,11 +557,12 @@ void FilesystemVerifierActionTest::DoTestVABC(bool clear_target_hash,
     install_plan_.write_verity = true;
     ASSERT_NO_FATAL_FAILURE(SetHashWithVerity(&part));
   }
+  NiceMock<MockDynamicPartitionControl> dynamic_control;
   if (clear_target_hash) {
     part.target_hash.clear();
+  } else {
+    EXPECT_CALL(dynamic_control, FinishUpdate(0)).WillOnce(Return(true));
   }
-
-  NiceMock<MockDynamicPartitionControl> dynamic_control;
 
   EnableVABC(&dynamic_control, part.name);
   auto open_cow = [part]() {
@@ -661,6 +663,7 @@ TEST_F(FilesystemVerifierActionTest, VABC_Verity_ReadAfterWrite) {
   part.readonly_target_path = target_part_.path();
   NiceMock<MockDynamicPartitionControl> dynamic_control;
   EnableVABC(&dynamic_control, part.name);
+  ON_CALL(dynamic_control, FinishUpdate(_)).WillByDefault(Return(true));
 
   // b/186196758 is only visible if we repeatedely run FS verification w/o
   // writing verity
