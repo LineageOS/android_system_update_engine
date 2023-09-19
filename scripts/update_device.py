@@ -228,80 +228,6 @@ class UpdateHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     CopyFileObjLength(f, self.wfile, copy_length=end_range -
                       start_range, speed_limit=self.speed_limit)
 
-  def do_POST(self):  # pylint: disable=invalid-name
-    """Reply with the omaha response xml."""
-    if self.path != '/update':
-      self.send_error(404, 'Unknown request')
-      return
-
-    if not self.serving_payload:
-      self.send_error(500, 'No serving payload set')
-      return
-
-    try:
-      f = open(self.serving_payload, 'rb')
-    except IOError:
-      self.send_error(404, 'File not found')
-      return
-
-    content_length = int(self.headers.getheader('Content-Length'))
-    request_xml = self.rfile.read(content_length)
-    xml_root = xml.etree.ElementTree.fromstring(request_xml)
-    appid = None
-    for app in xml_root.iter('app'):
-      if 'appid' in app.attrib:
-        appid = app.attrib['appid']
-        break
-    if not appid:
-      self.send_error(400, 'No appid in Omaha request')
-      return
-
-    self.send_response(200)
-    self.send_header("Content-type", "text/xml")
-    self.end_headers()
-
-    serving_start, serving_size = self.serving_range
-    sha256 = hashlib.sha256()
-    f.seek(serving_start)
-    bytes_to_hash = serving_size
-    while bytes_to_hash:
-      buf = f.read(min(bytes_to_hash, 1024 * 1024))
-      if not buf:
-        self.send_error(500, 'Payload too small')
-        return
-      sha256.update(buf)
-      bytes_to_hash -= len(buf)
-
-    payload = update_payload.Payload(f, payload_file_offset=serving_start)
-    payload.Init()
-
-    response_xml = '''
-        <?xml version="1.0" encoding="UTF-8"?>
-        <response protocol="3.0">
-          <app appid="{appid}">
-            <updatecheck status="ok">
-              <urls>
-                <url codebase="http://127.0.0.1:{port}/"/>
-              </urls>
-              <manifest version="0.0.0.1">
-                <actions>
-                  <action event="install" run="payload"/>
-                  <action event="postinstall" MetadataSize="{metadata_size}"/>
-                </actions>
-                <packages>
-                  <package hash_sha256="{payload_hash}" name="payload" size="{payload_size}"/>
-                </packages>
-              </manifest>
-            </updatecheck>
-          </app>
-        </response>
-    '''.format(appid=appid, port=DEVICE_PORT,
-               metadata_size=payload.metadata_size,
-               payload_hash=sha256.hexdigest(),
-               payload_size=serving_size)
-    self.wfile.write(response_xml.strip())
-    return
-
 
 class ServerThread(threading.Thread):
   """A thread for serving HTTP requests."""
@@ -345,12 +271,6 @@ def AndroidUpdateCommand(ota_filename, secondary, payload_url, extra_headers):
   return ['update_engine_client', '--update', '--follow',
           '--payload=%s' % payload_url, '--offset=%d' % ota.offset,
           '--size=%d' % ota.size, '--headers="%s"' % headers.decode()]
-
-
-def OmahaUpdateCommand(omaha_url):
-  """Return the command to run to start the update in a device using Omaha."""
-  return ['update_engine_client', '--update', '--follow',
-          '--omaha_url=%s' % omaha_url]
 
 
 class AdbHost(object):
@@ -513,7 +433,6 @@ def main():
   cmds = []
 
   help_cmd = ['shell', 'su', '0', 'update_engine_client', '--help']
-  use_omaha = 'omaha' in dut.adb_output(help_cmd)
 
   metadata_path = "/data/ota_package/metadata"
   if args.allocate_only:
@@ -588,11 +507,7 @@ def main():
     # Update via sending the payload over the network with an "adb reverse"
     # command.
     payload_url = 'http://127.0.0.1:%d/payload' % DEVICE_PORT
-    if use_omaha and zipfile.is_zipfile(args.otafile):
-      ota = AndroidOTAPackage(args.otafile, args.secondary)
-      serving_range = (ota.offset, ota.size)
-    else:
-      serving_range = (0, os.stat(args.otafile).st_size)
+    serving_range = (0, os.stat(args.otafile).st_size)
     server_thread = StartServer(args.otafile, serving_range, args.speed_limit)
     cmds.append(
         ['reverse', 'tcp:%d' % DEVICE_PORT, 'tcp:%d' % server_thread.port])
@@ -613,11 +528,7 @@ def main():
 
   try:
     # The main update command using the configured payload_url.
-    if use_omaha:
-      update_cmd = \
-          OmahaUpdateCommand('http://127.0.0.1:%d/update' % DEVICE_PORT)
-    else:
-      update_cmd = AndroidUpdateCommand(args.otafile, args.secondary,
+    update_cmd = AndroidUpdateCommand(args.otafile, args.secondary,
                                         payload_url, args.extra_headers)
     cmds.append(['shell', 'su', '0'] + update_cmd)
 
