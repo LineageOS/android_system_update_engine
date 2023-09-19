@@ -102,7 +102,7 @@ class DynamicPartitionControlAndroid : public DynamicPartitionControlInterface {
                           std::string* device);
 
   // Partition name is expected to be unsuffixed. e.g. system, vendor
-  // Return an interface to write to a snapshoted partition.
+  // Return an interface to write to a snapshotted partition.
   std::unique_ptr<android::snapshot::ICowWriter> OpenCowWriter(
       const std::string& unsuffixed_partition_name,
       const std::optional<std::string>& source_path,
