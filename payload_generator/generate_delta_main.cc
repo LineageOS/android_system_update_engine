@@ -739,6 +739,10 @@ int Main(int argc, char** argv) {
     if (payload_config.is_delta) {
       LOG(FATAL) << "Minor version is required for delta update!";
       return 1;
+    } else if (FLAGS_is_partial_update) {
+      payload_config.version.minor = kPartialUpdateMinorPayloadVersion;
+      LOG(INFO) << "Using minor_version=" << payload_config.version.minor
+                << " for partial updates";
     } else {
       payload_config.version.minor = kFullPayloadMinorVersion;
       LOG(INFO) << "Using non-delta minor_version="
