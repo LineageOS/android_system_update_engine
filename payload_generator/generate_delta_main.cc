@@ -470,7 +470,7 @@ void RoundDownPartitions(const ImageConfig& config) {
     if (part.path.empty()) {
       continue;
     }
-    const auto size = utils::FileSize(part.path);
+    const auto size = std::max<size_t>(utils::FileSize(part.path), kBlockSize);
     if (size % kBlockSize != 0) {
       const auto err =
           truncate(part.path.c_str(), size / kBlockSize * kBlockSize);
