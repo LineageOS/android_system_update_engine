@@ -47,21 +47,20 @@ namespace {
 static void ExtractErofsImage(const char* erofs_image,
                               const char* inode_path,
                               Blob* output) {
-  // EROFS has plenty of global variable usage. Protect calls to EROFS APIs with
-  // global mutex.
-  // TODO(b/202784930) Replace erofs-utils with a cleaner and more C++ friendly
-  // library. (Or turn erofs-utils into one)
-  static std::mutex mutex;
-  std::lock_guard lock(mutex);
-  auto err = dev_open_ro(erofs_image);
+  struct erofs_sb_info sbi {};
+  auto err = dev_open_ro(&sbi, erofs_image);
   ASSERT_EQ(err, 0);
-  DEFER { dev_close(); };
+  DEFER {
+    dev_close(&sbi);
+  };
 
-  err = erofs_read_superblock();
+  err = erofs_read_superblock(&sbi);
   ASSERT_EQ(err, 0);
-  struct erofs_inode inode;
+  struct erofs_inode inode {
+    .sbi = &sbi
+  };
   err = erofs_ilookup(inode_path, &inode);
-  ASSERT_EQ(err, 0);
+  ASSERT_EQ(err, 0) << strerror(-err);
   output->resize(inode.i_size);
   err = erofs_pread(&inode,
                     reinterpret_cast<char*>(output->data()),
