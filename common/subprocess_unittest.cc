@@ -271,16 +271,20 @@ TEST_F(SubprocessTest, CancelTest) {
   watcher_ = base::FileDescriptorWatcher::WatchReadable(
       fifo_fd,
       base::Bind(
-          [](unique_ptr<base::FileDescriptorWatcher::Controller>* watcher,
+          [](brillo::BaseMessageLoop* loop,
+             unique_ptr<base::FileDescriptorWatcher::Controller>* watcher,
              int fifo_fd,
              uint32_t tag) {
-            char c;
+            char c{};
             EXPECT_EQ(1, HANDLE_EINTR(read(fifo_fd, &c, 1)));
             EXPECT_EQ('X', c);
             LOG(INFO) << "Killing tag " << tag;
             Subprocess::Get().KillExec(tag);
+            loop->BreakLoop();
+            ASSERT_TRUE(Subprocess::Get().subprocess_records_.empty());
             *watcher = nullptr;
           },
+          &loop_,
           // watcher_ is no longer used outside the clousure.
           base::Unretained(&watcher_),
           fifo_fd,

@@ -213,12 +213,21 @@ void Subprocess::KillExec(pid_t pid) {
   pid_record->second->callback.Reset();
   // We don't care about output/return code, so we use SIGKILL here to ensure it
   // will be killed, SIGTERM might lead to leaked subprocess.
-  if (kill(pid, SIGKILL) != 0) {
-    PLOG(WARNING) << "Error sending SIGKILL to " << pid;
+  CHECK_EQ(pid_record->second->proc.pid(), pid);
+  if (!pid_record->second->proc.Kill(SIGKILL, 5)) {
+    PLOG(WARNING) << "Error sending SIGKILL to "
+                  << pid_record->second->proc.pid();
   }
   // Release the pid now so we don't try to kill it if Subprocess is destroyed
   // before the corresponding ChildExitedCallback() is called.
   pid_record->second->proc.Release();
+  if (subprocess_records_.count(pid)) {
+    siginfo_t info;
+    info.si_code = CLD_KILLED;
+    info.si_status = SIGKILL;
+    info.si_pid = pid;
+    ChildExitedCallback(info);
+  }
 }
 
 int Subprocess::GetPipeFd(pid_t pid, int fd) const {
