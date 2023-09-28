@@ -642,9 +642,10 @@ constexpr struct {
   }
 } deferrer;
 
-#define TOKENPASTE(x, y) x##y
-#define DEFER                                                    \
-  auto TOKENPASTE(_deferred_lambda_call, __COUNTER__) = deferrer \
-                                                        << [&]() mutable
+#define TOKENPASTE1(x, y) x##y
+#define TOKENPASTE2(x, y) TOKENPASTE1(x, y)
+#define DEFER                                                     \
+  auto TOKENPASTE2(_deferred_lambda_call, __COUNTER__) = deferrer \
+                                                         << [&]() mutable
 
 #endif  // UPDATE_ENGINE_COMMON_UTILS_H_
