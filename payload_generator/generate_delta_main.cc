@@ -736,13 +736,13 @@ int Main(int argc, char** argv) {
   if (FLAGS_minor_version == -1) {
     // Autodetect minor_version by looking at the update_engine.conf in the old
     // image.
-    if (payload_config.is_delta) {
-      LOG(FATAL) << "Minor version is required for delta update!";
-      return 1;
-    } else if (FLAGS_is_partial_update) {
+    if (FLAGS_is_partial_update) {
       payload_config.version.minor = kPartialUpdateMinorPayloadVersion;
       LOG(INFO) << "Using minor_version=" << payload_config.version.minor
                 << " for partial updates";
+    } else if (payload_config.is_delta) {
+      LOG(FATAL) << "Minor version is required for complete delta update!";
+      return 1;
     } else {
       payload_config.version.minor = kFullPayloadMinorVersion;
       LOG(INFO) << "Using non-delta minor_version="
