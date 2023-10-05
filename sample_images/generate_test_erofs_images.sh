@@ -41,4 +41,4 @@ if [ ! -z "${delta_generator}" ]; then
   truncate -s 16M ${fs_root}/dir1/dir2/dir123/chunks_of_zero
 fi
 
-${mkfs} -z $compression_algo ${output_image} ${fs_root}
+${mkfs} -z $compression_algo -T 1656466080 -U BCF5939B-0930-A551-A548-E4BD99E783AC --ignore-mtime ${output_image} ${fs_root}
