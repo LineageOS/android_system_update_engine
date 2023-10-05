@@ -516,7 +516,6 @@ cc_defaults {
         "aosp/hardware_android.cc",
         "aosp/logging_android.cc",
         "aosp/network_selector_android.cc",
-        "aosp/permission.cc",
         "aosp/update_attempter_android.cc",
         "certificate_checker.cc",
         "download_action.cc",

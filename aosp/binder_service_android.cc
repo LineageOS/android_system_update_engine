@@ -22,10 +22,8 @@
 #include <base/logging.h>
 #include <binderwrapper/binder_wrapper.h>
 #include <utils/String8.h>
-#include <android-base/stringprintf.h>
 
 #include "update_engine/aosp/binder_service_android_common.h"
-#include "update_engine/aosp/permission.h"
 
 using android::binder::Status;
 using android::os::IUpdateEngineCallback;
@@ -35,7 +33,6 @@ using std::vector;
 using update_engine::UpdateEngineStatus;
 
 namespace chromeos_update_engine {
-
 
 BinderUpdateEngineAndroidService::BinderUpdateEngineAndroidService(
     ServiceDelegateAndroidInterface* service_delegate)
@@ -59,9 +56,6 @@ void BinderUpdateEngineAndroidService::SendPayloadApplicationComplete(
 
 Status BinderUpdateEngineAndroidService::bind(
     const android::sp<IUpdateEngineCallback>& callback, bool* return_value) {
-  if (const auto status = CheckCallingUid(); !status.isOk()) {
-    return status;
-  }
   // Send an status update on connection (except when no update sent so far).
   // Even though the status update is oneway, it still returns an erroneous
   // status in case of a selinux denial. We should at least check this status
@@ -91,9 +85,6 @@ Status BinderUpdateEngineAndroidService::bind(
 
 Status BinderUpdateEngineAndroidService::unbind(
     const android::sp<IUpdateEngineCallback>& callback, bool* return_value) {
-  if (const auto status = CheckCallingUid(); !status.isOk()) {
-    return status;
-  }
   const android::sp<IBinder>& callback_binder =
       IUpdateEngineCallback::asBinder(callback);
   auto binder_wrapper = android::BinderWrapper::Get();
@@ -108,9 +99,6 @@ Status BinderUpdateEngineAndroidService::applyPayload(
     int64_t payload_offset,
     int64_t payload_size,
     const vector<android::String16>& header_kv_pairs) {
-  if (const auto status = CheckCallingUid(); !status.isOk()) {
-    return status;
-  }
   const string payload_url{android::String8{url}.c_str()};
   vector<string> str_headers = ToVecString(header_kv_pairs);
 
@@ -127,9 +115,6 @@ Status BinderUpdateEngineAndroidService::applyPayloadFd(
     int64_t payload_offset,
     int64_t payload_size,
     const vector<android::String16>& header_kv_pairs) {
-  if (const auto status = CheckCallingUid(); !status.isOk()) {
-    return status;
-  }
   vector<string> str_headers = ToVecString(header_kv_pairs);
 
   Error error;
@@ -141,9 +126,6 @@ Status BinderUpdateEngineAndroidService::applyPayloadFd(
 }
 
 Status BinderUpdateEngineAndroidService::suspend() {
-  if (const auto status = CheckCallingUid(); !status.isOk()) {
-    return status;
-  }
   Error error;
   if (!service_delegate_->SuspendUpdate(&error))
     return ErrorPtrToStatus(error);
@@ -151,9 +133,6 @@ Status BinderUpdateEngineAndroidService::suspend() {
 }
 
 Status BinderUpdateEngineAndroidService::resume() {
-  if (const auto status = CheckCallingUid(); !status.isOk()) {
-    return status;
-  }
   Error error;
   if (!service_delegate_->ResumeUpdate(&error))
     return ErrorPtrToStatus(error);
@@ -161,9 +140,6 @@ Status BinderUpdateEngineAndroidService::resume() {
 }
 
 Status BinderUpdateEngineAndroidService::cancel() {
-  if (const auto status = CheckCallingUid(); !status.isOk()) {
-    return status;
-  }
   Error error;
   if (!service_delegate_->CancelUpdate(&error))
     return ErrorPtrToStatus(error);
@@ -171,9 +147,6 @@ Status BinderUpdateEngineAndroidService::cancel() {
 }
 
 Status BinderUpdateEngineAndroidService::resetStatus() {
-  if (const auto status = CheckCallingUid(); !status.isOk()) {
-    return status;
-  }
   Error error;
   if (!service_delegate_->ResetStatus(&error))
     return ErrorPtrToStatus(error);
@@ -182,9 +155,6 @@ Status BinderUpdateEngineAndroidService::resetStatus() {
 
 Status BinderUpdateEngineAndroidService::setShouldSwitchSlotOnReboot(
     const android::String16& metadata_filename) {
-  if (const auto status = CheckCallingUid(); !status.isOk()) {
-    return status;
-  }
   Error error;
   if (!service_delegate_->setShouldSwitchSlotOnReboot(
           android::String8(metadata_filename).c_str(), &error)) {
@@ -194,9 +164,6 @@ Status BinderUpdateEngineAndroidService::setShouldSwitchSlotOnReboot(
 }
 
 Status BinderUpdateEngineAndroidService::resetShouldSwitchSlotOnReboot() {
-  if (const auto status = CheckCallingUid(); !status.isOk()) {
-    return status;
-  }
   Error error;
   if (!service_delegate_->resetShouldSwitchSlotOnReboot(&error)) {
     return ErrorPtrToStatus(error);
@@ -206,9 +173,6 @@ Status BinderUpdateEngineAndroidService::resetShouldSwitchSlotOnReboot() {
 
 Status BinderUpdateEngineAndroidService::verifyPayloadApplicable(
     const android::String16& metadata_filename, bool* return_value) {
-  if (const auto status = CheckCallingUid(); !status.isOk()) {
-    return status;
-  }
   const std::string payload_metadata{
       android::String8{metadata_filename}.c_str()};
   LOG(INFO) << "Received a request of verifying payload metadata in "
@@ -240,9 +204,6 @@ Status BinderUpdateEngineAndroidService::allocateSpaceForPayload(
     const android::String16& metadata_filename,
     const vector<android::String16>& header_kv_pairs,
     int64_t* return_value) {
-  if (const auto status = CheckCallingUid(); !status.isOk()) {
-    return status;
-  }
   const std::string payload_metadata{
       android::String8{metadata_filename}.c_str()};
   vector<string> str_headers = ToVecString(header_kv_pairs);
@@ -285,9 +246,6 @@ class CleanupSuccessfulUpdateCallback
 
 Status BinderUpdateEngineAndroidService::cleanupSuccessfulUpdate(
     const android::sp<IUpdateEngineCallback>& callback) {
-  if (const auto status = CheckCallingUid(); !status.isOk()) {
-    return status;
-  }
   Error error;
   service_delegate_->CleanupSuccessfulUpdate(
       std::make_unique<CleanupSuccessfulUpdateCallback>(callback), &error);
