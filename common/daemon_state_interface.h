@@ -41,8 +41,7 @@ class DaemonStateInterface {
 
  protected:
   DaemonStateInterface() = default;
-
-  DISALLOW_COPY_AND_ASSIGN(DaemonStateInterface);
+  DaemonStateInterface(const DaemonStateInterface&) = delete;
 };
 
 }  // namespace chromeos_update_engine
