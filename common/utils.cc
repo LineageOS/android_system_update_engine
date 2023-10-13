@@ -601,6 +601,53 @@ bool SetBlockDeviceReadOnly(const string& device, bool read_only) {
                 << " as read_only=" << expected_flag;
     return false;
   }
+
+  /*
+   * Read back the value to check if it is configured successfully.
+   * If fail, use the second method, set the file
+   * /sys/block/<partition_name>/force_ro
+   * to config the read only property.
+   */
+  rc = ioctl(fd, BLKROGET, &read_only_flag);
+  if (rc != 0) {
+    PLOG(ERROR) << "Failed to read back block device read-only value:" << device;
+    return false;
+  }
+  if (read_only_flag == expected_flag) {
+    return true;
+  }
+
+  std::array<char, PATH_MAX> device_name;
+  char *pdevice = realpath(device.c_str(), device_name.data());
+  TEST_AND_RETURN_FALSE_ERRNO(pdevice);
+
+  std::string real_path(pdevice);
+  std::size_t offset = real_path.find_last_of('/');
+  if (offset == std::string::npos){
+    LOG(ERROR) << "Could not find partition name from " << real_path;
+    return false;
+  }
+  const std::string partition_name = real_path.substr(offset + 1);
+
+  std::string force_ro_file = "/sys/block/" + partition_name + "/force_ro";
+  android::base::unique_fd fd_force_ro {
+    HANDLE_EINTR(open(force_ro_file.c_str(), O_WRONLY | O_CLOEXEC))};
+  TEST_AND_RETURN_FALSE_ERRNO(fd_force_ro >= 0);
+
+  rc = write(fd_force_ro, expected_flag ? "1" : "0", 1);
+  TEST_AND_RETURN_FALSE_ERRNO(rc > 0);
+
+  // Read back again
+  rc = ioctl(fd, BLKROGET, &read_only_flag);
+  if (rc != 0) {
+    PLOG(ERROR) << "Failed to read back block device read-only value:" << device;
+    return false;
+  }
+  if (read_only_flag != expected_flag) {
+    LOG(ERROR) << "After modifying force_ro, marking block device " << device
+                << " as read_only=" << expected_flag;
+    return false;
+  }
   return true;
 }
 
