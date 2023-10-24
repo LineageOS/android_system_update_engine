@@ -485,7 +485,7 @@ bool DeltaPerformer::Write(const void* bytes, size_t count, ErrorCode* error) {
 
     block_size_ = manifest_.block_size();
 
-    if (!CheckSPLDowngrade()) {
+    if (!install_plan_->spl_downgrade && !CheckSPLDowngrade()) {
       *error = ErrorCode::kPayloadTimestampError;
       return false;
     }
