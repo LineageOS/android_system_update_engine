@@ -311,6 +311,9 @@ bool UpdateAttempterAndroid::ApplyPayload(
   install_plan_.powerwash_required =
       GetHeaderAsBool(headers[kPayloadPropertyPowerwash], false);
 
+  install_plan_.spl_downgrade =
+      GetHeaderAsBool(headers[kPayloadPropertySplDowngrade], false);
+
   if (!IsProductionBuild()) {
     install_plan_.disable_vabc =
         GetHeaderAsBool(headers[kPayloadDisableVABC], false);
