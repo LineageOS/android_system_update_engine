@@ -144,20 +144,20 @@ TEST_F(SubprocessTest, InactiveInstancesDontChangeTheSingleton) {
 }
 
 TEST_F(SubprocessTest, SimpleTest) {
-  EXPECT_TRUE(subprocess_.Exec({kBinPath "/false"},
+  ASSERT_TRUE(subprocess_.Exec({kBinPath "/false"},
                                base::Bind(&ExpectedResults, 1, "")));
   loop_.Run();
 }
 
 TEST_F(SubprocessTest, EchoTest) {
-  EXPECT_TRUE(subprocess_.Exec(
+  ASSERT_TRUE(subprocess_.Exec(
       {kBinPath "/sh", "-c", "echo this is stdout; echo this is stderr >&2"},
       base::Bind(&ExpectedResults, 0, "this is stdout\nthis is stderr\n")));
   loop_.Run();
 }
 
 TEST_F(SubprocessTest, StderrNotIncludedInOutputTest) {
-  EXPECT_TRUE(subprocess_.ExecFlags(
+  ASSERT_TRUE(subprocess_.ExecFlags(
       {kBinPath "/sh", "-c", "echo on stdout; echo on stderr >&2"},
       0,
       {},
@@ -172,13 +172,13 @@ TEST_F(SubprocessTest, PipeRedirectFdTest) {
       0,
       {3},
       base::Bind(&ExpectedDataOnPipe, &subprocess_, &pid, 3, "on pipe\n", 0));
-  EXPECT_NE(0, pid);
+  ASSERT_NE(0, pid);
 
   // Wrong file descriptor values should return -1.
-  EXPECT_EQ(-1, subprocess_.GetPipeFd(pid, 123));
+  ASSERT_EQ(-1, subprocess_.GetPipeFd(pid, 123));
   loop_.Run();
   // Calling GetPipeFd() after the callback runs is invalid.
-  EXPECT_EQ(-1, subprocess_.GetPipeFd(pid, 3));
+  ASSERT_EQ(-1, subprocess_.GetPipeFd(pid, 3));
 }
 
 // Test that a pipe file descriptor open in the parent is not open in the child.
@@ -191,20 +191,20 @@ TEST_F(SubprocessTest, PipeClosedWhenNotRedirectedTest) {
       test_utils::GetBuildArtifactsPath("test_subprocess"),
       "fstat",
       std::to_string(pipe.writer)};
-  EXPECT_TRUE(subprocess_.ExecFlags(
+  ASSERT_TRUE(subprocess_.ExecFlags(
       cmd, 0, {}, base::Bind(&ExpectedResults, EBADF, "")));
   loop_.Run();
 }
 
 TEST_F(SubprocessTest, EnvVarsAreFiltered) {
-  EXPECT_TRUE(
+  ASSERT_TRUE(
       subprocess_.Exec({kUsrBinPath "/env"}, base::Bind(&ExpectedEnvVars)));
   loop_.Run();
 }
 
 TEST_F(SubprocessTest, SynchronousTrueSearchsOnPath) {
   int rc = -1;
-  EXPECT_TRUE(Subprocess::SynchronousExecFlags(
+  ASSERT_TRUE(Subprocess::SynchronousExecFlags(
       {"true"}, Subprocess::kSearchPath, &rc, nullptr, nullptr));
   EXPECT_EQ(0, rc);
 }
@@ -238,7 +238,7 @@ TEST_F(SubprocessTest, CancelTest) {
   base::ScopedTempDir tempdir;
   ASSERT_TRUE(tempdir.CreateUniqueTempDir());
   string fifo_path = tempdir.GetPath().Append("fifo").value();
-  EXPECT_EQ(0, mkfifo(fifo_path.c_str(), 0666));
+  ASSERT_EQ(0, mkfifo(fifo_path.c_str(), 0666));
 
   // Start a process, make sure it is running and try to cancel it. We write
   // two bytes to the fifo, the first one marks that the program is running and
@@ -263,10 +263,10 @@ TEST_F(SubprocessTest, CancelTest) {
           fifo_path.c_str(),
           fifo_path.c_str())};
   uint32_t tag = Subprocess::Get().Exec(cmd, base::Bind(&CallbackBad));
-  EXPECT_NE(0U, tag);
+  ASSERT_NE(0U, tag);
 
   int fifo_fd = HANDLE_EINTR(open(fifo_path.c_str(), O_RDONLY));
-  EXPECT_GE(fifo_fd, 0);
+  ASSERT_GE(fifo_fd, 0);
 
   watcher_ = base::FileDescriptorWatcher::WatchReadable(
       fifo_fd,
