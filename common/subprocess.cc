@@ -21,6 +21,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <chrono>
 #include <memory>
 #include <string>
 #include <utility>
@@ -48,6 +49,10 @@ namespace {
 bool SetupChild(const std::map<string, string>& env, uint32_t flags) {
   // Setup the environment variables.
   clearenv();
+  if (setpgid(0, 0) != 0) {
+    PLOG(ERROR) << "Failed to setpgid on subprocess " << getpid();
+    return false;
+  }
   for (const auto& key_value : env) {
     setenv(key_value.first.c_str(), key_value.second.c_str(), 0);
   }
@@ -147,9 +152,11 @@ void Subprocess::ChildExitedCallback(const siginfo_t& info) {
 
   // Don't print any log if the subprocess exited with exit code 0.
   if (info.si_code != CLD_EXITED) {
-    LOG(INFO) << "Subprocess terminated with si_code " << info.si_code;
+    LOG(INFO) << "Subprocess " << info.si_pid << " terminated with si_code "
+              << info.si_code;
   } else if (info.si_status != 0) {
-    LOG(INFO) << "Subprocess exited with si_status: " << info.si_status;
+    LOG(INFO) << "Subprocess " << info.si_pid
+              << " exited with si_status: " << info.si_status;
   }
 
   if (!record->stdout_str.empty()) {
@@ -206,7 +213,31 @@ pid_t Subprocess::ExecFlags(const vector<string>& cmd,
   return pid;
 }
 
+bool WaitForProcessGroup(pid_t pid, std::chrono::milliseconds timeout) {
+  using std::chrono::system_clock;
+  auto start = system_clock::now();
+  do {
+    pid_t w = waitpid(-pid, nullptr, WNOHANG);
+    if (w < 0) {
+      // When all of the child process with this process group ID exits, waitpid
+      // will return ECHILD. Until that point, keep callilng waitpid() as there
+      // might be multiple child processes with the same process group id.
+      if (errno == ECHILD) {
+        LOG(INFO) << "All processes with process group id " << pid << " exited";
+        return true;
+      }
+      PLOG(ERROR) << "Waitpid returned " << w;
+      return false;
+    }
+    usleep(100);
+  } while ((system_clock::now() - start) <= timeout);
+  LOG(INFO) << "process group " << pid << " did not exit in " << timeout.count()
+            << " milliseconds";
+  return false;
+}
+
 void Subprocess::KillExec(pid_t pid) {
+  using namespace std::chrono_literals;
   auto pid_record = subprocess_records_.find(pid);
   if (pid_record == subprocess_records_.end())
     return;
@@ -214,10 +245,10 @@ void Subprocess::KillExec(pid_t pid) {
   // We don't care about output/return code, so we use SIGKILL here to ensure it
   // will be killed, SIGTERM might lead to leaked subprocess.
   CHECK_EQ(pid_record->second->proc.pid(), pid);
-  if (!pid_record->second->proc.Kill(SIGKILL, 5)) {
-    PLOG(WARNING) << "Error sending SIGKILL to "
-                  << pid_record->second->proc.pid();
+  if (kill(-pid, SIGKILL) != 0) {
+    PLOG(WARNING) << "Failed to kill subprocess group " << pid;
   }
+  WaitForProcessGroup(pid, 5000ms);
   // Release the pid now so we don't try to kill it if Subprocess is destroyed
   // before the corresponding ChildExitedCallback() is called.
   pid_record->second->proc.Release();
