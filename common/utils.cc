@@ -412,6 +412,17 @@ bool SendFile(int out_fd, int in_fd, size_t count) {
   return true;
 }
 
+bool DeleteDirectory(const char* dirname) {
+  const std::string tmpdir = std::string(dirname) + "_deleted";
+  std::filesystem::remove_all(tmpdir);
+  if (rename(dirname, tmpdir.c_str()) != 0) {
+    PLOG(ERROR) << "Failed to rename " << dirname << " to " << tmpdir;
+    return false;
+  }
+  std::filesystem::remove_all(tmpdir);
+  return true;
+}
+
 bool FsyncDirectory(const char* dirname) {
   android::base::unique_fd fd(
       TEMP_FAILURE_RETRY(open(dirname, O_RDONLY | O_CLOEXEC)));
