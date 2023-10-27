@@ -20,6 +20,7 @@
 #include <filesystem>
 #include <unistd.h>
 
+#include <android-base/file.h>
 #include <base/files/file_enumerator.h>
 #include <base/files/file_util.h>
 #include <base/logging.h>
@@ -27,7 +28,6 @@
 #include <base/strings/string_split.h>
 #include <base/strings/string_util.h>
 
-#include "update_engine/common/platform_constants.h"
 #include "update_engine/common/utils.h"
 
 using std::string;
@@ -74,7 +74,16 @@ bool PrefsBase::GetInt64(const std::string_view key, int64_t* value) const {
   if (!GetString(key, &str_value))
     return false;
   base::TrimWhitespaceASCII(str_value, base::TRIM_ALL, &str_value);
-  TEST_AND_RETURN_FALSE(base::StringToInt64(str_value, value));
+  if (str_value.empty()) {
+    LOG(ERROR) << "When reading pref " << key
+               << ", got an empty value after trim";
+    return false;
+  }
+  if (!base::StringToInt64(str_value, value)) {
+    LOG(ERROR) << "When reading pref " << key << ", failed to convert value "
+               << str_value << " to integer";
+    return false;
+  }
   return true;
 }
 
@@ -206,18 +215,30 @@ bool Prefs::FileStorage::DeleteTemporaryPrefs() {
 }
 
 bool Prefs::FileStorage::SwapPrefs() {
-  if (std::filesystem::exists(prefs_dir_.value())) {
-    std::filesystem::remove_all(prefs_dir_.value());
+  if (!utils::DeleteDirectory(prefs_dir_.value().c_str())) {
+    LOG(ERROR) << "Failed to remove prefs dir " << prefs_dir_;
+    return false;
   }
   if (rename(GetTemporaryDir().c_str(), prefs_dir_.value().c_str()) != 0) {
     LOG(ERROR) << "Error replacing prefs with prefs_tmp" << strerror(errno);
     return false;
+  }
+  if (!utils::FsyncDirectory(
+          android::base::Dirname(prefs_dir_.value()).c_str())) {
+    PLOG(ERROR) << "Failed to fsync prefs parent dir after swapping prefs";
   }
   return true;
 }
 
 bool Prefs::FileStorage::Init(const base::FilePath& prefs_dir) {
   prefs_dir_ = prefs_dir;
+  if (!std::filesystem::exists(prefs_dir_.value())) {
+    LOG(INFO) << "Prefs dir does not exist, possibly due to an interrupted "
+                 "transaction.";
+    if (std::filesystem::exists(GetTemporaryDir())) {
+      SwapPrefs();
+    }
+  }
 
   // Delete empty directories. Ignore errors when deleting empty directories.
   DeleteEmptyDirectories(prefs_dir_);
