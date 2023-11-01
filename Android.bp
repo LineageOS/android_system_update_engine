@@ -604,6 +604,7 @@ cc_binary {
         "libbase",
         "liblog",
         "liblz4",
+        "libprotobuf-cpp-lite",
     ],
     static_libs: [
         "libpayload_consumer",
@@ -616,7 +617,6 @@ cc_binary {
         "libgkiprops",
         "libevent",
         "libmodpb64",
-        "libprotobuf-cpp-lite",
         "libbrillo-stream",
         "libbrillo",
         "libchrome",
@@ -624,7 +624,6 @@ cc_binary {
     target: {
         recovery: {
             exclude_shared_libs: [
-                "libprotobuf-cpp-lite",
                 "libbrillo-stream",
                 "libbrillo",
                 "libchrome",
