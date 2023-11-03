@@ -39,6 +39,10 @@ DEFINE_string(partitions,
               "",
               "Comma separated list of partitions to extract, leave empty for "
               "extracting all partitions");
+DEFINE_string(vabc_compression_param,
+              "",
+              "Compression parameter for VABC. Default is use what's specified "
+              "in OTA package");
 
 namespace chromeos_update_engine {
 
@@ -66,6 +70,9 @@ bool ProcessPartition(
   android::snapshot::CowOptions options{
       .block_size = static_cast<uint32_t>(manifest.block_size()),
       .compression = dap.vabc_compression_param()};
+  if (!FLAGS_vabc_compression_param.empty()) {
+    options.compression = FLAGS_vabc_compression_param;
+  }
   auto cow_writer = android::snapshot::CreateCowWriter(
       dap.cow_version(), options, std::move(output_fd));
   TEST_AND_RETURN_FALSE(cow_writer);
