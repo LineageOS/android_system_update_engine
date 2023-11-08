@@ -638,6 +638,14 @@ bool UpdateAttempterAndroid::VerifyPayloadApplicable(
   ErrorCode errorcode{};
 
   BootControlInterface::Slot current_slot = GetCurrentSlot();
+  if (current_slot < 0) {
+    return LogAndSetError(
+        error,
+        __LINE__,
+        __FILE__,
+        "Failed to get current slot " + std::to_string(current_slot),
+        ErrorCode::kDownloadStateInitializationError);
+  }
   for (const PartitionUpdate& partition : manifest.partitions()) {
     if (!partition.has_old_partition_info())
       continue;
