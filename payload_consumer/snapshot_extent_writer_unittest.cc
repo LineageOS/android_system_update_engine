@@ -100,11 +100,14 @@ class FakeCowWriter : public android::snapshot::ICowWriter {
   }
 
   // Return number of bytes the cow image occupies on disk.
-  uint64_t GetCowSize() override {
+  uint64_t GetCowSize() const {
     return std::accumulate(
         operations_.begin(), operations_.end(), 0, [](auto&& acc, auto&& op) {
           return acc + op.second.data.size();
         });
+  }
+  android::snapshot::CowSizeInfo GetCowSizeInfo() const override {
+    return android::snapshot::CowSizeInfo{GetCowSize(), 0};
   }
   bool Contains(size_t block) {
     return operations_.find(block) != operations_.end();
