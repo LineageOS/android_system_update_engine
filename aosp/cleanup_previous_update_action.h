@@ -31,6 +31,7 @@
 #include "update_engine/common/cleanup_previous_update_action_delegate.h"
 #include "update_engine/common/error_code.h"
 #include "update_engine/common/prefs_interface.h"
+#include "update_engine/common/scoped_task_id.h"
 
 namespace chromeos_update_engine {
 
@@ -76,7 +77,7 @@ class CleanupPreviousUpdateAction : public Action<CleanupPreviousUpdateAction> {
   bool cancel_failed_{false};
   unsigned int last_percentage_{0};
   android::snapshot::ISnapshotMergeStats* merge_stats_;
-  brillo::MessageLoop::TaskId scheduled_task_{brillo::MessageLoop::kTaskIdNull};
+  ScopedTaskId scheduled_task_;
 
   // Helpers for task management.
   void AcknowledgeTaskExecuted();
@@ -88,6 +89,8 @@ class CleanupPreviousUpdateAction : public Action<CleanupPreviousUpdateAction> {
   void WaitBootCompletedOrSchedule();
   void ScheduleWaitMarkBootSuccessful();
   void CheckSlotMarkedSuccessfulOrSchedule();
+  void CheckForMergeDelay();
+  void StartMerge();
   void ScheduleWaitForMerge();
   void WaitForMergeOrSchedule();
   void InitiateMergeAndWait();
