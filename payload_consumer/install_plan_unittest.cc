@@ -21,29 +21,28 @@
 namespace chromeos_update_engine {
 
 TEST(InstallPlanTest, Dump) {
-  InstallPlan install_plan{
-      .download_url = "foo-download-url",
-      .version = "foo-version",
-      .payloads = {{
-          .payload_urls = {"url1", "url2"},
-          .metadata_signature = "foo-signature",
-          .hash = {0xb2, 0xb3},
-          .fp = "foo-fp",
-          .app_id = "foo-app-id",
-      }},
-      .source_slot = BootControlInterface::kInvalidSlot,
-      .target_slot = BootControlInterface::kInvalidSlot,
-      .partitions = {{
-          .name = "foo-partition_name",
-          .source_path = "foo-source-path",
-          .source_hash = {0xb1, 0xb2},
-          .target_path = "foo-target-path",
-          .readonly_target_path = "mountable-device",
-          .target_hash = {0xb3, 0xb4},
-          .postinstall_path = "foo-path",
-          .filesystem_type = "foo-type",
-      }},
-  };
+  InstallPlan install_plan;
+  install_plan.download_url = "foo-download-url";
+  install_plan.version = "foo-version";
+  install_plan.payloads = {{
+      .payload_urls = {"url1", "url2"},
+      .metadata_signature = "foo-signature",
+      .hash = {0xb2, 0xb3},
+      .fp = "foo-fp",
+      .app_id = "foo-app-id",
+  }};
+  install_plan.source_slot = BootControlInterface::kInvalidSlot;
+  install_plan.target_slot = BootControlInterface::kInvalidSlot;
+  install_plan.partitions = {{
+      .name = "foo-partition_name",
+      .source_path = "foo-source-path",
+      .source_hash = {0xb1, 0xb2},
+      .target_path = "foo-target-path",
+      .readonly_target_path = "mountable-device",
+      .target_hash = {0xb3, 0xb4},
+      .postinstall_path = "foo-path",
+      .filesystem_type = "foo-type",
+  }};
 
   EXPECT_EQ(install_plan.ToString(),
             R"(type: new_update
