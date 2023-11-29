@@ -26,8 +26,8 @@
 namespace chromeos_update_engine {
 struct CowOperation {
   enum Type {
-    CowCopy = android::snapshot::kCowCopyOp,
-    CowReplace = android::snapshot::kCowReplaceOp,
+    CowCopy = static_cast<int>(android::snapshot::kCowCopyOp),
+    CowReplace = static_cast<int>(android::snapshot::kCowReplaceOp),
   };
   Type op{};
   uint64_t src_block{};
