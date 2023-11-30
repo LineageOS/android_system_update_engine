@@ -27,7 +27,7 @@ const char kOmahaUpdaterID[] = "Brillo";
 const char kOmahaPlatformName[] = "Brillo";
 const char kUpdatePayloadPublicKeyPath[] = "";
 const char kUpdateCertificatesPath[] = "/system/etc/security/otacerts.zip";
-const char kCACertificatesPath[] = "/system/etc/security/cacerts_google";
+const char kCACertificatesPath[] = "/system/etc/security/cacerts";
 // No deadline file API support on Android.
 const char kOmahaResponseDeadlineFile[] = "";
 const char kNonVolatileDirectory[] = "/data/misc/update_engine";
