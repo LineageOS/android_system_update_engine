@@ -138,6 +138,8 @@ metrics::AttemptResult GetAttemptResult(ErrorCode code) {
     case ErrorCode::kTestImageFlag:
     case ErrorCode::kTestOmahaUrlFlag:
     case ErrorCode::kSpecialFlags:
+    case ErrorCode::kUpdateProcessing:
+    case ErrorCode::kUpdateAlreadyInstalled:
       break;
   }
 
@@ -245,6 +247,8 @@ metrics::DownloadErrorCode GetDownloadErrorCode(ErrorCode code) {
     case ErrorCode::kNotEnoughSpace:
     case ErrorCode::kDeviceCorrupted:
     case ErrorCode::kPackageExcludedFromUpdate:
+    case ErrorCode::kUpdateProcessing:
+    case ErrorCode::kUpdateAlreadyInstalled:
       break;
 
     // Special flags. These can't happen (we mask them out above) but
