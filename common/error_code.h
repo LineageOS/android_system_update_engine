@@ -88,6 +88,8 @@ enum class ErrorCode : int {
   kPackageExcludedFromUpdate = 62,
   kPostInstallMountError = 63,
   kOverlayfsenabledError = 64,
+  kUpdateProcessing = 65,
+  kUpdateAlreadyInstalled = 66,
 
   // VERY IMPORTANT! When adding new error codes:
   //
