@@ -242,18 +242,18 @@ bool UpdateAttempterAndroid::ApplyPayload(
     const vector<string>& key_value_pair_headers,
     Error* error) {
   if (status_ == UpdateStatus::UPDATED_NEED_REBOOT) {
-    return LogAndSetGenericError(
-        error,
-        __LINE__,
-        __FILE__,
-        "An update already applied, waiting for reboot");
+    return LogAndSetError(error,
+                          __LINE__,
+                          __FILE__,
+                          "An update already applied, waiting for reboot",
+                          ErrorCode::kUpdateAlreadyInstalled);
   }
   if (processor_->IsRunning()) {
-    return LogAndSetGenericError(
-        error,
-        __LINE__,
-        __FILE__,
-        "Already processing an update, cancel it first.");
+    return LogAndSetError(error,
+                          __LINE__,
+                          __FILE__,
+                          "Already processing an update, cancel it first.",
+                          ErrorCode::kUpdateProcessing);
   }
   DCHECK_EQ(status_, UpdateStatus::IDLE);
 
