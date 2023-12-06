@@ -52,11 +52,11 @@ class PayloadProperties {
   // format, this needs to be increased.
   int version_{2};
 
-  size_t metadata_size_;
+  uint64_t metadata_size_;
   std::string metadata_hash_;
   std::string metadata_signatures_;
 
-  size_t payload_size_;
+  uint64_t payload_size_;
   std::string payload_hash_;
 
   // Whether the payload is a delta (true) or full (false).
