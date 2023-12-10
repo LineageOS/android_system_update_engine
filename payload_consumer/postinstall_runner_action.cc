@@ -109,7 +109,7 @@ void PostinstallRunnerAction::PerformAction() {
   auto dynamic_control = boot_control_->GetDynamicPartitionControl();
   CHECK(dynamic_control);
 
-  // Mount snapshot partitions for Virtual AB Compression Compression.
+  // Mount snapshot partitions for Virtual AB Compression
   if (dynamic_control->UpdateUsesSnapshotCompression()) {
     // Before calling MapAllPartitions to map snapshot devices, all CowWriters
     // must be closed, and MapAllPartitions() should be called.
@@ -434,9 +434,8 @@ void PostinstallRunnerAction::CompletePostinstall(ErrorCode error_code) {
   // steps succeeded.
   if (error_code == ErrorCode::kSuccess) {
     if (install_plan_.switch_slot_on_reboot) {
-      if (!boot_control_->GetDynamicPartitionControl()->FinishUpdate(
-              install_plan_.powerwash_required) ||
-          !boot_control_->SetActiveBootSlot(install_plan_.target_slot)) {
+      if (!boot_control_->SetActiveBootSlot(install_plan_.target_slot)) {
+        LOG(ERROR) << "Failed to switch slot to " << install_plan_.target_slot;
         error_code = ErrorCode::kPostinstallRunnerError;
       } else {
         // Schedules warm reset on next reboot, ignores the error.
