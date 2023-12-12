@@ -219,7 +219,8 @@ bool DownloadAction::ReceivedBytes(HttpFetcher* fetcher,
   uint64_t bytes_downloaded_total =
       bytes_received_previous_payloads_ + bytes_received_;
   if (delegate_ && download_active_) {
-    delegate_->BytesReceived(length, bytes_downloaded_total, bytes_total_);
+    delegate_->BytesReceived(
+        length, bytes_downloaded_total - base_offset_, bytes_total_);
   }
   if (delta_performer_ && !delta_performer_->Write(bytes, length, &code_)) {
     if (code_ != ErrorCode::kSuccess) {
