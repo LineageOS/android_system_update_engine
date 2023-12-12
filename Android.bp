@@ -556,7 +556,7 @@ cc_binary {
         "libgflags",
     ],
     required: [
-        "cacerts_google",
+        "cacerts",
         "otacerts",
     ],
 
