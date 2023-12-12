@@ -530,7 +530,7 @@ bool DeltaPerformer::Write(const void* bytes, size_t count, ErrorCode* error) {
     if (install_plan_->enable_threading) {
       manifest_.mutable_dynamic_partition_metadata()
           ->mutable_vabc_feature_set()
-          ->set_threaded(true);
+          ->set_threaded(install_plan_->enable_threading.value());
       LOG(INFO) << "Attempting to enable multi-threaded compression for VABC";
     }
     if (install_plan_->batched_writes) {
