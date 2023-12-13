@@ -1326,3 +1326,67 @@ cc_binary_host {
         "update_metadata-protos",
     ],
 }
+
+cc_binary_host {
+    name: "ota_extractor_static",
+    srcs: [
+        "aosp/ota_extractor.cc",
+    ],
+    static_libs: [
+        "liblog",
+        "libbrotli",
+        "libbase",
+        "libpayload_consumer",
+        "libpayload_extent_ranges",
+        "libpayload_extent_utils",
+        "libz",
+        "libgflags",
+        "update_metadata-protos",
+        // from ue_defaults shared_libs
+        "libbrillo",
+        "libchrome",
+        // from libpayload_consumer_exports static_libs
+        "libxz",
+        "libbz",
+        "libbspatch",
+        "libfec_rs",
+        "libpuffpatch",
+        "libverity_tree",
+        "lz4diff-protos",
+        "liblz4patch",
+        // from libpayload_consumer_exports shared_libs
+        "libcrypto",
+        "libfec",
+        "liblz4",
+        "libprotobuf-cpp-lite",
+    ],
+    static_executable: true,
+    stl: "libc++_static",
+
+    // from ue_defaults
+    cflags: [
+        "-DBASE_VER=576279",
+        "-DUSE_HWID_OVERRIDE=0",
+        "-D_FILE_OFFSET_BITS=64",
+        "-D_POSIX_C_SOURCE=199309L",
+        "-Wa,--noexecstack",
+        "-Wall",
+        "-Werror",
+        "-Wextra",
+        "-Wformat=2",
+        "-Wno-psabi",
+        "-Wno-unused-parameter",
+        "-ffunction-sections",
+        "-fstack-protector-strong",
+        "-fvisibility=hidden",
+        "-g3",
+    ],
+    cppflags: [
+        "-Wnon-virtual-dtor",
+        "-fno-strict-aliasing",
+    ],
+    include_dirs: ["system"],
+    local_include_dirs: ["client_library/include"],
+    header_libs: ["libgtest_prod_headers"],
+    ldflags: ["-Wl,--gc-sections"],
+}
