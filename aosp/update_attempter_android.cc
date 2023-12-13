@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include <android-base/parsebool.h>
 #include <android-base/properties.h>
 #include <android-base/unique_fd.h>
 #include <base/bind.h>
@@ -391,7 +392,11 @@ bool UpdateAttempterAndroid::ApplyPayload(
     install_plan_.vabc_none = true;
   }
   if (!headers[kPayloadEnableThreading].empty()) {
-    install_plan_.enable_threading = true;
+    const auto res = android::base::ParseBool(headers[kPayloadEnableThreading]);
+    if (res != android::base::ParseBoolResult::kError) {
+      install_plan_.enable_threading =
+          res == android::base::ParseBoolResult::kTrue;
+    }
   }
   if (!headers[kPayloadBatchedWrites].empty()) {
     install_plan_.batched_writes = true;
