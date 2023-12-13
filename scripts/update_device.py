@@ -22,7 +22,6 @@ from __future__ import absolute_import
 
 import argparse
 import binascii
-import hashlib
 import logging
 import os
 import re
@@ -33,7 +32,6 @@ import struct
 import tempfile
 import time
 import threading
-import xml.etree.ElementTree
 import zipfile
 import shutil
 
@@ -338,9 +336,7 @@ def PushMetadata(dut, otafile, metadata_path):
         assert magic == b"CrAU", "Invalid magic {}, expected CrAU".format(magic)
         assert major_version == 2, "Invalid major version {}, only version 2 is supported".format(major_version)
         output_fp.write(header)
-
-        shutil.copyfileobj(payload_fp, output_fp, manifest_size + metadata_signature_size)
-
+        output_fp.write(payload_fp.read(manifest_size + metadata_signature_size))
 
       return dut.adb([
           "push",
@@ -412,6 +408,8 @@ def main():
                       help='Option to enable or disable vabc. If set to false, will fall back on A/B')
   parser.add_argument('--enable-threading', action='store_true',
                       help='Enable multi-threaded compression for VABC')
+  parser.add_argument('--disable-threading', action='store_true',
+                      help='Enable multi-threaded compression for VABC')
   parser.add_argument('--batched-writes', action='store_true',
                       help='Enable batched writes for VABC')
   parser.add_argument('--speed-limit', type=str,
@@ -481,6 +479,8 @@ def main():
     args.extra_headers += "\nDISABLE_VABC=1"
   if args.enable_threading:
     args.extra_headers += "\nENABLE_THREADING=1"
+  elif args.disable_threading:
+    args.extra_headers += "\nENABLE_THREADING=0"
   if args.batched_writes:
     args.extra_headers += "\nBATCHED_WRITES=1"
 
