@@ -17,7 +17,6 @@
 #include "update_engine/payload_consumer/delta_performer.h"
 
 #include <endian.h>
-#include <inttypes.h>
 #include <time.h>
 
 #include <algorithm>
@@ -43,7 +42,6 @@
 #include "update_engine/common/fake_boot_control.h"
 #include "update_engine/common/fake_hardware.h"
 #include "update_engine/common/fake_prefs.h"
-#include "update_engine/common/hardware_interface.h"
 #include "update_engine/common/hash_calculator.h"
 #include "update_engine/common/mock_download_action.h"
 #include "update_engine/common/test_utils.h"
