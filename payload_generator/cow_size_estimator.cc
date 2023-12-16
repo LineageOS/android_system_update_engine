@@ -25,7 +25,6 @@
 #include <android-base/unique_fd.h>
 #include <libsnapshot/cow_writer.h>
 
-#include "update_engine/common/cow_operation_convert.h"
 #include "update_engine/common/utils.h"
 #include "update_engine/payload_consumer/vabc_partition_writer.h"
 #include "update_engine/payload_generator/extent_ranges.h"
