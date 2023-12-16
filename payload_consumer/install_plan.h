@@ -204,7 +204,7 @@ struct InstallPlan {
   bool batched_writes = false;
 
   // Whether to enable multi-threaded compression on COW writes
-  bool enable_threading = false;
+  std::optional<bool> enable_threading;
 };
 
 class InstallPlanAction;

@@ -152,6 +152,19 @@ class Payload(object):
     self.Init()
 
   @property
+  def metadata_hash(self):
+    return self.manifest_hasher.digest()
+
+  @property
+  def payload_hash(self):
+    hasher = hashlib.sha256()
+    self.payload_file.seek(0)
+    hasher.update(self.payload_file.read(self.metadata_size))
+    self.payload_file.seek(self.header.metadata_signature_len, io.SEEK_CUR)
+    hasher.update(self.payload_file.read(self.total_data_length))
+    return hasher.digest()
+
+  @property
   def is_incremental(self):
     return any([part.HasField("old_partition_info") for part in self.manifest.partitions])
 

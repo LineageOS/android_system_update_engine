@@ -22,7 +22,6 @@ from __future__ import absolute_import
 
 import argparse
 import binascii
-import hashlib
 import logging
 import os
 import re
@@ -33,12 +32,10 @@ import struct
 import tempfile
 import time
 import threading
-import xml.etree.ElementTree
 import zipfile
+import shutil
 
 from six.moves import BaseHTTPServer
-
-import update_payload.payload
 
 
 # The path used to store the OTA package when applying the package from a file.
@@ -323,19 +320,23 @@ class AdbHost(object):
 
 
 def PushMetadata(dut, otafile, metadata_path):
-  payload = update_payload.Payload(otafile)
-  payload.Init()
+  header_format = ">4sQQL"
   with tempfile.TemporaryDirectory() as tmpdir:
     with zipfile.ZipFile(otafile, "r") as zfp:
       extracted_path = os.path.join(tmpdir, "payload.bin")
       with zfp.open("payload.bin") as payload_fp, \
               open(extracted_path, "wb") as output_fp:
-          # Only extract the first |data_offset| bytes from the payload.
-          # This is because allocateSpaceForPayload only needs to see
-          # the manifest, not the entire payload.
-          # Extracting the entire payload works, but is slow for full
-          # OTA.
-        output_fp.write(payload_fp.read(payload.data_offset))
+        # Only extract the first |data_offset| bytes from the payload.
+        # This is because allocateSpaceForPayload only needs to see
+        # the manifest, not the entire payload.
+        # Extracting the entire payload works, but is slow for full
+        # OTA.
+        header = payload_fp.read(struct.calcsize(header_format))
+        magic, major_version, manifest_size, metadata_signature_size = struct.unpack(header_format, header)
+        assert magic == b"CrAU", "Invalid magic {}, expected CrAU".format(magic)
+        assert major_version == 2, "Invalid major version {}, only version 2 is supported".format(major_version)
+        output_fp.write(header)
+        output_fp.write(payload_fp.read(manifest_size + metadata_signature_size))
 
       return dut.adb([
           "push",
@@ -407,6 +408,8 @@ def main():
                       help='Option to enable or disable vabc. If set to false, will fall back on A/B')
   parser.add_argument('--enable-threading', action='store_true',
                       help='Enable multi-threaded compression for VABC')
+  parser.add_argument('--disable-threading', action='store_true',
+                      help='Enable multi-threaded compression for VABC')
   parser.add_argument('--batched-writes', action='store_true',
                       help='Enable batched writes for VABC')
   parser.add_argument('--speed-limit', type=str,
@@ -476,6 +479,8 @@ def main():
     args.extra_headers += "\nDISABLE_VABC=1"
   if args.enable_threading:
     args.extra_headers += "\nENABLE_THREADING=1"
+  elif args.disable_threading:
+    args.extra_headers += "\nENABLE_THREADING=0"
   if args.batched_writes:
     args.extra_headers += "\nBATCHED_WRITES=1"
 
