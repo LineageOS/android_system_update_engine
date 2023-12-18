@@ -401,7 +401,9 @@ int VABCPartitionWriter::Close() {
   if (cow_writer_) {
     LOG(INFO) << "Finalizing " << partition_update_.partition_name()
               << " COW image";
-    cow_writer_->Finalize();
+    if (!cow_writer_->Finalize()) {
+      return -errno;
+    }
     cow_writer_ = nullptr;
   }
   return 0;
