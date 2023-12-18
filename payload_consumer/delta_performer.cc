@@ -16,12 +16,11 @@
 
 #include "update_engine/payload_consumer/delta_performer.h"
 
-#include <errno.h>
 #include <linux/fs.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cstring>
-#include <map>
 #include <memory>
 #include <set>
 #include <string>
@@ -791,10 +790,17 @@ bool DeltaPerformer::ParseManifestPartitions(ErrorCode* error) {
     }
   }
 
+  const auto start = std::chrono::system_clock::now();
   if (!install_plan_->ParsePartitions(
           partitions_, boot_control_, block_size_, error)) {
     return false;
   }
+  const auto duration = std::chrono::system_clock::now() - start;
+  LOG(INFO)
+      << "ParsePartitions done. took "
+      << std::chrono::duration_cast<std::chrono::milliseconds>(duration).count()
+      << " ms";
+
   auto&& has_verity = [](const auto& part) {
     return part.fec_extent().num_blocks() > 0 ||
            part.hash_tree_extent().num_blocks() > 0;
@@ -848,6 +854,7 @@ bool DeltaPerformer::PreparePartitionsForUpdate(
     ResetUpdateProgress(prefs, false);
   }
 
+  const auto start = std::chrono::system_clock::now();
   if (!boot_control->GetDynamicPartitionControl()->PreparePartitionsForUpdate(
           boot_control->GetCurrentSlot(),
           target_slot,
@@ -860,10 +867,14 @@ bool DeltaPerformer::PreparePartitionsForUpdate(
                << utils::ErrorCodeToString(*error);
     return false;
   }
+  const auto duration = std::chrono::system_clock::now() - start;
 
   TEST_AND_RETURN_FALSE(prefs->SetString(kPrefsDynamicPartitionMetadataUpdated,
                                          update_check_response_hash));
-  LOG(INFO) << "PreparePartitionsForUpdate done.";
+  LOG(INFO)
+      << "PreparePartitionsForUpdate done. took "
+      << std::chrono::duration_cast<std::chrono::milliseconds>(duration).count()
+      << " ms";
 
   return true;
 }
@@ -1342,7 +1353,8 @@ bool DeltaPerformer::CanResumeUpdate(PrefsInterface* prefs,
   if (prefs->GetInt64(kPrefsResumedUpdateFailures, &resumed_update_failures) &&
       resumed_update_failures > kMaxResumedUpdateFailures) {
     LOG(WARNING) << "Failed to resume update " << kPrefsResumedUpdateFailures
-                 << " invalid: " << resumed_update_failures;
+                 << " has value " << resumed_update_failures
+                 << " is over the limit " << kMaxResumedUpdateFailures;
     return false;
   }
 
