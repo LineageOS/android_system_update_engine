@@ -530,7 +530,10 @@ bool DeltaPerformer::Write(const void* bytes, size_t count, ErrorCode* error) {
       manifest_.mutable_dynamic_partition_metadata()
           ->mutable_vabc_feature_set()
           ->set_threaded(install_plan_->enable_threading.value());
-      LOG(INFO) << "Attempting to enable multi-threaded compression for VABC";
+      LOG(INFO) << "Attempting to "
+                << (install_plan_->enable_threading.value() ? "enable"
+                                                            : "disable")
+                << " multi-threaded compression for VABC";
     }
     if (install_plan_->batched_writes) {
       manifest_.mutable_dynamic_partition_metadata()
@@ -598,7 +601,13 @@ bool DeltaPerformer::Write(const void* bytes, size_t count, ErrorCode* error) {
           return false;
         }
       }
-      CloseCurrentPartition();
+      const auto err = CloseCurrentPartition();
+      if (err < 0) {
+        LOG(ERROR) << "Failed to close partition "
+                   << partitions_[current_partition_].partition_name() << " "
+                   << strerror(-err);
+        return false;
+      }
       // Skip until there are operations for current_partition_.
       while (next_operation_num_ >= acc_num_operations_[current_partition_]) {
         current_partition_++;
