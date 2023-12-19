@@ -16,12 +16,11 @@
 
 #include "update_engine/payload_consumer/delta_performer.h"
 
-#include <errno.h>
 #include <linux/fs.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cstring>
-#include <map>
 #include <memory>
 #include <set>
 #include <string>
@@ -531,7 +530,10 @@ bool DeltaPerformer::Write(const void* bytes, size_t count, ErrorCode* error) {
       manifest_.mutable_dynamic_partition_metadata()
           ->mutable_vabc_feature_set()
           ->set_threaded(install_plan_->enable_threading.value());
-      LOG(INFO) << "Attempting to enable multi-threaded compression for VABC";
+      LOG(INFO) << "Attempting to "
+                << (install_plan_->enable_threading.value() ? "enable"
+                                                            : "disable")
+                << " multi-threaded compression for VABC";
     }
     if (install_plan_->batched_writes) {
       manifest_.mutable_dynamic_partition_metadata()
@@ -599,7 +601,13 @@ bool DeltaPerformer::Write(const void* bytes, size_t count, ErrorCode* error) {
           return false;
         }
       }
-      CloseCurrentPartition();
+      const auto err = CloseCurrentPartition();
+      if (err < 0) {
+        LOG(ERROR) << "Failed to close partition "
+                   << partitions_[current_partition_].partition_name() << " "
+                   << strerror(-err);
+        return false;
+      }
       // Skip until there are operations for current_partition_.
       while (next_operation_num_ >= acc_num_operations_[current_partition_]) {
         current_partition_++;
@@ -791,10 +799,17 @@ bool DeltaPerformer::ParseManifestPartitions(ErrorCode* error) {
     }
   }
 
+  const auto start = std::chrono::system_clock::now();
   if (!install_plan_->ParsePartitions(
           partitions_, boot_control_, block_size_, error)) {
     return false;
   }
+  const auto duration = std::chrono::system_clock::now() - start;
+  LOG(INFO)
+      << "ParsePartitions done. took "
+      << std::chrono::duration_cast<std::chrono::milliseconds>(duration).count()
+      << " ms";
+
   auto&& has_verity = [](const auto& part) {
     return part.fec_extent().num_blocks() > 0 ||
            part.hash_tree_extent().num_blocks() > 0;
@@ -848,6 +863,7 @@ bool DeltaPerformer::PreparePartitionsForUpdate(
     ResetUpdateProgress(prefs, false);
   }
 
+  const auto start = std::chrono::system_clock::now();
   if (!boot_control->GetDynamicPartitionControl()->PreparePartitionsForUpdate(
           boot_control->GetCurrentSlot(),
           target_slot,
@@ -860,10 +876,14 @@ bool DeltaPerformer::PreparePartitionsForUpdate(
                << utils::ErrorCodeToString(*error);
     return false;
   }
+  const auto duration = std::chrono::system_clock::now() - start;
 
   TEST_AND_RETURN_FALSE(prefs->SetString(kPrefsDynamicPartitionMetadataUpdated,
                                          update_check_response_hash));
-  LOG(INFO) << "PreparePartitionsForUpdate done.";
+  LOG(INFO)
+      << "PreparePartitionsForUpdate done. took "
+      << std::chrono::duration_cast<std::chrono::milliseconds>(duration).count()
+      << " ms";
 
   return true;
 }
@@ -1342,7 +1362,8 @@ bool DeltaPerformer::CanResumeUpdate(PrefsInterface* prefs,
   if (prefs->GetInt64(kPrefsResumedUpdateFailures, &resumed_update_failures) &&
       resumed_update_failures > kMaxResumedUpdateFailures) {
     LOG(WARNING) << "Failed to resume update " << kPrefsResumedUpdateFailures
-                 << " invalid: " << resumed_update_failures;
+                 << " has value " << resumed_update_failures
+                 << " is over the limit " << kMaxResumedUpdateFailures;
     return false;
   }
 
