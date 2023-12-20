@@ -17,7 +17,6 @@
 #ifndef UPDATE_ENGINE_AOSP_CLEANUP_PREVIOUS_UPDATE_ACTION_H_
 #define UPDATE_ENGINE_AOSP_CLEANUP_PREVIOUS_UPDATE_ACTION_H_
 
-#include <chrono>  // NOLINT(build/c++11) -- for merge times
 #include <memory>
 #include <string>
 #include <string_view>
