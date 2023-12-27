@@ -21,6 +21,10 @@ import android.os.ParcelFileDescriptor;
 
 /**
  * The stable interface exposed by the update engine daemon.
+ *
+ * WARNING: this interface exposes less capabilities than IUpdateEngine,
+ * for instance, not having a cancel method. This is relied on for
+ * security.
  */
 interface IUpdateEngineStable {
   /**
