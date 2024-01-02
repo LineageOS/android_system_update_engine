@@ -40,7 +40,7 @@ aidl_interface {
             enabled: true,
         },
         java: {
-            enabled: false,
+            enabled: true,
         },
         ndk: {
             enabled: true,
