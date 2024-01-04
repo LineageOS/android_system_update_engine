@@ -493,10 +493,15 @@ bool DeltaPerformer::Write(const void* bytes, size_t count, ErrorCode* error) {
     // new_cow_size per partition = partition_size - (#blocks in Copy
     // operations part of the partition)
     if (install_plan_->vabc_none) {
-      LOG(INFO) << "Setting Virtual AB Compression algorithm to none";
+      LOG(INFO) << "Setting Virtual AB Compression algorithm to none. This "
+                   "would also disable VABC XOR as XOR only saves space if "
+                   "compression is enabled.";
       manifest_.mutable_dynamic_partition_metadata()
           ->set_vabc_compression_param("none");
       for (auto& partition : *manifest_.mutable_partitions()) {
+        if (!partition.has_estimate_cow_size()) {
+          continue;
+        }
         auto new_cow_size = partition.new_partition_info().size();
         for (const auto& operation : partition.merge_operations()) {
           if (operation.type() == CowMergeOperation::COW_COPY) {
@@ -504,6 +509,17 @@ bool DeltaPerformer::Write(const void* bytes, size_t count, ErrorCode* error) {
                 operation.dst_extent().num_blocks() * manifest_.block_size();
           }
         }
+        // Remove all COW_XOR merge ops, as XOR without compression is useless.
+        // It increases CPU usage but does not reduce space usage at all.
+        auto&& merge_ops = *partition.mutable_merge_operations();
+        merge_ops.erase(std::remove_if(merge_ops.begin(),
+                                       merge_ops.end(),
+                                       [](const auto& op) {
+                                         return op.type() ==
+                                                CowMergeOperation::COW_XOR;
+                                       }),
+                        merge_ops.end());
+
         // Every block written to COW device will come with a header which
         // stores src/dst block info along with other data.
         const auto cow_metadata_size = partition.new_partition_info().size() /
