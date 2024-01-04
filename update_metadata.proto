@@ -316,6 +316,10 @@ message PartitionUpdate {
   // as a hint. If set to 0, libsnapshot should use alternative
   // methods for estimating size.
   optional uint64 estimate_cow_size = 19;
+
+  // Information about the cow used by Cow Writer to specify
+  // number of cow operations to be written
+  optional uint64 estimate_op_count_max = 20;
 }
 
 message DynamicPartitionGroup {

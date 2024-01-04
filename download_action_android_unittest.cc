@@ -102,8 +102,8 @@ TEST_F(DownloadActionTest, CacheManifestValid) {
   ftruncate(partition_file.fd(), 4096);
   partition_config.size = 4096;
   partition_config.path = partition_file.path();
-  ASSERT_TRUE(
-      payload_file.AddPartition(partition_config, partition_config, {}, {}, 0));
+  ASSERT_TRUE(payload_file.AddPartition(
+      partition_config, partition_config, {}, {}, {}));
   ScopedTempFile blob_file("Blob-XXXXXX");
   ScopedTempFile manifest_file("Manifest-XXXXXX");
   uint64_t metadata_size;
