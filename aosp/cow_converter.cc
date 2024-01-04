@@ -39,6 +39,10 @@ DEFINE_string(partitions,
               "",
               "Comma separated list of partitions to extract, leave empty for "
               "extracting all partitions");
+DEFINE_int32(cow_version,
+             0,
+             "VABC Cow version to use. Default is to use what's specified in "
+             "the OTA manifest");
 DEFINE_string(vabc_compression_param,
               "",
               "Compression parameter for VABC. Default is use what's specified "
@@ -69,12 +73,20 @@ bool ProcessPartition(
 
   android::snapshot::CowOptions options{
       .block_size = static_cast<uint32_t>(manifest.block_size()),
-      .compression = dap.vabc_compression_param()};
+      .compression = dap.vabc_compression_param(),
+      .batch_write = true,
+      .op_count_max = static_cast<uint32_t>(
+          partition.new_partition_info().size() / manifest.block_size())};
   if (!FLAGS_vabc_compression_param.empty()) {
     options.compression = FLAGS_vabc_compression_param;
   }
+  auto cow_version = dap.cow_version();
+  if (FLAGS_cow_version > 0) {
+    cow_version = FLAGS_cow_version;
+    LOG(INFO) << "Using user specified COW version " << cow_version;
+  }
   auto cow_writer = android::snapshot::CreateCowWriter(
-      dap.cow_version(), options, std::move(output_fd));
+      cow_version, options, std::move(output_fd));
   TEST_AND_RETURN_FALSE(cow_writer);
   TEST_AND_RETURN_FALSE(CowDryRun(nullptr,
                                   target_img_fd,
