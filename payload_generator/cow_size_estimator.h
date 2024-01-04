@@ -37,7 +37,8 @@ android::snapshot::CowSizeInfo EstimateCowSizeInfo(
     const size_t block_size,
     std::string compression,
     const size_t partition_size,
-    bool xor_enabled);
+    bool xor_enabled,
+    uint32_t cow_version);
 
 // Convert InstallOps to CowOps and apply the converted cow op to |cow_writer|
 bool CowDryRun(
