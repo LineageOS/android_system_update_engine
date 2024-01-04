@@ -23,6 +23,8 @@
 #include <brillo/secure_blob.h>
 #include <gtest/gtest_prod.h>  // for FRIEND_TEST
 
+#include <libsnapshot/cow_writer.h>
+
 #include "update_engine/payload_generator/annotated_operation.h"
 #include "update_engine/payload_generator/payload_generation_config.h"
 #include "update_engine/update_metadata.pb.h"
@@ -45,7 +47,7 @@ class PayloadFile {
                     const PartitionConfig& new_conf,
                     std::vector<AnnotatedOperation> aops,
                     std::vector<CowMergeOperation> merge_sequence,
-                    size_t cow_size);
+                    const android::snapshot::CowSizeInfo& cow_info);
 
   // Write the payload to the |payload_file| file. The operations reference
   // blobs in the |data_blobs_path| file and the blobs will be reordered in the
@@ -108,7 +110,7 @@ class PayloadFile {
     VerityConfig verity;
     // Per partition timestamp.
     std::string version;
-    size_t cow_size;
+    android::snapshot::CowSizeInfo cow_info;
   };
 
   std::vector<Partition> part_vec_;
