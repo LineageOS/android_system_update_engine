@@ -124,7 +124,7 @@ class FileLogger {
   explicit FileLogger(const string& path) {
     fd_.reset(TEMP_FAILURE_RETRY(
         open(path.c_str(),
-             O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW | O_SYNC,
+             O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW,
              0644)));
     if (fd_ == -1) {
       // Use ALOGE that logs to logd before __android_log_set_logger.
@@ -155,6 +155,7 @@ class FileLogger {
     WriteToFd(GetPrefix(log_message));
     WriteToFd(message_str);
     WriteToFd("\n");
+    fsync(fd_);
   }
 
  private:
