@@ -25,6 +25,7 @@ import android.os.ParcelFileDescriptor;
  * WARNING: this interface exposes less capabilities than IUpdateEngine,
  * for instance, not having a cancel method. This is relied on for
  * security.
+ * @hide
  */
 interface IUpdateEngineStable {
   /**
@@ -39,6 +40,7 @@ interface IUpdateEngineStable {
    *   detected.
    * @param headerKeyValuePairs additional header key value pairs, in the format of "key=value".
    * @see android.os.UpdateEngine#applyPayload(android.content.res.AssetFileDescriptor, String[])
+   * @hide
    */
   void applyPayloadFd(in ParcelFileDescriptor pfd,
                       in long payload_offset,
@@ -59,6 +61,7 @@ interface IUpdateEngineStable {
    * @param callback See {@link IUpdateEngineStableCallback}
    * @return true if binding is successful, false otherwise.
    * @see android.os.UpdateEngine#bind(android.os.UpdateEngineCallback)
+   * @hide
    */
   boolean bind(IUpdateEngineStableCallback callback);
 
@@ -74,6 +77,7 @@ interface IUpdateEngineStable {
    * @param callback The callback to be unbound. See {@link IUpdateEngineStableCallback}.
    * @return true if unbinding is successful, false otherwise.
    * @see android.os.UpdateEngine#unbind(android.os.UpdateEngineCallback)
+   * @hide
    */
   boolean unbind(IUpdateEngineStableCallback callback);
 }
