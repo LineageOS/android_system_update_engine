@@ -110,12 +110,11 @@ void PostinstallRunnerAction::PerformAction() {
   auto dynamic_control = boot_control_->GetDynamicPartitionControl();
   CHECK(dynamic_control);
 
-  // Mount snapshot partitions for Virtual AB Compression
+  // Mount snapshot partitions for Virtual AB Compression Compression.
   if (dynamic_control->UpdateUsesSnapshotCompression()) {
     // Before calling MapAllPartitions to map snapshot devices, all CowWriters
     // must be closed, and MapAllPartitions() should be called.
     if (!install_plan_.partitions.empty()) {
-      dynamic_control->UnmapAllPartitions();
       if (!dynamic_control->MapAllPartitions()) {
         return CompletePostinstall(ErrorCode::kPostInstallMountError);
       }
@@ -499,13 +498,39 @@ void PostinstallRunnerAction::CompletePartitionPostinstall(
   PerformPartitionPostinstall();
 }
 
+PostinstallRunnerAction::~PostinstallRunnerAction() {
+  if (!install_plan_.partitions.empty()) {
+    auto dynamic_control = boot_control_->GetDynamicPartitionControl();
+    CHECK(dynamic_control);
+    dynamic_control->UnmapAllPartitions();
+    LOG(INFO) << "Unmapped all partitions.";
+  }
+}
+
 void PostinstallRunnerAction::CompletePostinstall(ErrorCode error_code) {
   // We only attempt to mark the new slot as active if all the postinstall
   // steps succeeded.
+  DEFER {
+    if (error_code != ErrorCode::kSuccess &&
+        error_code != ErrorCode::kUpdatedButNotActive) {
+      LOG(ERROR) << "Postinstall action failed.";
+
+      // Undo any changes done to trigger Powerwash.
+      if (powerwash_scheduled_)
+        hardware_->CancelPowerwash();
+    }
+    processor_->ActionComplete(this, error_code);
+  };
   if (error_code == ErrorCode::kSuccess) {
     if (install_plan_.switch_slot_on_reboot) {
-      if (!boot_control_->SetActiveBootSlot(install_plan_.target_slot)) {
-        LOG(ERROR) << "Failed to switch slot to " << install_plan_.target_slot;
+      if (!boot_control_->GetDynamicPartitionControl()->MapAllPartitions()) {
+        LOG(ERROR) << "Failed to map all partitions before marking snapshot as "
+                      "ready for slot switch.";
+        return;
+      }
+      if (!boot_control_->GetDynamicPartitionControl()->FinishUpdate(
+              install_plan_.powerwash_required) ||
+          !boot_control_->SetActiveBootSlot(install_plan_.target_slot)) {
         error_code = ErrorCode::kPostinstallRunnerError;
       } else {
         // Schedules warm reset on next reboot, ignores the error.
@@ -516,26 +541,6 @@ void PostinstallRunnerAction::CompletePostinstall(ErrorCode error_code) {
     } else {
       error_code = ErrorCode::kUpdatedButNotActive;
     }
-  }
-  if (!install_plan_.partitions.empty()) {
-    auto dynamic_control = boot_control_->GetDynamicPartitionControl();
-    CHECK(dynamic_control);
-    dynamic_control->UnmapAllPartitions();
-    LOG(INFO) << "Unmapped all partitions.";
-  }
-
-  ScopedActionCompleter completer(processor_, this);
-  completer.set_code(error_code);
-
-  if (error_code != ErrorCode::kSuccess &&
-      error_code != ErrorCode::kUpdatedButNotActive) {
-    LOG(ERROR) << "Postinstall action failed.";
-
-    // Undo any changes done to trigger Powerwash.
-    if (powerwash_scheduled_)
-      hardware_->CancelPowerwash();
-
-    return;
   }
 
   LOG(INFO) << "All post-install commands succeeded";

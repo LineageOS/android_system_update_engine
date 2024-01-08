@@ -1215,10 +1215,8 @@ bool UpdateAttempterAndroid::setShouldSwitchSlotOnReboot(
   CHECK_NE(install_plan_.source_slot, UINT32_MAX);
   CHECK_NE(install_plan_.target_slot, UINT32_MAX);
 
-  auto install_plan_action = std::make_unique<InstallPlanAction>(install_plan_);
   auto postinstall_runner_action =
       std::make_unique<PostinstallRunnerAction>(boot_control_, hardware_);
-  SetStatusAndNotify(UpdateStatus::VERIFYING);
   postinstall_runner_action->set_delegate(this);
 
   // If last error code is kUpdatedButNotActive, we know that we reached this
@@ -1226,8 +1224,11 @@ bool UpdateAttempterAndroid::setShouldSwitchSlotOnReboot(
   // call would have already performed filesystem verification, therefore, we
   // can safely skip the verification to save time.
   if (last_error_ == ErrorCode::kUpdatedButNotActive) {
+    auto install_plan_action =
+        std::make_unique<InstallPlanAction>(install_plan_);
     BondActions(install_plan_action.get(), postinstall_runner_action.get());
     processor_->EnqueueAction(std::move(install_plan_action));
+    SetStatusAndNotify(UpdateStatus::FINALIZING);
   } else {
     if (!boot_control_->GetDynamicPartitionControl()
              ->PreparePartitionsForUpdate(GetCurrentSlot(),
@@ -1248,7 +1249,8 @@ bool UpdateAttempterAndroid::setShouldSwitchSlotOnReboot(
                             "Failed to LoadPartitionsFromSlots " +
                                 utils::ErrorCodeToString(error_code));
     }
-
+    auto install_plan_action =
+        std::make_unique<InstallPlanAction>(install_plan_);
     auto filesystem_verifier_action =
         std::make_unique<FilesystemVerifierAction>(
             boot_control_->GetDynamicPartitionControl());
@@ -1258,6 +1260,7 @@ bool UpdateAttempterAndroid::setShouldSwitchSlotOnReboot(
                 postinstall_runner_action.get());
     processor_->EnqueueAction(std::move(install_plan_action));
     processor_->EnqueueAction(std::move(filesystem_verifier_action));
+    SetStatusAndNotify(UpdateStatus::VERIFYING);
   }
 
   processor_->EnqueueAction(std::move(postinstall_runner_action));

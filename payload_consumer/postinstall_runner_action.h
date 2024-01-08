@@ -42,6 +42,7 @@ class PostinstallRunnerAction : public InstallPlanAction {
  public:
   PostinstallRunnerAction(BootControlInterface* boot_control,
                           HardwareInterface* hardware);
+  ~PostinstallRunnerAction();
 
   // InstallPlanAction overrides.
   void PerformAction() override;
