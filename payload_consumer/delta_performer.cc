@@ -535,6 +535,9 @@ bool DeltaPerformer::Write(const void* bytes, size_t count, ErrorCode* error) {
         // and no way for user to retry OTA
         partition.set_estimate_cow_size(new_cow_size + (1024 * 1024 * 2) +
                                         cow_metadata_size + label_ops_size);
+        // Setting op count max to 0 will defer to num_blocks as the op buffer
+        // size.
+        partition.set_estimate_op_count_max(0);
         LOG(INFO) << "New COW size for partition " << partition.partition_name()
                   << " is " << partition.estimate_cow_size();
       }
