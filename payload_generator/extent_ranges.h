@@ -17,13 +17,13 @@
 #ifndef UPDATE_ENGINE_PAYLOAD_GENERATOR_EXTENT_RANGES_H_
 #define UPDATE_ENGINE_PAYLOAD_GENERATOR_EXTENT_RANGES_H_
 
-#include <map>
 #include <set>
 #include <vector>
 
 #include <base/macros.h>
 
 #include "update_engine/common/utils.h"
+#include "update_engine/payload_generator/extent_utils.h"
 #include "update_engine/update_metadata.pb.h"
 
 // An ExtentRanges object represents an unordered collection of extents (and
@@ -34,15 +34,6 @@
 // generator doesn't use sparse holes as scratch space.
 
 namespace chromeos_update_engine {
-
-struct ExtentLess {
-  bool operator()(const Extent& x, const Extent& y) const {
-    if (x.start_block() == y.start_block()) {
-      return x.num_blocks() < y.num_blocks();
-    }
-    return x.start_block() < y.start_block();
-  }
-};
 
 Extent ExtentForRange(uint64_t start_block, uint64_t num_blocks);
 Extent ExtentForBytes(uint64_t block_size,
