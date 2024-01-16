@@ -25,7 +25,6 @@
 
 #include "update_engine/common/utils.h"
 #include "update_engine/payload_consumer/payload_constants.h"
-#include "update_engine/payload_generator/extent_utils.h"
 
 using std::vector;
 
@@ -84,9 +83,8 @@ void ExtentRanges::AddExtent(Extent extent) {
   ExtentSet::iterator begin_del = extent_set_.end();
   ExtentSet::iterator end_del = extent_set_.end();
   uint64_t del_blocks = 0;
-  for (ExtentSet::iterator it = extent_set_.begin(), e = extent_set_.end();
-       it != e;
-       ++it) {
+  const auto range = GetCandidateRange(extent);
+  for (ExtentSet::iterator it = range.begin(), e = range.end(); it != e; ++it) {
     const bool should_merge = merge_touching_extents_
                                   ? ExtentsOverlapOrTouch(*it, extent)
                                   : ExtentsOverlap(*it, extent);
@@ -291,12 +289,20 @@ vector<Extent> ExtentRanges::GetExtentsForBlockCount(uint64_t count) const {
 Range<ExtentRanges::ExtentSet::const_iterator> ExtentRanges::GetCandidateRange(
     const Extent& extent) const {
   auto lower_it = extent_set_.lower_bound(extent);
-  if (lower_it != extent_set_.begin()) {
+  while (lower_it != extent_set_.begin() &&
+         (lower_it == extent_set_.end() ||
+          lower_it->start_block() + lower_it->num_blocks() >
+              extent.start_block())) {
     --lower_it;
   }
 
-  const auto upper_it = extent_set_.upper_bound(
+  auto upper_it = extent_set_.upper_bound(
       ExtentForRange(extent.start_block() + extent.num_blocks(), 1));
+  while (upper_it != extent_set_.end() &&
+         upper_it->start_block() <=
+             extent.start_block() + extent.num_blocks()) {
+    ++upper_it;
+  }
   return {lower_it, upper_it};
 }
 

@@ -17,7 +17,6 @@
 #ifndef UPDATE_ENGINE_PAYLOAD_CONSUMER_EXTENT_MAP_H_
 #define UPDATE_ENGINE_PAYLOAD_CONSUMER_EXTENT_MAP_H_
 
-#include <functional>
 #include <map>
 #include <utility>
 #include <vector>
