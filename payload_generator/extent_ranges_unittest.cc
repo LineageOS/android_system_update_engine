@@ -21,11 +21,11 @@
 #include <base/stl_util.h>
 #include <gtest/gtest.h>
 
-#include "update_engine/common/test_utils.h"
-#include "update_engine/payload_consumer/payload_constants.h"
 #include "update_engine/payload_generator/extent_utils.h"
+#include "update_engine/payload_consumer/payload_constants.h"
 
 using std::vector;
+using chromeos_update_engine::operator==;
 
 namespace chromeos_update_engine {
 
@@ -388,6 +388,37 @@ TEST(ExtentRangesTest, OverlapsWithExtent) {
   ASSERT_TRUE(ranges.OverlapsWithExtent(ExtentForRange(7, 1)));
   ASSERT_TRUE(ranges.OverlapsWithExtent(ExtentForRange(0, 100)));
   ASSERT_TRUE(ranges.OverlapsWithExtent(ExtentForRange(19, 1)));
+}
+
+TEST(ExtentRangesTest, AddExtentMergeStressTest) {
+  ExtentRanges ranges(true);
+  for (size_t i = 0; i < 1000000; i++) {
+    ranges.AddExtent(ExtentForRange(i, 1));
+  }
+  ASSERT_EQ(ranges.extent_set().size(), 1UL) << ranges.extent_set();
+}
+
+TEST(ExtentRangesTest, AddExtentNoMergeStressTest) {
+  ExtentRanges ranges(true);
+  for (size_t i = 0; i < 200000; i++) {
+    ranges.AddExtent(ExtentForRange(i * 2, 1));
+  }
+  ASSERT_EQ(ranges.extent_set().size(), 200000UL) << ranges.extent_set();
+}
+
+TEST(ExtentRangesTest, AddExtentTouching) {
+  ExtentRanges ranges(true);
+  ranges.AddExtent(ExtentForRange(5, 5));
+  ranges.AddExtent(ExtentForRange(25, 7));
+  ASSERT_EQ(ranges.extent_set().size(), 2UL) << ranges.extent_set();
+  ranges.AddExtent(ExtentForRange(0, 5));
+  ASSERT_EQ(ranges.extent_set().size(), 2UL) << ranges.extent_set();
+  ranges.AddExtent(ExtentForRange(10, 15));
+  ASSERT_EQ(ranges.extent_set().size(), 1UL) << ranges.extent_set();
+  ranges.AddExtent(ExtentForRange(32, 8));
+  ASSERT_EQ(ranges.extent_set().size(), 1UL) << ranges.extent_set();
+  ranges.AddExtent(ExtentForRange(45, 5));
+  ASSERT_EQ(ranges.extent_set().size(), 2UL) << ranges.extent_set();
 }
 
 }  // namespace chromeos_update_engine
