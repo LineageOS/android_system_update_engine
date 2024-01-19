@@ -36,6 +36,8 @@
 
 #include "update_engine/common/action_processor.h"
 #include "update_engine/common/boot_control_interface.h"
+#include "update_engine/common/error_code_utils.h"
+#include "update_engine/common/platform_constants.h"
 #include "update_engine/common/subprocess.h"
 #include "update_engine/common/utils.h"
 
@@ -443,7 +445,8 @@ void PostinstallRunnerAction::CompletePostinstall(ErrorCode error_code) {
   DEFER {
     if (error_code != ErrorCode::kSuccess &&
         error_code != ErrorCode::kUpdatedButNotActive) {
-      LOG(ERROR) << "Postinstall action failed.";
+      LOG(ERROR) << "Postinstall action failed. "
+                 << utils::ErrorCodeToString(error_code);
 
       // Undo any changes done to trigger Powerwash.
       if (powerwash_scheduled_)
@@ -453,10 +456,13 @@ void PostinstallRunnerAction::CompletePostinstall(ErrorCode error_code) {
   };
   if (error_code == ErrorCode::kSuccess) {
     if (install_plan_.switch_slot_on_reboot) {
-      if (!boot_control_->GetDynamicPartitionControl()->MapAllPartitions()) {
-        LOG(ERROR) << "Failed to map all partitions before marking snapshot as "
-                      "ready for slot switch.";
-        return;
+      if constexpr (!constants::kIsRecovery) {
+        if (!boot_control_->GetDynamicPartitionControl()->MapAllPartitions()) {
+          LOG(WARNING)
+              << "Failed to map all partitions before marking snapshot as "
+                 "ready for slot switch. Subsequent FinishUpdate() call may or "
+                 "may not work";
+        }
       }
       if (!boot_control_->GetDynamicPartitionControl()->FinishUpdate(
               install_plan_.powerwash_required) ||
