@@ -30,10 +30,10 @@ class InstallOperationExecutor {
   explicit InstallOperationExecutor(size_t block_size)
       : block_size_(block_size) {}
 
+  // data should point to the memory of operation.data_length() bytes
   bool ExecuteReplaceOperation(const InstallOperation& operation,
                                std::unique_ptr<ExtentWriter> writer,
-                               const void* data,
-                               size_t count);
+                               const void* data);
   bool ExecuteZeroOrDiscardOperation(const InstallOperation& operation,
                                      std::unique_ptr<ExtentWriter> writer);
   bool ExecuteSourceCopyOperation(const InstallOperation& operation,
