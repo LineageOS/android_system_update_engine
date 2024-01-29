@@ -353,6 +353,7 @@ bool UpdateAttempterAndroid::ApplyPayload(
           __FILE__,
           "Unable to set network_id: " + headers[kPayloadPropertyNetworkId]);
     }
+    LOG(INFO) << "Using network ID: " << network_id;
   }
 
   LOG(INFO) << "Using this install plan:";
