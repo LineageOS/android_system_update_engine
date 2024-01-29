@@ -344,7 +344,7 @@ bool VABCPartitionWriter::PerformReplaceOperation(const InstallOperation& op,
   // Setup the ExtentWriter stack based on the operation type.
   std::unique_ptr<ExtentWriter> writer = CreateBaseExtentWriter();
 
-  return executor_.ExecuteReplaceOperation(op, std::move(writer), data, count);
+  return executor_.ExecuteReplaceOperation(op, std::move(writer), data);
 }
 
 bool VABCPartitionWriter::PerformDiffOperation(
