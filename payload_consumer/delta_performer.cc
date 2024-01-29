@@ -646,65 +646,10 @@ bool DeltaPerformer::Write(const void* bytes, size_t count, ErrorCode* error) {
     // Check whether we received all of the next operation's data payload.
     if (!CanPerformInstallOperation(op))
       return true;
-
-    // Validate the operation unconditionally. This helps prevent the
-    // exploitation of vulnerabilities in the patching libraries, e.g. bspatch.
-    // The hash of the patch data for a given operation is embedded in the
-    // payload metadata; and thus has been verified against the public key on
-    // device.
-    // Note: Validate must be called only if CanPerformInstallOperation is
-    // called. Otherwise, we might be failing operations before even if there
-    // isn't sufficient data to compute the proper hash.
-    *error = ValidateOperationHash(op);
-    if (*error != ErrorCode::kSuccess) {
-      if (install_plan_->hash_checks_mandatory) {
-        LOG(ERROR) << "Mandatory operation hash check failed";
-        return false;
-      }
-
-      // For non-mandatory cases, just send a UMA stat.
-      LOG(WARNING) << "Ignoring operation validation errors";
-      *error = ErrorCode::kSuccess;
-    }
-
-    // Makes sure we unblock exit when this operation completes.
-    ScopedTerminatorExitUnblocker exit_unblocker =
-        ScopedTerminatorExitUnblocker();  // Avoids a compiler unused var bug.
-
-    base::TimeTicks op_start_time = base::TimeTicks::Now();
-
-    bool op_result{};
-    const string op_name = InstallOperationTypeName(op.type());
-    switch (op.type()) {
-      case InstallOperation::REPLACE:
-      case InstallOperation::REPLACE_BZ:
-      case InstallOperation::REPLACE_XZ:
-        op_result = PerformReplaceOperation(op);
-        OP_DURATION_HISTOGRAM("REPLACE", op_start_time);
-        break;
-      case InstallOperation::ZERO:
-      case InstallOperation::DISCARD:
-        op_result = PerformZeroOrDiscardOperation(op);
-        OP_DURATION_HISTOGRAM("ZERO_OR_DISCARD", op_start_time);
-        break;
-      case InstallOperation::SOURCE_COPY:
-        op_result = PerformSourceCopyOperation(op, error);
-        OP_DURATION_HISTOGRAM("SOURCE_COPY", op_start_time);
-        break;
-      case InstallOperation::SOURCE_BSDIFF:
-      case InstallOperation::BROTLI_BSDIFF:
-      case InstallOperation::PUFFDIFF:
-      case InstallOperation::ZUCCHINI:
-      case InstallOperation::LZ4DIFF_PUFFDIFF:
-      case InstallOperation::LZ4DIFF_BSDIFF:
-        op_result = PerformDiffOperation(op, error);
-        OP_DURATION_HISTOGRAM(op_name, op_start_time);
-        break;
-      default:
-        op_result = false;
-    }
-    if (!HandleOpResult(op_result, op_name.c_str(), error))
+    if (!ProcessOperation(&op, error)) {
+      LOG(ERROR) << "unable to process operation: " << *error;
       return false;
+    }
 
     next_operation_num_++;
     UpdateOverallProgress(false, "Completed ");
@@ -744,6 +689,70 @@ bool DeltaPerformer::Write(const void* bytes, size_t count, ErrorCode* error) {
     // saved.
     CheckpointUpdateProgress(true);
   }
+
+  return true;
+}
+
+bool DeltaPerformer::ProcessOperation(const InstallOperation* op,
+                                      ErrorCode* error) {
+  // Validate the operation unconditionally. This helps prevent the
+  // exploitation of vulnerabilities in the patching libraries, e.g. bspatch.
+  // The hash of the patch data for a given operation is embedded in the
+  // payload metadata; and thus has been verified against the public key on
+  // device.
+  // Note: Validate must be called only if CanPerformInstallOperation is
+  // called. Otherwise, we might be failing operations before even if there
+  // isn't sufficient data to compute the proper hash.
+  *error = ValidateOperationHash(*op);
+  if (*error != ErrorCode::kSuccess) {
+    if (install_plan_->hash_checks_mandatory) {
+      LOG(ERROR) << "Mandatory operation hash check failed";
+      return false;
+    }
+
+    // For non-mandatory cases, just send a UMA stat.
+    LOG(WARNING) << "Ignoring operation validation errors";
+    *error = ErrorCode::kSuccess;
+  }
+
+  // Makes sure we unblock exit when this operation completes.
+  ScopedTerminatorExitUnblocker exit_unblocker =
+      ScopedTerminatorExitUnblocker();  // Avoids a compiler unused var bug.
+
+  base::TimeTicks op_start_time = base::TimeTicks::Now();
+
+  bool op_result{};
+  const string op_name = InstallOperationTypeName(op->type());
+  switch (op->type()) {
+    case InstallOperation::REPLACE:
+    case InstallOperation::REPLACE_BZ:
+    case InstallOperation::REPLACE_XZ:
+      op_result = PerformReplaceOperation(*op);
+      OP_DURATION_HISTOGRAM("REPLACE", op_start_time);
+      break;
+    case InstallOperation::ZERO:
+    case InstallOperation::DISCARD:
+      op_result = PerformZeroOrDiscardOperation(*op);
+      OP_DURATION_HISTOGRAM("ZERO_OR_DISCARD", op_start_time);
+      break;
+    case InstallOperation::SOURCE_COPY:
+      op_result = PerformSourceCopyOperation(*op, error);
+      OP_DURATION_HISTOGRAM("SOURCE_COPY", op_start_time);
+      break;
+    case InstallOperation::SOURCE_BSDIFF:
+    case InstallOperation::BROTLI_BSDIFF:
+    case InstallOperation::PUFFDIFF:
+    case InstallOperation::ZUCCHINI:
+    case InstallOperation::LZ4DIFF_PUFFDIFF:
+    case InstallOperation::LZ4DIFF_BSDIFF:
+      op_result = PerformDiffOperation(*op, error);
+      OP_DURATION_HISTOGRAM(op_name, op_start_time);
+      break;
+    default:
+      op_result = false;
+  }
+  if (!HandleOpResult(op_result, op_name.c_str(), error))
+    return false;
 
   return true;
 }
