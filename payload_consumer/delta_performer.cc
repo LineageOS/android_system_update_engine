@@ -322,8 +322,8 @@ MetadataParseResult DeltaPerformer::ParsePayloadMetadata(
     if (metadata_size_ + metadata_signature_size_ > payload_->size) {
       LOG(ERROR) << "The size of the metadata_size(" << metadata_size_ << ")"
                  << " or metadata signature(" << metadata_signature_size_ << ")"
-                 << " is greater than the size of the payload"
-                 << "(" << payload_->size << ")";
+                 << " is greater than the size of the payload" << "("
+                 << payload_->size << ")";
       *error = ErrorCode::kDownloadInvalidMetadataSize;
       return MetadataParseResult::kError;
     }
@@ -440,6 +440,7 @@ bool DeltaPerformer::CheckSPLDowngrade() {
 // and stores an action exit code in |error|.
 bool DeltaPerformer::Write(const void* bytes, size_t count, ErrorCode* error) {
   if (!error) {
+    LOG(INFO) << "Error Code is not initialized";
     return false;
   }
   *error = ErrorCode::kSuccess;
