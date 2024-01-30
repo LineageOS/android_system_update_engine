@@ -146,11 +146,13 @@ android::snapshot::CowSizeInfo EstimateCowSizeInfo(
     std::string compression,
     const size_t partition_size,
     const bool xor_enabled,
-    uint32_t cow_version) {
+    uint32_t cow_version,
+    uint64_t compression_factor) {
   android::snapshot::CowOptions options{
       .block_size = static_cast<uint32_t>(block_size),
       .compression = std::move(compression),
-      .max_blocks = (partition_size / block_size)};
+      .max_blocks = (partition_size / block_size),
+      .compression_factor = compression_factor};
   auto cow_writer = CreateCowEstimator(cow_version, options);
   CHECK_NE(cow_writer, nullptr) << "Could not create cow estimator";
   CHECK(CowDryRun(source_fd,
