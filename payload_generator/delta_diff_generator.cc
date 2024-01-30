@@ -143,7 +143,8 @@ class PartitionProcessor : public base::DelegateSimpleThread::Delegate {
         config_.target.dynamic_partition_metadata->vabc_compression_param(),
         new_part_.size,
         config_.enable_vabc_xor,
-        config_.target.dynamic_partition_metadata->cow_version());
+        config_.target.dynamic_partition_metadata->cow_version(),
+        config_.target.dynamic_partition_metadata->compression_factor());
 
     // ops buffer size == 0 for v2 version of cow format
     LOG(INFO) << "Estimated COW size for partition: " << new_part_.name << " "
