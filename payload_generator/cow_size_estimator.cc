@@ -153,6 +153,9 @@ android::snapshot::CowSizeInfo EstimateCowSizeInfo(
       .compression = std::move(compression),
       .max_blocks = (partition_size / block_size),
       .compression_factor = compression_factor};
+  // b/322279333 use 4096 as estimation until we have an updated estimation
+  // algorithm
+  options.compression_factor = block_size;
   auto cow_writer = CreateCowEstimator(cow_version, options);
   CHECK_NE(cow_writer, nullptr) << "Could not create cow estimator";
   CHECK(CowDryRun(source_fd,
