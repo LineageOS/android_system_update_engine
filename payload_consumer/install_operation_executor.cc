@@ -178,8 +178,7 @@ class PuffinExtentStream : public puffin::StreamInterface {
 bool InstallOperationExecutor::ExecuteReplaceOperation(
     const InstallOperation& operation,
     std::unique_ptr<ExtentWriter> writer,
-    const void* data,
-    size_t count) {
+    const void* data) {
   TEST_AND_RETURN_FALSE(operation.type() == InstallOperation::REPLACE ||
                         operation.type() == InstallOperation::REPLACE_BZ ||
                         operation.type() == InstallOperation::REPLACE_XZ);

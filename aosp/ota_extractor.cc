@@ -163,7 +163,7 @@ bool ExtractImagesFromOTA(const DeltaArchiveManifest& manifest,
                  op.type() == InstallOperation::REPLACE_BZ ||
                  op.type() == InstallOperation::REPLACE_XZ) {
         TEST_AND_RETURN_FALSE(executor.ExecuteReplaceOperation(
-            op, std::move(direct_writer), blob.data(), blob.size()));
+            op, std::move(direct_writer), blob.data()));
       } else if (op.type() == InstallOperation::SOURCE_COPY) {
         CHECK(in_fd->IsOpen());
         TEST_AND_RETURN_FALSE(executor.ExecuteSourceCopyOperation(
