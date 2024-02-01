@@ -246,6 +246,8 @@ class DeltaPerformer : public FileWriter {
   // to be able to perform a given install operation.
   bool CanPerformInstallOperation(const InstallOperation& operation);
 
+  // Process one InstallOperation
+  bool ProcessOperation(const InstallOperation* op, ErrorCode* error);
   // Checks the integrity of the payload manifest. Returns true upon success,
   // false otherwise.
   ErrorCode ValidateManifest();
