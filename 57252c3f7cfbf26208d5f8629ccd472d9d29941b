@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "eac1b77e_1f5eb82f",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 11883
+      },
+      "writtenOn": "2024-02-14T23:05:24Z",
+      "side": 1,
+      "message": "it\u0027s a \"meh\" pick from main\nin qpr1 they fixed installing an update without automatically switching the slot, but that essentially kills snapshot usage, this brings it back (along a fix for the update w/o slot)\nnot sure if we want that, iirc our Updater always switches the slot, but in case we want to change the behavior it\u0027s here",
+      "revId": "57252c3f7cfbf26208d5f8629ccd472d9d29941b",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
