@@ -409,7 +409,7 @@ def main():
   parser.add_argument('--enable-threading', action='store_true',
                       help='Enable multi-threaded compression for VABC')
   parser.add_argument('--disable-threading', action='store_true',
-                      help='Enable multi-threaded compression for VABC')
+                      help='Disable multi-threaded compression for VABC')
   parser.add_argument('--batched-writes', action='store_true',
                       help='Enable batched writes for VABC')
   parser.add_argument('--speed-limit', type=str,
