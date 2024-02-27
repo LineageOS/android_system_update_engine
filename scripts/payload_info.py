@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
 # Copyright (C) 2015 The Android Open Source Project
@@ -26,6 +26,7 @@ import sys
 import textwrap
 
 from six.moves import range
+import update_metadata_pb2
 import update_payload
 
 
@@ -33,7 +34,7 @@ MAJOR_PAYLOAD_VERSION_BRILLO = 2
 
 def DisplayValue(key, value):
   """Print out a key, value pair with values left-aligned."""
-  if value != None:
+  if value is not None:
     print('%-*s %s' % (28, key + ':', value))
   else:
     raise ValueError('Cannot display an empty value.')
@@ -50,7 +51,7 @@ def DisplayHexData(data, indent=0):
           ''.join(chr(c) if 32 <= c < 127 else '.' for c in chunk))
 
 
-class PayloadCommand(object):
+class PayloadCommand:
   """Show basic information about an update payload.
 
   This command parses an update payload and displays information from
@@ -70,6 +71,7 @@ class PayloadCommand(object):
   def _DisplayManifest(self):
     """Show information from the payload manifest."""
     manifest = self.payload.manifest
+    # pylint: disable=no-member
     DisplayValue('Number of partitions', len(manifest.partitions))
     for partition in manifest.partitions:
       DisplayValue('  Number of "%s" ops' % partition.partition_name,
@@ -101,6 +103,7 @@ class PayloadCommand(object):
 
     manifest = self.payload.manifest
     if manifest.HasField('signatures_offset'):
+      # pylint: disable=no-member
       signature_msg = 'blob_offset=%d' % manifest.signatures_offset
       if manifest.signatures_size:
         signature_msg += ' (%d bytes)' % manifest.signatures_size
@@ -114,8 +117,9 @@ class PayloadCommand(object):
   @staticmethod
   def _DisplaySignaturesBlob(signature_name, signatures_blob):
     """Show information about the signatures blob."""
-    signatures = update_payload.update_metadata_pb2.Signatures()
+    signatures = update_metadata_pb2.Signatures()
     signatures.ParseFromString(signatures_blob)
+    # pylint: disable=no-member
     print('%s signatures: (%d entries)' %
           (signature_name, len(signatures.signatures)))
     for signature in signatures.signatures:
@@ -211,6 +215,7 @@ class PayloadCommand(object):
       self._DisplayStats(self.payload.manifest)
     if self.options.list_ops:
       print()
+      # pylint: disable=no-member
       for partition in self.payload.manifest.partitions:
         self._DisplayOps('%s install operations' % partition.partition_name,
                          partition.operations)
