@@ -34,6 +34,14 @@
 namespace chromeos_update_engine {
 class VABCPartitionWriter final : public PartitionWriterInterface {
  public:
+  static bool ProcessSourceCopyOperation(
+      const InstallOperation& operation,
+      const size_t block_size,
+      const ExtentRanges& copy_blocks,
+      const FileDescriptorPtr& source_fd,
+      android::snapshot::ICowWriter* cow_writer,
+      bool sequence_op_supported);
+
   VABCPartitionWriter(const PartitionUpdate& partition_update,
                       const InstallPlan::Partition& install_part,
                       DynamicPartitionControlInterface* dynamic_control,
