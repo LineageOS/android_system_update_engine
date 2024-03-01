@@ -18,7 +18,6 @@
 
 #include <algorithm>
 #include <charconv>
-#include <map>
 #include <utility>
 
 #include <android-base/parseint.h>
@@ -138,7 +137,7 @@ bool ImageConfig::LoadImageSize() {
 bool ImageConfig::LoadPostInstallConfig(const brillo::KeyValueStore& store) {
   bool found_postinstall = false;
   for (PartitionConfig& part : partitions) {
-    bool run_postinstall;
+    bool run_postinstall{};
     if (!store.GetBoolean("RUN_POSTINSTALL_" + part.name, &run_postinstall) ||
         !run_postinstall)
       continue;
@@ -176,7 +175,7 @@ bool ImageConfig::LoadDynamicPartitionMetadata(
       return false;
     }
 
-    uint64_t max_size;
+    uint64_t max_size{};
     if (!base::StringToUint64(buf, &max_size)) {
       LOG(ERROR) << "Group size for " << group_name << " = " << buf
                  << " is not an integer.";
