@@ -60,8 +60,6 @@ class Ext2Filesystem : public FilesystemInterface {
   //    and bitmap tables.
   bool GetFiles(std::vector<File>* files) const override;
 
-  bool LoadSettings(brillo::KeyValueStore* store) const override;
-
  private:
   Ext2Filesystem() = default;
 

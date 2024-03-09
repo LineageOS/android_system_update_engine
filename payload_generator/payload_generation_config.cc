@@ -21,6 +21,7 @@
 #include <map>
 #include <utility>
 
+#include <android-base/parseint.h>
 #include <base/logging.h>
 #include <base/strings/string_number_conversions.h>
 #include <brillo/strings/string_utils.h>
@@ -37,6 +38,7 @@
 #include "update_engine/payload_generator/mapfile_filesystem.h"
 #include "update_engine/payload_generator/raw_filesystem.h"
 #include "update_engine/payload_generator/squashfs_filesystem.h"
+#include "update_engine/update_metadata.pb.h"
 
 using std::string;
 
@@ -107,8 +109,7 @@ bool PartitionConfig::OpenFilesystem() {
   }
 
   fs_interface = SquashfsFilesystem::CreateFromFile(path,
-                                                    /*extract_deflates=*/true,
-                                                    /*load_settings=*/true);
+                                                    /*extract_deflates=*/true);
   if (fs_interface) {
     TEST_AND_RETURN_FALSE(fs_interface->GetBlockSize() == kBlockSize);
     return true;
@@ -212,7 +213,14 @@ bool ImageConfig::LoadDynamicPartitionMetadata(
       compression_method = "gz";
     }
     metadata->set_vabc_compression_param(compression_method);
-    metadata->set_cow_version(android::snapshot::kCowVersionManifest);
+    std::string cow_version;
+    if (!store.GetString("virtual_ab_cow_version", &cow_version)) {
+      metadata->set_cow_version(android::snapshot::kCowVersionManifest);
+    } else {
+      uint32_t cow_version_num{};
+      android::base::ParseUint(cow_version, &cow_version_num);
+      metadata->set_cow_version(cow_version_num);
+    }
   }
   dynamic_partition_metadata = std::move(metadata);
   return true;
@@ -386,6 +394,8 @@ bool PayloadGenerationConfig::OperationEnabled(
     case InstallOperation::LZ4DIFF_BSDIFF:
     case InstallOperation::LZ4DIFF_PUFFDIFF:
       return enable_lz4diff;
+    case InstallOperation::PUFFDIFF:
+      return enable_puffdiff;
     default:
       return true;
   }

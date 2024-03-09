@@ -19,7 +19,6 @@
 #include <algorithm>
 #include <limits>
 
-#include "update_engine/payload_generator/delta_diff_generator.h"
 #include "update_engine/payload_generator/extent_ranges.h"
 #include "update_engine/payload_generator/extent_utils.h"
 #include "update_engine/update_metadata.pb.h"
@@ -177,7 +176,8 @@ static bool ProcessCopyOps(std::vector<CowMergeOperation>* sequence,
 }
 
 std::unique_ptr<MergeSequenceGenerator> MergeSequenceGenerator::Create(
-    const std::vector<AnnotatedOperation>& aops) {
+    const std::vector<AnnotatedOperation>& aops,
+    std::string_view partition_name) {
   std::vector<CowMergeOperation> sequence;
 
   for (const auto& aop : aops) {
@@ -192,25 +192,123 @@ std::unique_ptr<MergeSequenceGenerator> MergeSequenceGenerator::Create(
     }
   }
 
-  std::sort(sequence.begin(), sequence.end());
   return std::unique_ptr<MergeSequenceGenerator>(
-      new MergeSequenceGenerator(sequence));
+      new MergeSequenceGenerator(sequence, partition_name));
 }
 
-bool MergeSequenceGenerator::FindDependency(
-    std::map<CowMergeOperation, std::set<CowMergeOperation>>* result) const {
-  CHECK(result);
+template <typename T>
+CowMergeOperation MaxOutDegree(
+    const T& nodes,
+    const std::map<CowMergeOperation, std::set<CowMergeOperation>>&
+        merge_after) {
+  // Rationale for this algorithm:
+  // We only need to remove nodes from the graph if the graph contains a cycle.
+  // Any graph of N nodes has cycle iff number of edges >= N.
+  // So, to restore the graph back to an acyclic state, we need to keep removing
+  // edges until we have <N edges left. To minimize the number of nodes removed,
+  // we always remove the node with maximum out degree.
+  CowMergeOperation best;
+  size_t max_out_degree = 0;
+  const auto has_xor =
+      std::any_of(nodes.begin(),
+                  nodes.end(),
+                  [&merge_after](const CowMergeOperation& node) {
+                    if (node.type() != CowMergeOperation::COW_XOR) {
+                      return false;
+                    }
+                    auto it = merge_after.find(node);
+                    if (it == merge_after.end()) {
+                      return false;
+                    }
+                    return it->second.size() > 0;
+                  });
+  for (const auto& op : nodes) {
+    if (has_xor && op.type() != CowMergeOperation::COW_XOR) {
+      continue;
+    }
+    const auto out_degree = merge_after.at(op).size();
+    if (out_degree > max_out_degree) {
+      best = op;
+      max_out_degree = out_degree;
+    } else if (out_degree == max_out_degree) {
+      if (op.src_extent().num_blocks() < best.src_extent().num_blocks()) {
+        best = op;
+      }
+    }
+  }
+  CHECK_NE(max_out_degree, 0UL);
+  return best;
+}
+
+template <typename T>
+struct MapKeyIterator {
+  MapKeyIterator<T>& operator++() {
+    ++it;
+    return *this;
+  }
+  MapKeyIterator<T>& operator--() {
+    --it;
+    return *this;
+  }
+  bool operator==(const MapKeyIterator<T>& rhs) const { return it == rhs.it; }
+  bool operator!=(const MapKeyIterator<T>& rhs) const { return it != rhs.it; }
+  auto&& operator->() const { return it->first; }
+  auto&& operator*() const { return it->first; }
+  T it;
+};
+
+template <typename T, typename U>
+struct MapKeyRange {
+  auto begin() const {
+    return MapKeyIterator<typename std::map<T, U>::const_iterator>{map.begin()};
+  }
+  auto end() const {
+    return MapKeyIterator<typename std::map<T, U>::const_iterator>{map.end()};
+  }
+  std::map<T, U> map;
+};
+
+CowMergeOperation MaxOutDegree(
+    const std::map<CowMergeOperation, int>& incoming_edges,
+    const std::map<CowMergeOperation, std::set<CowMergeOperation>>&
+        merge_after) {
+  return MaxOutDegree(MapKeyRange<CowMergeOperation, int>{incoming_edges},
+                      merge_after);
+}
+
+// Given a potentially cyclic graph, return a node to remove to break cycles
+// |incoming_edges| stores nodes' in degree, and |merge_after| is an outgoing
+// edge list. For example, |merge_after[a]| returns all nodes which `a` has an
+// out going edge to.
+// The only requirement of this function is to return a node which is in
+// |incoming_edges| . As long as this is satisfied, merge sequence generation
+// will work. Caller will keep removing nodes returned by this function until
+// the graph has no cycles. However, the choice of which node to remove can
+// greatly impact COW sizes. Nodes removed from the graph will be converted to a
+// COW_REPLACE operation, taking more disk space. So this function should try to
+// pick a node which minimizes number of nodes we have to remove. (Modulo the
+// weight of each node, which is how many blocks a CowMergeOperation touches)
+CowMergeOperation PickConvertToRaw(
+    const std::map<CowMergeOperation, int>& incoming_edges,
+    const std::map<CowMergeOperation, std::set<CowMergeOperation>>&
+        merge_after) {
+  return MaxOutDegree(incoming_edges, merge_after);
+}
+
+std::map<CowMergeOperation, std::set<CowMergeOperation>>
+MergeSequenceGenerator::FindDependency(
+    const std::vector<CowMergeOperation>& operations) {
   LOG(INFO) << "Finding dependencies";
 
   // Since the OTA operation may reuse some source blocks, use the binary
   // search on sorted dst extents to find overlaps.
   std::map<CowMergeOperation, std::set<CowMergeOperation>> merge_after;
-  for (const auto& op : operations_) {
+  for (const auto& op : operations) {
     // lower bound (inclusive): dst extent's end block >= src extent's start
     // block.
     const auto lower_it = std::lower_bound(
-        operations_.begin(),
-        operations_.end(),
+        operations.begin(),
+        operations.end(),
         op,
         [](const CowMergeOperation& it, const CowMergeOperation& op) {
           auto dst_end_block =
@@ -220,7 +318,7 @@ bool MergeSequenceGenerator::FindDependency(
     // upper bound: dst extent's start block > src extent's end block
     const auto upper_it = std::upper_bound(
         lower_it,
-        operations_.end(),
+        operations.end(),
         op,
         [](const CowMergeOperation& op, const CowMergeOperation& it) {
           auto src_end_block =
@@ -244,18 +342,12 @@ bool MergeSequenceGenerator::FindDependency(
     }
   }
 
-  *result = std::move(merge_after);
-  return true;
+  return merge_after;
 }
 
 bool MergeSequenceGenerator::Generate(
     std::vector<CowMergeOperation>* sequence) const {
   sequence->clear();
-  std::map<CowMergeOperation, std::set<CowMergeOperation>> merge_after;
-  if (!FindDependency(&merge_after)) {
-    LOG(ERROR) << "Failed to find dependencies";
-    return false;
-  }
 
   LOG(INFO) << "Generating sequence";
 
@@ -263,7 +355,7 @@ bool MergeSequenceGenerator::Generate(
   // operations to discard to break cycles; thus yielding a deterministic
   // sequence.
   std::map<CowMergeOperation, int> incoming_edges;
-  for (const auto& it : merge_after) {
+  for (const auto& it : merge_after_) {
     for (const auto& blocked : it.second) {
       // Value is default initialized to 0.
       incoming_edges[blocked] += 1;
@@ -289,7 +381,11 @@ bool MergeSequenceGenerator::Generate(
       merge_sequence.insert(
           merge_sequence.end(), free_operations.begin(), free_operations.end());
     } else {
-      auto to_convert = incoming_edges.begin()->first;
+      auto to_convert = PickConvertToRaw(incoming_edges, merge_after_);
+      // The operation we pick must be one of the nodes not already in merge
+      // sequence.
+      CHECK(incoming_edges.find(to_convert) != incoming_edges.end());
+
       free_operations.insert(to_convert);
       convert_to_raw.insert(to_convert);
       LOG(INFO) << "Converting operation to raw " << to_convert;
@@ -302,7 +398,7 @@ bool MergeSequenceGenerator::Generate(
       // Now that this particular operation is merged, other operations
       // blocked by this one may be free. Decrement the count of blocking
       // operations, and set up the free operations for the next iteration.
-      for (const auto& blocked : merge_after[op]) {
+      for (const auto& blocked : merge_after_.at(op)) {
         auto it = incoming_edges.find(blocked);
         if (it == incoming_edges.end()) {
           continue;
@@ -347,7 +443,8 @@ bool MergeSequenceGenerator::Generate(
   }
 
   LOG(INFO) << "Blocks in merge sequence " << blocks_in_sequence
-            << ", blocks in raw " << blocks_in_raw;
+            << ", blocks in raw " << blocks_in_raw << ", partition "
+            << partition_name_;
   if (!ValidateSequence(merge_sequence)) {
     LOG(ERROR) << "Invalid Sequence";
     return false;

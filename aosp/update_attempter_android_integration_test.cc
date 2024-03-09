@@ -36,6 +36,7 @@
 #include "update_engine/aosp/daemon_state_android.h"
 #include "update_engine/aosp/update_attempter_android.h"
 #include "update_engine/common/constants.h"
+#include "update_engine/common/error.h"
 #include "update_engine/common/fake_boot_control.h"
 #include "update_engine/common/fake_hardware.h"
 #include "update_engine/common/hash_calculator.h"
@@ -299,7 +300,7 @@ class UpdateAttempterAndroidIntegrationTest : public ::testing::Test,
                                           &metadata_size));
     LOG(INFO) << "Signature offset: " << manifest->signatures_offset()
               << ", Signature size: " << manifest->signatures_size();
-    brillo::ErrorPtr error;
+    Error error;
     HashCalculator::RawHashOfFile(payload_file_.path(), &hash);
     daemon_state_.AddObserver(this);
     ASSERT_TRUE(update_attempter_android_.ApplyPayload(
@@ -311,10 +312,10 @@ class UpdateAttempterAndroidIntegrationTest : public ::testing::Test,
              ("=" + brillo::data_encoding::Base64Encode(hash))},
         &error));
     brillo::MessageLoop::current()->Run();
-    if (error) {
-      LOG(ERROR) << error->GetMessage();
+    if (error.error_code != ErrorCode::kSuccess) {
+      LOG(ERROR) << error.message;
     }
-    ASSERT_EQ(error, nullptr);
+    ASSERT_EQ(error.error_code, ErrorCode::kSuccess) << error.message;
     ASSERT_EQ(completion_code_, ErrorCode::kSuccess);
   }
 

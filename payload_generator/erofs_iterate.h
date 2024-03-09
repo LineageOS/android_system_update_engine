@@ -13,6 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
+#ifndef UPDATE_ENGINE_PAYLOAD_GENERATOR_EROFS_ITERATE_H_
+#define UPDATE_ENGINE_PAYLOAD_GENERATOR_EROFS_ITERATE_H_
 
 #include <string>
 
@@ -36,19 +38,24 @@ static_assert(offsetof(erofs_iterate_dir_context, ctx) == 0);
 // Callable shold be a functor like
 // std::function<int(struct erofs_inode_info *)>
 template <typename Callable>
-int erofs_iterate_root_dir(const struct erofs_sb_info* sbi, Callable cb) {
-  struct erofs_inode dir {
-    .nid = sbi->root_nid
+int erofs_iterate_root_dir(struct erofs_sb_info* sbi, Callable cb) {
+  CHECK_NE(sbi, nullptr);
+  struct erofs_inode root_dir {
+    .sbi = sbi, .nid = sbi->root_nid
   };
-  int err = erofs_read_inode_from_disk(&dir);
+  int err = erofs_read_inode_from_disk(&root_dir);
   if (err) {
-    LOG(ERROR) << "Failed to read inode " << sbi->root_nid << " from disk";
+    LOG(ERROR) << "Failed to read inode " << sbi->root_nid << " from disk "
+               << strerror(-err);
     return err;
   }
   struct erofs_iterate_dir_context param {
-    .ctx.dir = &dir, .ctx.pnid = sbi->root_nid,
+    .ctx.dir = &root_dir, .ctx.pnid = sbi->root_nid,
     .ctx.cb = [](struct erofs_dir_context* arg) -> int {
       auto ctx = reinterpret_cast<erofs_iterate_dir_context*>(arg);
+      const auto parent_dir = ctx->ctx.dir;
+      const auto sbi = ctx->ctx.dir->sbi;
+      CHECK_NE(sbi, nullptr);
       auto& path = ctx->path;
       const auto len = path.size();
       path.push_back('/');
@@ -58,14 +65,21 @@ int erofs_iterate_root_dir(const struct erofs_sb_info* sbi, Callable cb) {
       const auto err = (*cb)(ctx);
       if (!err && !ctx->ctx.dot_dotdot && ctx->ctx.de_ftype == EROFS_FT_DIR) {
         // recursively walk into subdirectories
-        erofs_inode dir{.nid = ctx->ctx.de_nid};
+        struct erofs_inode dir {
+          .sbi = sbi, .nid = ctx->ctx.de_nid
+        };
         if (const int err = erofs_read_inode_from_disk(&dir); err) {
+          LOG(FATAL) << "Failed to erofs_read_inode_from_disk("
+                     << ctx->ctx.de_nid << ") " << strerror(-err);
           return err;
         }
         ctx->ctx.dir = &dir;
         if (const auto err = erofs_iterate_dir(&ctx->ctx, false); err) {
+          LOG(FATAL) << "Failed to erofs_iterate_dir(" << ctx->ctx.de_nid
+                     << ") " << strerror(-err);
           return err;
         }
+        ctx->ctx.dir = parent_dir;
       }
       path.resize(len);
       return err;
@@ -74,3 +88,5 @@ int erofs_iterate_root_dir(const struct erofs_sb_info* sbi, Callable cb) {
   };
   return erofs_iterate_dir(&param.ctx, false);
 }
+
+#endif

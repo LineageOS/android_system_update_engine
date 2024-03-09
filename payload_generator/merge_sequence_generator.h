@@ -24,8 +24,6 @@
 #include <vector>
 
 #include "update_engine/payload_generator/annotated_operation.h"
-#include "update_engine/payload_generator/extent_ranges.h"
-#include "update_engine/payload_generator/extent_utils.h"
 #include "update_engine/update_metadata.pb.h"
 
 namespace chromeos_update_engine {
@@ -46,12 +44,25 @@ std::ostream& operator<<(std::ostream& os,
 // read after write will happen by following the sequence. When there is a
 // cycle, we will omit some operations in the list. Therefore, the result
 // sequence may not contain all blocks in the input list.
+
+template <typename T>
+T&& Sort(T&& container) {
+  std::sort(container.begin(), container.end());
+  return container;
+}
+
 class MergeSequenceGenerator {
  public:
-  // Creates an object from a list of OTA InstallOperations. Returns nullptr on
-  // failure.
+  // Creates an object from a list of OTA InstallOperations. Returns nullptr
+  // on failure.
   static std::unique_ptr<MergeSequenceGenerator> Create(
-      const std::vector<AnnotatedOperation>& aops);
+      const std::vector<AnnotatedOperation>& aops,
+      std::string_view partition_name = "");
+  explicit MergeSequenceGenerator(std::vector<CowMergeOperation> transfers,
+                                  std::string_view partition_name)
+      : operations_(std::move(Sort(transfers))),
+        merge_after_(FindDependency(operations_)),
+        partition_name_(partition_name) {}
   // Checks that no read after write happens in the given sequence.
   static bool ValidateSequence(const std::vector<CowMergeOperation>& sequence);
 
@@ -59,17 +70,25 @@ class MergeSequenceGenerator {
   // |sequence|. Returns false on failure.
   bool Generate(std::vector<CowMergeOperation>* sequence) const;
 
+  const std::vector<CowMergeOperation>& GetOperations() const {
+    return operations_;
+  }
+  const std::map<CowMergeOperation, std::set<CowMergeOperation>>&
+  GetDependencyMap() const {
+    return merge_after_;
+  }
+
  private:
   friend class MergeSequenceGeneratorTest;
-  explicit MergeSequenceGenerator(std::vector<CowMergeOperation> transfers)
-      : operations_(std::move(transfers)) {}
 
   // For a given merge operation, finds all the operations that should merge
-  // after myself. Put the result in |merge_after|.
-  bool FindDependency(std::map<CowMergeOperation, std::set<CowMergeOperation>>*
-                          merge_after) const;
+  // after myself. Put the result in |merge_after|. |operations| must be sorted
+  static std::map<CowMergeOperation, std::set<CowMergeOperation>>
+  FindDependency(const std::vector<CowMergeOperation>& operations);
   // The list of CowMergeOperations to sort.
   const std::vector<CowMergeOperation> operations_;
+  const std::map<CowMergeOperation, std::set<CowMergeOperation>> merge_after_;
+  const std::string_view partition_name_;
 };
 
 void SplitSelfOverlapping(const Extent& src_extent,

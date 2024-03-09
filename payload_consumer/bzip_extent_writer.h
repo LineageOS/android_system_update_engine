@@ -23,7 +23,6 @@
 
 #include <brillo/secure_blob.h>
 
-#include "update_engine/common/utils.h"
 #include "update_engine/payload_consumer/extent_writer.h"
 
 // BzipExtentWriter is a concrete ExtentWriter subclass that bzip-decompresses
@@ -46,7 +45,7 @@ class BzipExtentWriter : public ExtentWriter {
 
  private:
   std::unique_ptr<ExtentWriter> next_;  // The underlying ExtentWriter.
-  bz_stream stream_;                    // the libbz2 stream
+  bz_stream stream_{};                  // the libbz2 stream
   brillo::Blob input_buffer_;
 };
 

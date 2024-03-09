@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include <android-base/parsebool.h>
 #include <android-base/properties.h>
 #include <android-base/unique_fd.h>
 #include <base/bind.h>
@@ -82,18 +83,32 @@ namespace {
 const double kBroadcastThresholdProgress = 0.01;  // 1%
 const int kBroadcastThresholdSeconds = 10;
 
-const char* const kErrorDomain = "update_engine";
-// TODO(deymo): Convert the different errors to a numeric value to report them
-// back on the service error.
-const char* const kGenericError = "generic_error";
+// Log and set the error on the passed ErrorPtr.
+bool LogAndSetGenericError(Error* error,
+                           int line_number,
+                           const char* file_name,
+                           const string& reason) {
+  LOG(ERROR) << "Replying with failure: " << file_name << " " << line_number
+             << ": " << reason;
+  error->line_number = line_number;
+  error->file_name = file_name;
+  error->message = reason;
+  error->error_code = ErrorCode::kError;
+  return false;
+}
 
 // Log and set the error on the passed ErrorPtr.
-bool LogAndSetError(brillo::ErrorPtr* error,
-                    const base::Location& location,
-                    const string& reason) {
-  brillo::Error::AddTo(error, location, kErrorDomain, kGenericError, reason);
-  LOG(ERROR) << "Replying with failure: " << location.ToString() << ": "
-             << reason;
+bool LogAndSetError(Error* error,
+                    int line_number,
+                    const char* file_name,
+                    const string& reason,
+                    ErrorCode error_code) {
+  LOG(ERROR) << "Replying with failure: " << file_name << " " << line_number
+             << ": " << reason;
+  error->line_number = line_number;
+  error->file_name = file_name;
+  error->message = reason;
+  error->error_code = error_code;
   return false;
 }
 
@@ -106,17 +121,20 @@ bool GetHeaderAsBool(const string& header, bool default_value) {
 
 bool ParseKeyValuePairHeaders(const vector<string>& key_value_pair_headers,
                               std::map<string, string>* headers,
-                              brillo::ErrorPtr* error) {
+                              Error* error) {
   for (const string& key_value_pair : key_value_pair_headers) {
     string key;
     string value;
     if (!brillo::string_utils::SplitAtFirst(
             key_value_pair, "=", &key, &value, false)) {
-      return LogAndSetError(
-          error, FROM_HERE, "Passed invalid header: " + key_value_pair);
+      return LogAndSetGenericError(error,
+                                   __LINE__,
+                                   __FILE__,
+                                   "Passed invalid header: " + key_value_pair);
     }
     if (!headers->emplace(key, value).second)
-      return LogAndSetError(error, FROM_HERE, "Passed repeated key: " + key);
+      return LogAndSetGenericError(
+          error, __LINE__, __FILE__, "Passed repeated key: " + key);
   }
   return true;
 }
@@ -130,6 +148,12 @@ string GetPayloadId(const std::map<string, string>& headers) {
          (headers.count(kPayloadPropertyMetadataHash)
               ? headers.at(kPayloadPropertyMetadataHash)
               : "");
+}
+
+std::string GetCurrentBuildVersion() {
+  // Example: [ro.build.fingerprint]:
+  // [generic/aosp_cf_x86_64_phone/vsoc_x86_64:VanillaIceCream/AOSP.MAIN/user08011303:userdebug/test-keys]
+  return android::base::GetProperty("ro.build.fingerprint", "");
 }
 
 }  // namespace
@@ -219,14 +243,20 @@ bool UpdateAttempterAndroid::ApplyPayload(
     int64_t payload_offset,
     int64_t payload_size,
     const vector<string>& key_value_pair_headers,
-    brillo::ErrorPtr* error) {
+    Error* error) {
   if (status_ == UpdateStatus::UPDATED_NEED_REBOOT) {
-    return LogAndSetError(
-        error, FROM_HERE, "An update already applied, waiting for reboot");
+    return LogAndSetError(error,
+                          __LINE__,
+                          __FILE__,
+                          "An update already applied, waiting for reboot",
+                          ErrorCode::kUpdateAlreadyInstalled);
   }
   if (processor_->IsRunning()) {
-    return LogAndSetError(
-        error, FROM_HERE, "Already processing an update, cancel it first.");
+    return LogAndSetError(error,
+                          __LINE__,
+                          __FILE__,
+                          "Already processing an update, cancel it first.",
+                          ErrorCode::kUpdateProcessing);
   }
   DCHECK_EQ(status_, UpdateStatus::IDLE);
 
@@ -284,6 +314,9 @@ bool UpdateAttempterAndroid::ApplyPayload(
   install_plan_.powerwash_required =
       GetHeaderAsBool(headers[kPayloadPropertyPowerwash], false);
 
+  install_plan_.spl_downgrade =
+      GetHeaderAsBool(headers[kPayloadPropertySplDowngrade], false);
+
   if (!IsProductionBuild()) {
     install_plan_.disable_vabc =
         GetHeaderAsBool(headers[kPayloadDisableVABC], false);
@@ -309,15 +342,17 @@ bool UpdateAttempterAndroid::ApplyPayload(
   if (!headers[kPayloadPropertyNetworkId].empty()) {
     if (!base::StringToUint64(headers[kPayloadPropertyNetworkId],
                               &network_id)) {
-      return LogAndSetError(
+      return LogAndSetGenericError(
           error,
-          FROM_HERE,
+          __LINE__,
+          __FILE__,
           "Invalid network_id: " + headers[kPayloadPropertyNetworkId]);
     }
     if (!network_selector_->SetProcessNetwork(network_id)) {
-      return LogAndSetError(
+      return LogAndSetGenericError(
           error,
-          FROM_HERE,
+          __LINE__,
+          __FILE__,
           "Unable to set network_id: " + headers[kPayloadPropertyNetworkId]);
     }
   }
@@ -359,7 +394,11 @@ bool UpdateAttempterAndroid::ApplyPayload(
     install_plan_.vabc_none = true;
   }
   if (!headers[kPayloadEnableThreading].empty()) {
-    install_plan_.enable_threading = true;
+    const auto res = android::base::ParseBool(headers[kPayloadEnableThreading]);
+    if (res != android::base::ParseBoolResult::kError) {
+      install_plan_.enable_threading =
+          res == android::base::ParseBoolResult::kTrue;
+    }
   }
   if (!headers[kPayloadBatchedWrites].empty()) {
     install_plan_.batched_writes = true;
@@ -381,17 +420,23 @@ bool UpdateAttempterAndroid::ApplyPayload(
     int64_t payload_offset,
     int64_t payload_size,
     const vector<string>& key_value_pair_headers,
-    brillo::ErrorPtr* error) {
+    Error* error) {
   // update_engine state must be checked before modifying payload_fd_ otherwise
   // already running update will be terminated (existing file descriptor will be
   // closed)
   if (status_ == UpdateStatus::UPDATED_NEED_REBOOT) {
-    return LogAndSetError(
-        error, FROM_HERE, "An update already applied, waiting for reboot");
+    return LogAndSetGenericError(
+        error,
+        __LINE__,
+        __FILE__,
+        "An update already applied, waiting for reboot");
   }
   if (processor_->IsRunning()) {
-    return LogAndSetError(
-        error, FROM_HERE, "Already processing an update, cancel it first.");
+    return LogAndSetGenericError(
+        error,
+        __LINE__,
+        __FILE__,
+        "Already processing an update, cancel it first.");
   }
   DCHECK_EQ(status_, UpdateStatus::IDLE);
 
@@ -402,40 +447,48 @@ bool UpdateAttempterAndroid::ApplyPayload(
       payload_url, payload_offset, payload_size, key_value_pair_headers, error);
 }
 
-bool UpdateAttempterAndroid::SuspendUpdate(brillo::ErrorPtr* error) {
+bool UpdateAttempterAndroid::SuspendUpdate(Error* error) {
   if (!processor_->IsRunning())
-    return LogAndSetError(error, FROM_HERE, "No ongoing update to suspend.");
+    return LogAndSetGenericError(
+        error, __LINE__, __FILE__, "No ongoing update to suspend.");
   processor_->SuspendProcessing();
   return true;
 }
 
-bool UpdateAttempterAndroid::ResumeUpdate(brillo::ErrorPtr* error) {
+bool UpdateAttempterAndroid::ResumeUpdate(Error* error) {
   if (!processor_->IsRunning())
-    return LogAndSetError(error, FROM_HERE, "No ongoing update to resume.");
+    return LogAndSetGenericError(
+        error, __LINE__, __FILE__, "No ongoing update to resume.");
   processor_->ResumeProcessing();
   return true;
 }
 
-bool UpdateAttempterAndroid::CancelUpdate(brillo::ErrorPtr* error) {
+bool UpdateAttempterAndroid::CancelUpdate(Error* error) {
   if (!processor_->IsRunning())
-    return LogAndSetError(error, FROM_HERE, "No ongoing update to cancel.");
+    return LogAndSetGenericError(
+        error, __LINE__, __FILE__, "No ongoing update to cancel.");
   processor_->StopProcessing();
   return true;
 }
 
-bool UpdateAttempterAndroid::ResetStatus(brillo::ErrorPtr* error) {
+bool UpdateAttempterAndroid::ResetStatus(Error* error) {
   LOG(INFO) << "Attempting to reset state from "
             << UpdateStatusToString(status_) << " to UpdateStatus::IDLE";
   if (processor_->IsRunning()) {
-    return LogAndSetError(
-        error, FROM_HERE, "Already processing an update, cancel it first.");
+    return LogAndSetGenericError(
+        error,
+        __LINE__,
+        __FILE__,
+        "Already processing an update, cancel it first.");
   }
   if (status_ != UpdateStatus::IDLE &&
       status_ != UpdateStatus::UPDATED_NEED_REBOOT) {
-    return LogAndSetError(error,
-                          FROM_HERE,
-                          "Status reset not allowed in this state, please "
-                          "cancel on going OTA first.");
+    return LogAndSetGenericError(
+        error,
+        __LINE__,
+        __FILE__,
+        "Status reset not allowed in this state, please "
+        "cancel on going OTA first.");
   }
 
   if (apex_handler_android_ != nullptr) {
@@ -447,10 +500,11 @@ bool UpdateAttempterAndroid::ResetStatus(brillo::ErrorPtr* error) {
   // after resetting to idle state, it doesn't go back to
   // UpdateStatus::UPDATED_NEED_REBOOT state.
   if (!ClearUpdateCompletedMarker()) {
-    return LogAndSetError(error,
-                          FROM_HERE,
-                          "Failed to reset the status because "
-                          "ClearUpdateCompletedMarker() failed");
+    return LogAndSetGenericError(error,
+                                 __LINE__,
+                                 __FILE__,
+                                 "Failed to reset the status because "
+                                 "ClearUpdateCompletedMarker() failed");
   }
   if (status_ == UpdateStatus::UPDATED_NEED_REBOOT) {
     if (!resetShouldSwitchSlotOnReboot(error)) {
@@ -466,30 +520,48 @@ bool UpdateAttempterAndroid::ResetStatus(brillo::ErrorPtr* error) {
   return true;
 }
 
+bool operator==(const std::vector<unsigned char>& a, std::string_view b) {
+  if (a.size() != b.size()) {
+    return false;
+  }
+  return memcmp(a.data(), b.data(), a.size()) == 0;
+}
+bool operator!=(const std::vector<unsigned char>& a, std::string_view b) {
+  return !(a == b);
+}
+
 bool UpdateAttempterAndroid::VerifyPayloadParseManifest(
     const std::string& metadata_filename,
+    std::string_view expected_metadata_hash,
     DeltaArchiveManifest* manifest,
-    brillo::ErrorPtr* error) {
+    Error* error) {
   FileDescriptorPtr fd(new EintrSafeFileDescriptor);
   if (!fd->Open(metadata_filename.c_str(), O_RDONLY)) {
-    return LogAndSetError(
-        error, FROM_HERE, "Failed to open " + metadata_filename);
+    return LogAndSetError(error,
+                          __LINE__,
+                          __FILE__,
+                          "Failed to open " + metadata_filename,
+                          ErrorCode::kDownloadManifestParseError);
   }
   brillo::Blob metadata(kMaxPayloadHeaderSize);
   if (!fd->Read(metadata.data(), metadata.size())) {
     return LogAndSetError(
         error,
-        FROM_HERE,
-        "Failed to read payload header from " + metadata_filename);
+        __LINE__,
+        __FILE__,
+        "Failed to read payload header from " + metadata_filename,
+        ErrorCode::kDownloadManifestParseError);
   }
   ErrorCode errorcode{};
   PayloadMetadata payload_metadata;
   if (payload_metadata.ParsePayloadHeader(metadata, &errorcode) !=
       MetadataParseResult::kSuccess) {
     return LogAndSetError(error,
-                          FROM_HERE,
+                          __LINE__,
+                          __FILE__,
                           "Failed to parse payload header: " +
-                              utils::ErrorCodeToString(errorcode));
+                              utils::ErrorCodeToString(errorcode),
+                          errorcode);
   }
   uint64_t metadata_size = payload_metadata.GetMetadataSize() +
                            payload_metadata.GetMetadataSignatureSize();
@@ -498,44 +570,73 @@ bool UpdateAttempterAndroid::VerifyPayloadParseManifest(
           static_cast<uint64_t>(utils::FileSize(metadata_filename))) {
     return LogAndSetError(
         error,
-        FROM_HERE,
-        "Invalid metadata size: " + std::to_string(metadata_size));
+        __LINE__,
+        __FILE__,
+        "Invalid metadata size: " + std::to_string(metadata_size),
+        ErrorCode::kDownloadManifestParseError);
   }
   metadata.resize(metadata_size);
   if (!fd->Read(metadata.data() + kMaxPayloadHeaderSize,
                 metadata.size() - kMaxPayloadHeaderSize)) {
     return LogAndSetError(
         error,
-        FROM_HERE,
-        "Failed to read metadata and signature from " + metadata_filename);
+        __LINE__,
+        __FILE__,
+        "Failed to read metadata and signature from " + metadata_filename,
+        ErrorCode::kDownloadManifestParseError);
   }
   fd->Close();
+  if (!expected_metadata_hash.empty()) {
+    brillo::Blob metadata_hash;
+    TEST_AND_RETURN_FALSE(HashCalculator::RawHashOfBytes(
+        metadata.data(), payload_metadata.GetMetadataSize(), &metadata_hash));
+    if (metadata_hash != expected_metadata_hash) {
+      return LogAndSetError(error,
+                            __LINE__,
+                            __FILE__,
+                            "Metadata hash mismatch. Expected hash: " +
+                                HexEncode(expected_metadata_hash) +
+                                " actual hash: " + HexEncode(metadata_hash),
+                            ErrorCode::kDownloadManifestParseError);
+    } else {
+      LOG(INFO) << "Payload metadata hash check passed : "
+                << HexEncode(metadata_hash);
+    }
+  }
 
   auto payload_verifier = PayloadVerifier::CreateInstanceFromZipPath(
       constants::kUpdateCertificatesPath);
   if (!payload_verifier) {
     return LogAndSetError(error,
-                          FROM_HERE,
+                          __LINE__,
+                          __FILE__,
                           "Failed to create the payload verifier from " +
-                              std::string(constants::kUpdateCertificatesPath));
+                              std::string(constants::kUpdateCertificatesPath),
+                          ErrorCode::kDownloadManifestParseError);
   }
   errorcode = payload_metadata.ValidateMetadataSignature(
       metadata, "", *payload_verifier);
   if (errorcode != ErrorCode::kSuccess) {
     return LogAndSetError(error,
-                          FROM_HERE,
+                          __LINE__,
+                          __FILE__,
                           "Failed to validate metadata signature: " +
-                              utils::ErrorCodeToString(errorcode));
+                              utils::ErrorCodeToString(errorcode),
+                          errorcode);
   }
   if (!payload_metadata.GetManifest(metadata, manifest)) {
-    return LogAndSetError(error, FROM_HERE, "Failed to parse manifest.");
+    return LogAndSetError(error,
+                          __LINE__,
+                          __FILE__,
+                          "Failed to parse manifest.",
+                          ErrorCode::kDownloadManifestParseError);
   }
 
   return true;
 }
 
 bool UpdateAttempterAndroid::VerifyPayloadApplicable(
-    const std::string& metadata_filename, brillo::ErrorPtr* error) {
+    const std::string& metadata_filename, Error* error) {
   DeltaArchiveManifest manifest;
   TEST_AND_RETURN_FALSE(
       VerifyPayloadParseManifest(metadata_filename, &manifest, error));
@@ -544,20 +645,29 @@ bool UpdateAttempterAndroid::VerifyPayloadApplicable(
   ErrorCode errorcode{};
 
   BootControlInterface::Slot current_slot = GetCurrentSlot();
+  if (current_slot < 0) {
+    return LogAndSetError(
+        error,
+        __LINE__,
+        __FILE__,
+        "Failed to get current slot " + std::to_string(current_slot),
+        ErrorCode::kDownloadStateInitializationError);
+  }
   for (const PartitionUpdate& partition : manifest.partitions()) {
     if (!partition.has_old_partition_info())
       continue;
     string partition_path;
     if (!boot_control_->GetPartitionDevice(
             partition.partition_name(), current_slot, &partition_path)) {
-      return LogAndSetError(
+      return LogAndSetGenericError(
           error,
-          FROM_HERE,
+          __LINE__,
+          __FILE__,
           "Failed to get partition device for " + partition.partition_name());
     }
     if (!fd->Open(partition_path.c_str(), O_RDONLY)) {
-      return LogAndSetError(
-          error, FROM_HERE, "Failed to open " + partition_path);
+      return LogAndSetGenericError(
+          error, __LINE__, __FILE__, "Failed to open " + partition_path);
     }
     for (const InstallOperation& operation : partition.operations()) {
       if (!operation.has_src_sha256_hash())
@@ -567,8 +677,8 @@ bool UpdateAttempterAndroid::VerifyPayloadApplicable(
                                         operation.src_extents(),
                                         manifest.block_size(),
                                         &source_hash)) {
-        return LogAndSetError(
-            error, FROM_HERE, "Failed to hash " + partition_path);
+        return LogAndSetGenericError(
+            error, __LINE__, __FILE__, "Failed to hash " + partition_path);
       }
       if (!PartitionWriter::ValidateSourceHash(
               source_hash, operation, fd, &errorcode)) {
@@ -957,8 +1067,7 @@ void UpdateAttempterAndroid::CollectAndReportUpdateMetricsOnUpdateFinished(
 
 bool UpdateAttempterAndroid::OTARebootSucceeded() const {
   const auto current_slot = boot_control_->GetCurrentSlot();
-  const string current_version =
-      android::base::GetProperty("ro.build.version.incremental", "");
+  const string current_version = GetCurrentBuildVersion();
   int64_t previous_slot = -1;
   TEST_AND_RETURN_FALSE(prefs_->GetInt64(kPrefsPreviousSlot, &previous_slot));
   string previous_version;
@@ -1011,9 +1120,7 @@ OTAResult UpdateAttempterAndroid::GetOTAUpdateResult() const {
 }
 
 void UpdateAttempterAndroid::UpdateStateAfterReboot(const OTAResult result) {
-  // Example: [ro.build.version.incremental]: [4292972]
-  string current_version =
-      android::base::GetProperty("ro.build.version.incremental", "");
+  const string current_version = GetCurrentBuildVersion();
   TEST_AND_RETURN(!current_version.empty());
 
   // |UpdateStateAfterReboot()| is only called after system reboot, so record
@@ -1115,13 +1222,19 @@ BootControlInterface::Slot UpdateAttempterAndroid::GetTargetSlot() const {
 uint64_t UpdateAttempterAndroid::AllocateSpaceForPayload(
     const std::string& metadata_filename,
     const vector<string>& key_value_pair_headers,
-    brillo::ErrorPtr* error) {
-  DeltaArchiveManifest manifest;
-  if (!VerifyPayloadParseManifest(metadata_filename, &manifest, error)) {
-    return 0;
-  }
+    Error* error) {
   std::map<string, string> headers;
   if (!ParseKeyValuePairHeaders(key_value_pair_headers, &headers, error)) {
+    return 0;
+  }
+  DeltaArchiveManifest manifest;
+  brillo::Blob metadata_hash;
+  if (!brillo::data_encoding::Base64Decode(
+          headers[kPayloadPropertyMetadataHash], &metadata_hash)) {
+    metadata_hash.clear();
+  }
+  if (!VerifyPayloadParseManifest(
+          metadata_filename, ToStringView(metadata_hash), &manifest, error)) {
     return 0;
   }
 
@@ -1131,9 +1244,11 @@ uint64_t UpdateAttempterAndroid::AllocateSpaceForPayload(
   if (apex_handler_android_ != nullptr) {
     auto result = apex_handler_android_->CalculateSize(apex_infos);
     if (!result.ok()) {
-      LogAndSetError(error,
-                     FROM_HERE,
-                     "Failed to calculate size required for compressed APEX");
+      LogAndSetGenericError(
+          error,
+          __LINE__,
+          __FILE__,
+          "Failed to calculate size required for compressed APEX");
       return 0;
     }
     apex_size_required = *result;
@@ -1141,14 +1256,26 @@ uint64_t UpdateAttempterAndroid::AllocateSpaceForPayload(
 
   string payload_id = GetPayloadId(headers);
   uint64_t required_size = 0;
+  ErrorCode error_code{};
+
   if (!DeltaPerformer::PreparePartitionsForUpdate(prefs_,
                                                   boot_control_,
                                                   GetTargetSlot(),
                                                   manifest,
                                                   payload_id,
-                                                  &required_size)) {
+                                                  &required_size,
+                                                  &error_code)) {
+    if (error_code == ErrorCode::kOverlayfsenabledError) {
+      LogAndSetError(error,
+                     __LINE__,
+                     __FILE__,
+                     "OverlayFS Shouldn't be enabled for OTA.",
+                     error_code);
+      return 0;
+    }
     if (required_size == 0) {
-      LogAndSetError(error, FROM_HERE, "Failed to allocate space for payload.");
+      LogAndSetGenericError(
+          error, __LINE__, __FILE__, "Failed to allocate space for payload.");
       return 0;
     } else {
       LOG(ERROR) << "Insufficient space for payload: " << required_size
@@ -1171,7 +1298,7 @@ uint64_t UpdateAttempterAndroid::AllocateSpaceForPayload(
 
 void UpdateAttempterAndroid::CleanupSuccessfulUpdate(
     std::unique_ptr<CleanupSuccessfulUpdateCallbackInterface> callback,
-    brillo::ErrorPtr* error) {
+    Error* error) {
   if (cleanup_previous_update_code_.has_value()) {
     LOG(INFO) << "CleanupSuccessfulUpdate has previously completed with "
               << utils::ErrorCodeToString(*cleanup_previous_update_code_);
@@ -1184,20 +1311,22 @@ void UpdateAttempterAndroid::CleanupSuccessfulUpdate(
   if (callback) {
     auto callback_ptr = callback.get();
     cleanup_previous_update_callbacks_.emplace_back(std::move(callback));
-    callback_ptr->RegisterForDeathNotifications(
-        base::Bind(&UpdateAttempterAndroid::RemoveCleanupPreviousUpdateCallback,
-                   base::Unretained(this),
-                   base::Unretained(callback_ptr)));
+    callback_ptr->RegisterForDeathNotifications([this, callback_ptr]() {
+      RemoveCleanupPreviousUpdateCallback(callback_ptr);
+    });
   }
   ScheduleCleanupPreviousUpdate();
 }
 
 bool UpdateAttempterAndroid::setShouldSwitchSlotOnReboot(
-    const std::string& metadata_filename, brillo::ErrorPtr* error) {
+    const std::string& metadata_filename, Error* error) {
   LOG(INFO) << "setShouldSwitchSlotOnReboot(" << metadata_filename << ")";
   if (processor_->IsRunning()) {
-    return LogAndSetError(
-        error, FROM_HERE, "Already processing an update, cancel it first.");
+    return LogAndSetGenericError(
+        error,
+        __LINE__,
+        __FILE__,
+        "Already processing an update, cancel it first.");
   }
   DeltaArchiveManifest manifest;
   TEST_AND_RETURN_FALSE(
@@ -1220,6 +1349,7 @@ bool UpdateAttempterAndroid::setShouldSwitchSlotOnReboot(
       std::make_unique<PostinstallRunnerAction>(boot_control_, hardware_);
   SetStatusAndNotify(UpdateStatus::VERIFYING);
   postinstall_runner_action->set_delegate(this);
+  ErrorCode error_code{};
 
   // If last error code is kUpdatedButNotActive, we know that we reached this
   // state by calling applyPayload() with switch_slot=false. That applyPayload()
@@ -1234,19 +1364,21 @@ bool UpdateAttempterAndroid::setShouldSwitchSlotOnReboot(
                                           GetTargetSlot(),
                                           manifest,
                                           false /* should update */,
-                                          nullptr)) {
-      return LogAndSetError(
-          error, FROM_HERE, "Failed to PreparePartitionsForUpdate");
+                                          nullptr,
+                                          &error_code)) {
+      return LogAndSetGenericError(
+          error, __LINE__, __FILE__, "Failed to PreparePartitionsForUpdate");
     }
-    ErrorCode error_code{};
     if (!install_plan_.ParsePartitions(manifest.partitions(),
                                        boot_control_,
                                        manifest.block_size(),
                                        &error_code)) {
       return LogAndSetError(error,
-                            FROM_HERE,
+                            __LINE__,
+                            __FILE__,
                             "Failed to LoadPartitionsFromSlots " +
-                                utils::ErrorCodeToString(error_code));
+                                utils::ErrorCodeToString(error_code),
+                            error_code);
     }
 
     auto filesystem_verifier_action =
@@ -1265,24 +1397,27 @@ bool UpdateAttempterAndroid::setShouldSwitchSlotOnReboot(
   return true;
 }
 
-bool UpdateAttempterAndroid::resetShouldSwitchSlotOnReboot(
-    brillo::ErrorPtr* error) {
+bool UpdateAttempterAndroid::resetShouldSwitchSlotOnReboot(Error* error) {
   if (processor_->IsRunning()) {
-    return LogAndSetError(
-        error, FROM_HERE, "Already processing an update, cancel it first.");
+    return LogAndSetGenericError(
+        error,
+        __LINE__,
+        __FILE__,
+        "Already processing an update, cancel it first.");
   }
   TEST_AND_RETURN_FALSE(ClearUpdateCompletedMarker());
   // Update the boot flags so the current slot has higher priority.
   if (!boot_control_->SetActiveBootSlot(GetCurrentSlot())) {
-    return LogAndSetError(error, FROM_HERE, "Failed to SetActiveBootSlot");
+    return LogAndSetGenericError(
+        error, __LINE__, __FILE__, "Failed to SetActiveBootSlot");
   }
 
   // Mark the current slot as successful again, since marking it as active
   // may reset the successful bit. We ignore the result of whether marking
   // the current slot as successful worked.
   if (!boot_control_->MarkBootSuccessfulAsync(Bind([](bool successful) {}))) {
-    return LogAndSetError(
-        error, FROM_HERE, "Failed to MarkBootSuccessfulAsync");
+    return LogAndSetGenericError(
+        error, __LINE__, __FILE__, "Failed to MarkBootSuccessfulAsync");
   }
 
   // Resets the warm reset property since we won't switch the slot.

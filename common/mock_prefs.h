@@ -47,6 +47,9 @@ class MockPrefs : public PrefsInterface {
 
   MOCK_METHOD2(AddObserver, void(std::string_view key, ObserverInterface*));
   MOCK_METHOD2(RemoveObserver, void(std::string_view key, ObserverInterface*));
+  MOCK_METHOD(bool, StartTransaction, (), (override));
+  MOCK_METHOD(bool, CancelTransaction, (), (override));
+  MOCK_METHOD(bool, SubmitTransaction, (), (override));
 };
 
 }  // namespace chromeos_update_engine

@@ -17,6 +17,7 @@
 #ifndef UPDATE_ENGINE_SCOPED_TASK_ID_H_
 #define UPDATE_ENGINE_SCOPED_TASK_ID_H_
 
+#include <ostream>
 #include <type_traits>
 #include <utility>
 
@@ -34,6 +35,11 @@ class ScopedTaskId {
   // Move only type similar to unique_ptr.
   ScopedTaskId(const ScopedTaskId&) = delete;
   ScopedTaskId& operator=(const ScopedTaskId&) = delete;
+
+  friend std::ostream& operator<<(std::ostream& out, const ScopedTaskId& task) {
+    out << task.task_id_;
+    return out;
+  }
 
   constexpr ScopedTaskId() = default;
 
@@ -89,7 +95,6 @@ class ScopedTaskId {
     return task_id_ < other.task_id_;
   }
 
- private:
   template <typename Callable>
   [[nodiscard]] bool PostTask(const base::Location& from_here,
                               Callable&& callback,
@@ -107,10 +112,15 @@ class ScopedTaskId {
         delay);
     return task_id_ != MessageLoop::kTaskIdNull;
   }
+
+ private:
   template <typename Callable>
   void ExecuteTask(Callable&& callback) {
     task_id_ = MessageLoop::kTaskIdNull;
     if constexpr (std::is_same_v<Callable&&, base::OnceClosure&&>) {
+      std::move(callback).Run();
+    } else if constexpr (std::is_same_v<Callable&&,
+                                        base::RepeatingCallback<void()>&&>) {
       std::move(callback).Run();
     } else {
       std::move(callback)();

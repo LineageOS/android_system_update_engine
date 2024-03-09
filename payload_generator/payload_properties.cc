@@ -47,6 +47,10 @@ const char kPayloadPropertyJsonMetadataSignature[] = "metadata_signature";
 // These are needed by the Nebraska and devserver.
 const char kPayloadPropertyJsonPayloadSize[] = "size";
 const char kPayloadPropertyJsonIsDelta[] = "is_delta";
+
+// These are JSON specific properties to handle 64-bit sizes (> 53-bits).
+const char kPayloadPropertyJsonMetadataSizeStr[] = "metadata_size_str";
+const char kPayloadPropertyJsonPayloadSizeStr[] = "size_str";
 }  // namespace
 
 PayloadProperties::PayloadProperties(const string& payload_path)
@@ -58,9 +62,13 @@ bool PayloadProperties::GetPropertiesAsJson(string* json_str) {
   base::DictionaryValue properties;
   properties.SetInteger(kPayloadPropertyJsonVersion, version_);
   properties.SetInteger(kPayloadPropertyJsonMetadataSize, metadata_size_);
+  properties.SetString(kPayloadPropertyJsonMetadataSizeStr,
+                       std::to_string(metadata_size_));
   properties.SetString(kPayloadPropertyJsonMetadataSignature,
                        metadata_signatures_);
   properties.SetInteger(kPayloadPropertyJsonPayloadSize, payload_size_);
+  properties.SetString(kPayloadPropertyJsonPayloadSizeStr,
+                       std::to_string(payload_size_));
   properties.SetString(kPayloadPropertyJsonPayloadHash, payload_hash_);
   properties.SetBoolean(kPayloadPropertyJsonIsDelta, is_delta_);
 

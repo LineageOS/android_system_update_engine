@@ -77,7 +77,7 @@ off64_t EintrSafeFileDescriptor::Seek(off64_t offset, int whence) {
 uint64_t EintrSafeFileDescriptor::BlockDevSize() {
   if (fd_ < 0)
     return 0;
-  struct stat stbuf;
+  struct stat stbuf {};
   if (fstat(fd_, &stbuf) < 0) {
     PLOG(ERROR) << "Error stat-ing fd " << fd_;
     return 0;
@@ -102,7 +102,7 @@ bool EintrSafeFileDescriptor::BlkIoctl(int request,
   // On some devices, the BLKDISCARD will actually read back as zeros, instead
   // of "undefined" data. The BLKDISCARDZEROES ioctl tells whether that's the
   // case, so we issue a BLKDISCARD in those cases to speed up the writes.
-  unsigned int arg;
+  unsigned int arg{};
   if (request == BLKZEROOUT && ioctl(fd_, BLKDISCARDZEROES, &arg) == 0 && arg)
     request = BLKDISCARD;
 

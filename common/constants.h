@@ -168,6 +168,7 @@ static constexpr const auto& kPayloadPropertyUserAgent = "USER_AGENT";
 // Set "POWERWASH=1" to powerwash (factory data reset) the device after
 // applying the update.
 static constexpr const auto& kPayloadPropertyPowerwash = "POWERWASH";
+static constexpr const auto& kPayloadPropertySplDowngrade = "SPL_DOWNGRADE";
 // The network id to pass to android_setprocnetwork before downloading.
 // This can be used to zero-rate OTA traffic by sending it over the correct
 // network.

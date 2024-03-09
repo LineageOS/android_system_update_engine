@@ -48,6 +48,7 @@
 #include "update_engine/aosp/dynamic_partition_utils.h"
 #include "update_engine/common/boot_control_interface.h"
 #include "update_engine/common/dynamic_partition_control_interface.h"
+#include "update_engine/common/error_code.h"
 #include "update_engine/common/platform_constants.h"
 #include "update_engine/common/utils.h"
 #include "update_engine/payload_consumer/cow_writer_file_descriptor.h"
@@ -449,7 +450,8 @@ bool DynamicPartitionControlAndroid::PreparePartitionsForUpdate(
     uint32_t target_slot,
     const DeltaArchiveManifest& manifest,
     bool update,
-    uint64_t* required_size) {
+    uint64_t* required_size,
+    ErrorCode* error) {
   source_slot_ = source_slot;
   target_slot_ = target_slot;
   if (required_size != nullptr) {
@@ -458,10 +460,14 @@ bool DynamicPartitionControlAndroid::PreparePartitionsForUpdate(
 
   if (fs_mgr_overlayfs_is_setup()) {
     // Non DAP devices can use overlayfs as well.
-    LOG(WARNING)
+    LOG(ERROR)
         << "overlayfs overrides are active and can interfere with our "
            "resources.\n"
         << "run adb enable-verity to deactivate if required and try again.";
+    if (error) {
+      *error = ErrorCode::kOverlayfsenabledError;
+      return false;
+    }
   }
 
   // If metadata is erased but not formatted, it is possible to not mount
@@ -852,6 +858,7 @@ bool DynamicPartitionControlAndroid::PrepareDynamicPartitionsForUpdate(
 
   auto target_device =
       device_dir.Append(GetSuperPartitionName(target_slot)).value();
+
   return StoreMetadata(target_device, builder.get(), target_slot);
 }
 
@@ -1314,8 +1321,8 @@ bool DynamicPartitionControlAndroid::ResetUpdate(PrefsInterface* prefs) {
   // ResetUpdateProgress may pass but CancelUpdate fails.
   // This is expected. A scheduled CleanupPreviousUpdateAction should free
   // space when it is done.
-  TEST_AND_RETURN_FALSE(
-      DeltaPerformer::ResetUpdateProgress(prefs, false /* quick */));
+  TEST_AND_RETURN_FALSE(DeltaPerformer::ResetUpdateProgress(
+      prefs, false /* quick */, false /* skip dynamic partitions metadata */));
 
   if (ExpectMetadataMounted()) {
     TEST_AND_RETURN_FALSE(snapshot_->CancelUpdate());
@@ -1424,11 +1431,11 @@ bool DynamicPartitionControlAndroid::EnsureMetadataMounted() {
   return metadata_device_ != nullptr;
 }
 
-std::unique_ptr<android::snapshot::ISnapshotWriter>
+std::unique_ptr<android::snapshot::ICowWriter>
 DynamicPartitionControlAndroid::OpenCowWriter(
     const std::string& partition_name,
     const std::optional<std::string>& source_path,
-    bool) {
+    std::optional<uint64_t> label) {
   auto suffix = SlotSuffixForSlotNumber(target_slot_);
 
   auto super_device = GetSuperDevice();
@@ -1443,29 +1450,26 @@ DynamicPartitionControlAndroid::OpenCowWriter(
       .timeout_ms = kMapSnapshotTimeout};
   // TODO(zhangkelvin) Open an APPEND mode CowWriter once there's an API to do
   // it.
-  return snapshot_->OpenSnapshotWriter(params, std::move(source_path));
+  return snapshot_->OpenSnapshotWriter(params, label);
 }  // namespace chromeos_update_engine
 
 std::unique_ptr<FileDescriptor> DynamicPartitionControlAndroid::OpenCowFd(
     const std::string& unsuffixed_partition_name,
     const std::optional<std::string>& source_path,
     bool is_append) {
-  auto cow_writer =
-      OpenCowWriter(unsuffixed_partition_name, source_path, is_append);
+  auto cow_writer = OpenCowWriter(
+      unsuffixed_partition_name, source_path, {kEndOfInstallLabel});
   if (cow_writer == nullptr) {
+    LOG(ERROR) << "OpenCowWriter failed";
     return nullptr;
   }
-  if (!cow_writer->InitializeAppend(kEndOfInstallLabel)) {
-    LOG(ERROR) << "Failed to InitializeAppend(" << kEndOfInstallLabel << ")";
+  auto fd = cow_writer->OpenFileDescriptor(source_path);
+  if (fd == nullptr) {
+    LOG(ERROR) << "ICowReader::OpenFileDescriptor failed";
     return nullptr;
   }
-  auto reader = cow_writer->OpenReader();
-  if (reader == nullptr) {
-    LOG(ERROR) << "ICowWriter::OpenReader() failed.";
-    return nullptr;
-  }
-  return std::make_unique<CowWriterFileDescriptor>(std::move(cow_writer),
-                                                   std::move(reader));
+  return std::make_unique<CowWriterFileDescriptor>(
+      std::move(cow_writer), std::move(fd), source_path);
 }
 
 std::optional<base::FilePath> DynamicPartitionControlAndroid::GetSuperDevice() {

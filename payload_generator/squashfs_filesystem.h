@@ -30,8 +30,6 @@
 
 #include <brillo/secure_blob.h>
 
-#include "update_engine/payload_consumer/file_descriptor.h"
-#include "update_engine/payload_generator/extent_utils.h"
 #include "update_engine/payload_generator/filesystem_interface.h"
 
 namespace chromeos_update_engine {
@@ -59,7 +57,7 @@ class SquashfsFilesystem : public FilesystemInterface {
   // |extract_deflates| is true, it will process files to find location of all
   // deflate streams.
   static std::unique_ptr<SquashfsFilesystem> CreateFromFile(
-      const std::string& sqfs_path, bool extract_deflates, bool load_settings);
+      const std::string& sqfs_path, bool extract_deflates);
 
   // Creates the file system from a file map |filemap| which is a multi-line
   // string with each line with the following format:
@@ -89,9 +87,6 @@ class SquashfsFilesystem : public FilesystemInterface {
   //                one for the metadata at the end.
   bool GetFiles(std::vector<File>* files) const override;
 
-  // Squashfs image does not support this yet.
-  bool LoadSettings(brillo::KeyValueStore* store) const override;
-
   // Returns true if the first few bytes of a file indicates a valid Squashfs
   // image. The size of the |blob| should be at least
   // sizeof(SquashfsHeader) or for now 96 bytes.
@@ -108,13 +103,10 @@ class SquashfsFilesystem : public FilesystemInterface {
             bool extract_deflates);
 
   // The size of the image in bytes.
-  size_t size_;
+  size_t size_{};
 
   // All the files in the filesystem.
   std::vector<File> files_;
-
-  // The content of /etc/update_engine.conf.
-  std::string update_engine_config_;
 
   DISALLOW_COPY_AND_ASSIGN(SquashfsFilesystem);
 };

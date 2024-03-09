@@ -96,10 +96,10 @@ void FilesystemVerifierAction::PerformAction() {
   install_plan_ = GetInputObject();
 
   if (install_plan_.partitions.empty()) {
-    LOG(INFO) << "No partitions to verify.";
+    LOG(ERROR) << "No partitions to verify.";
     if (HasOutputPipe())
       SetOutputObject(install_plan_);
-    abort_action_completer.set_code(ErrorCode::kSuccess);
+    abort_action_completer.set_code(ErrorCode::kFilesystemVerifierError);
     return;
   }
   // partition_weight_[i] = total size of partitions before index i.

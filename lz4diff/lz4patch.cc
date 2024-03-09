@@ -172,10 +172,14 @@ bool bspatch(std::string_view input_data,
 bool puffpatch(std::string_view input_data,
                std::string_view patch_data,
                Blob* output) {
+  // Cache size has a big impact on speed of puffpatch, use a default of 5MB to
+  // match update_engine behavior.
+  static constexpr size_t kPuffPatchCacheSize = 5 * 1024 * 1024;
   return puffin::PuffPatch(std::make_unique<StringViewStream>(input_data),
                            puffin::MemoryStream::CreateForWrite(output),
                            reinterpret_cast<const uint8_t*>(patch_data.data()),
-                           patch_data.size());
+                           patch_data.size(),
+                           kPuffPatchCacheSize);
 }
 
 std::vector<CompressedBlock> ToCompressedBlockVec(

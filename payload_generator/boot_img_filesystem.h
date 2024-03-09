@@ -40,8 +40,6 @@ class BootImgFilesystem : public FilesystemInterface {
   // ramdisk.
   bool GetFiles(std::vector<File>* files) const override;
 
-  bool LoadSettings(brillo::KeyValueStore* store) const override;
-
  private:
   friend class BootImgFilesystemTest;
 

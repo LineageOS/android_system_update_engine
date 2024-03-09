@@ -16,19 +16,23 @@
 
 #include "update_engine/payload_generator/erofs_filesystem.h"
 
+#include <endian.h>
+#include <fcntl.h>
 #include <time.h>
 
+#include <array>
 #include <string>
 #include <mutex>
 
-#include <erofs/internal.h>
+#include <android-base/unique_fd.h>
 #include <erofs/dir.h>
 #include <erofs/io.h>
+#include <erofs_fs.h>
+#include <erofs/internal.h>
 
 #include "erofs_iterate.h"
 #include "lz4diff/lz4diff.pb.h"
 #include "lz4diff/lz4patch.h"
-#include "lz4diff/lz4diff.h"
 #include "update_engine/common/utils.h"
 #include "update_engine/payload_generator/delta_diff_generator.h"
 #include "update_engine/payload_generator/extent_ranges.h"
@@ -40,6 +44,7 @@ namespace chromeos_update_engine {
 namespace {
 
 static constexpr int GetOccupiedSize(const struct erofs_inode* inode,
+                                     size_t block_size,
                                      erofs_off_t* size) {
   *size = 0;
   switch (inode->datalayout) {
@@ -48,9 +53,9 @@ static constexpr int GetOccupiedSize(const struct erofs_inode* inode,
     case EROFS_INODE_CHUNK_BASED:
       *size = inode->i_size;
       break;
-    case EROFS_INODE_FLAT_COMPRESSION_LEGACY:
-    case EROFS_INODE_FLAT_COMPRESSION:
-      *size = inode->u.i_blocks * EROFS_BLKSIZ;
+    case EROFS_INODE_COMPRESSED_FULL:
+    case EROFS_INODE_COMPRESSED_COMPACT:
+      *size = inode->u.i_blocks * block_size;
       break;
     default:
       LOG(ERROR) << "unknown datalayout " << inode->datalayout;
@@ -78,7 +83,8 @@ static constexpr bool IsBlockCompressed(const struct erofs_map_blocks& block) {
 
 static void FillExtentInfo(FilesystemInterface::File* p_file,
                            std::string_view image_filename,
-                           struct erofs_inode* inode) {
+                           struct erofs_inode* inode,
+                           size_t* const unaligned_bytes) {
   auto& file = *p_file;
 
   struct erofs_map_blocks block {};
@@ -88,9 +94,11 @@ static void FillExtentInfo(FilesystemInterface::File* p_file,
   auto& compressed_blocks = file.compressed_file_info.blocks;
   auto last_pa = block.m_pa;
   auto last_plen = 0;
-  LOG(INFO) << file.name << ", isize: " << inode->i_size;
   while (block.m_la < inode->i_size) {
     auto error = ErofsMapBlocks(inode, &block, EROFS_GET_BLOCKS_FIEMAP);
+    DEFER {
+      block.m_la += block.m_llen;
+    };
     if (error) {
       LOG(FATAL) << "Failed to map blocks for " << file.name << " in "
                  << image_filename;
@@ -105,9 +113,10 @@ static void FillExtentInfo(FilesystemInterface::File* p_file,
                    << "` has unaligned blocks: at physical byte offset: "
                    << block.m_pa << ", "
                    << " length: " << block.m_plen
-                   << ", logical offset: " << block.m_la;
+                   << ", logical offset: " << block.m_la << ", remaining data: "
+                   << inode->i_size - (block.m_la + block.m_llen);
       }
-      break;
+      (*unaligned_bytes) += block.m_plen;
     }
     // Certain uncompressed blocks have physical size > logical size. Usually
     // the physical block contains bunch of trailing zeros. Include thees
@@ -140,55 +149,59 @@ static void FillExtentInfo(FilesystemInterface::File* p_file,
             CompressedBlock(block.m_la, block.m_plen, block.m_llen));
       }
     }
-
-    block.m_la += block.m_llen;
   }
-  file.extents.push_back(ExtentForRange(
-      last_pa / kBlockSize, utils::DivRoundUp(last_plen, kBlockSize)));
+  if (last_plen != 0) {
+    file.extents.push_back(ExtentForRange(
+        last_pa / kBlockSize, utils::DivRoundUp(last_plen, kBlockSize)));
+  }
   return;
+}
+
+bool IsErofsImage(const char* path) {
+  android::base::unique_fd fd(open(path, O_RDONLY));
+  uint32_t buf{};
+  if (pread(fd.get(), &buf, 4, EROFS_SUPER_OFFSET) < 0) {
+    return false;
+  }
+  return le32toh(buf) == EROFS_SUPER_MAGIC_V1;
 }
 
 }  // namespace
 
-static_assert(kBlockSize == EROFS_BLKSIZ);
-
 std::unique_ptr<ErofsFilesystem> ErofsFilesystem::CreateFromFile(
     const std::string& filename, const CompressionAlgorithm& algo) {
-  // erofs-utils makes heavy use of global variables. Hence its functions aren't
-  // thread safe. For example, it stores a global int holding file descriptors
-  // to the opened EROFS image. It doesn't even support opening more than 1
-  // imaeg at a time.
-  // TODO(b/202784930) Replace erofs-utils with a cleaner and more C++ friendly
-  // library. (Or turn erofs-utils into one)
-  static std::mutex m;
-  std::lock_guard g{m};
+  if (!IsErofsImage(filename.c_str())) {
+    return {};
+  }
+  struct erofs_sb_info sbi {};
 
-  if (const auto err = dev_open_ro(filename.c_str()); err) {
+  if (const auto err = dev_open_ro(&sbi, filename.c_str()); err) {
     PLOG(INFO) << "Failed to open " << filename;
     return nullptr;
   }
   DEFER {
-    dev_close();
+    dev_close(&sbi);
   };
 
-  if (const auto err = erofs_read_superblock(); err) {
+  if (const auto err = erofs_read_superblock(&sbi); err) {
     PLOG(INFO) << "Failed to parse " << filename << " as EROFS image";
     return nullptr;
   }
+  const auto block_size = 1UL << sbi.blkszbits;
   struct stat st {};
-  if (const auto err = fstat(erofs_devfd, &st); err) {
+  if (const auto err = fstat(sbi.devfd, &st); err) {
     PLOG(ERROR) << "Failed to stat() " << filename;
     return nullptr;
   }
   const time_t time = sbi.build_time;
   std::vector<File> files;
-  if (!ErofsFilesystem::GetFiles(filename, &files, algo)) {
-    return nullptr;
-  }
+  CHECK(ErofsFilesystem::GetFiles(&sbi, filename, &files, algo))
+      << "Failed to parse EROFS image " << filename;
 
   LOG(INFO) << "Parsed EROFS image of size " << st.st_size << " built in "
             << ctime(&time) << " " << filename
-            << ", number of files: " << files.size();
+            << ", number of files: " << files.size()
+            << ", block size: " << block_size;
   LOG(INFO) << "Using compression algo " << algo << " for " << filename;
   // private ctor doesn't work with make_unique
   return std::unique_ptr<ErofsFilesystem>(
@@ -200,58 +213,68 @@ bool ErofsFilesystem::GetFiles(std::vector<File>* files) const {
   return true;
 }
 
-bool ErofsFilesystem::GetFiles(const std::string& filename,
+bool ErofsFilesystem::GetFiles(struct erofs_sb_info* sbi,
+                               const std::string& filename,
                                std::vector<File>* files,
                                const CompressionAlgorithm& algo) {
-  erofs_iterate_root_dir(&sbi, [&](struct erofs_iterate_dir_context* p_info) {
-    const auto& info = *p_info;
-    if (info.ctx.de_ftype != EROFS_FT_REG_FILE) {
-      return 0;
-    }
-    struct erofs_inode inode {};
-    inode.nid = info.ctx.de_nid;
-    int err = erofs_read_inode_from_disk(&inode);
-    if (err) {
-      LOG(ERROR) << "Failed to read inode " << inode.nid;
-      return err;
-    }
-    const auto uncompressed_size = inode.i_size;
-    erofs_off_t compressed_size = 0;
-    if (uncompressed_size == 0) {
-      return 0;
-    }
-    err = GetOccupiedSize(&inode, &compressed_size);
-    if (err) {
-      LOG(FATAL) << "Failed to get occupied size for " << filename;
-      return err;
-    }
-    // If data is packed inline, likely this node is stored on block unalighed
-    // addresses. OTA doesn't work for non-block aligned files. All blocks not
-    // reported by |GetFiles| will be updated in 1 operation. Ignore inline
-    // files for now.
-    // TODO(b/206729162) Support un-aligned files.
-    if (inode.datalayout == EROFS_INODE_FLAT_INLINE) {
-      return 0;
-    }
+  size_t unaligned_bytes = 0;
+  const auto block_size = 1UL << sbi->blkszbits;
+  const auto err = erofs_iterate_root_dir(
+      sbi, [&](struct erofs_iterate_dir_context* p_info) {
+        const auto& info = *p_info;
+        if (info.ctx.de_ftype != EROFS_FT_REG_FILE) {
+          return 0;
+        }
+        struct erofs_inode inode {};
+        inode.nid = info.ctx.de_nid;
+        inode.sbi = sbi;
+        int err = erofs_read_inode_from_disk(&inode);
+        if (err) {
+          LOG(ERROR) << "Failed to read inode " << inode.nid;
+          return err;
+        }
+        const auto uncompressed_size = inode.i_size;
+        erofs_off_t compressed_size = 0;
+        if (uncompressed_size == 0) {
+          return 0;
+        }
+        err = GetOccupiedSize(&inode, block_size, &compressed_size);
+        if (err) {
+          LOG(FATAL) << "Failed to get occupied size for " << filename;
+          return err;
+        }
+        // For EROFS_INODE_FLAT_INLINE , most blocks are stored on aligned
+        // addresses. Except the last block, which is stored right after the
+        // inode. These nodes will have a slight amount of data unaligned, which
+        // is fine.
 
-    File file;
-    file.name = info.path;
-    file.compressed_file_info.zero_padding_enabled =
-        erofs_sb_has_lz4_0padding();
-    file.is_compressed = compressed_size != uncompressed_size;
+        File file;
+        file.name = info.path;
+        file.compressed_file_info.zero_padding_enabled =
+            erofs_sb_has_lz4_0padding(sbi);
+        file.is_compressed = compressed_size != uncompressed_size;
 
-    file.file_stat.st_size = uncompressed_size;
-    file.file_stat.st_ino = inode.nid;
-    FillExtentInfo(&file, filename, &inode);
-    file.compressed_file_info.algo = algo;
+        file.file_stat.st_size = uncompressed_size;
+        file.file_stat.st_ino = inode.nid;
+        FillExtentInfo(&file, filename, &inode, &unaligned_bytes);
+        file.compressed_file_info.algo = algo;
 
-    files->emplace_back(std::move(file));
-    return 0;
-  });
+        files->emplace_back(std::move(file));
+        return 0;
+      });
+  if (err) {
+    LOG(ERROR) << "EROFS files iteration filed " << strerror(-err);
+    return false;
+  }
 
   for (auto& file : *files) {
     NormalizeExtents(&file.extents);
   }
+  LOG(INFO) << "EROFS image " << filename << " has " << unaligned_bytes
+            << " unaligned bytes, which is "
+            << static_cast<float>(unaligned_bytes) / utils::FileSize(filename) *
+                   100.0f
+            << "% of partition data";
   return true;
 }
 

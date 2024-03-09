@@ -171,6 +171,9 @@ struct InstallPlan {
   // False otherwise.
   bool powerwash_required{false};
 
+  // True if and only if this is an SPL downgrade OTA
+  bool spl_downgrade{false};
+
   // True if the updated slot should be marked active on success.
   // False otherwise.
   bool switch_slot_on_reboot{true};
@@ -201,7 +204,7 @@ struct InstallPlan {
   bool batched_writes = false;
 
   // Whether to enable multi-threaded compression on COW writes
-  bool enable_threading = false;
+  std::optional<bool> enable_threading;
 };
 
 class InstallPlanAction;

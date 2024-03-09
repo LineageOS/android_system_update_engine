@@ -14,6 +14,7 @@
 // limitations under the License.
 //
 
+#include "update_engine/common/utils.h"
 #include "update_engine/payload_consumer/bzip_extent_writer.h"
 
 using google::protobuf::RepeatedPtrField;

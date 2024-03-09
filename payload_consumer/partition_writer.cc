@@ -32,18 +32,14 @@
 #include <base/strings/string_util.h>
 #include <base/strings/stringprintf.h>
 
-#include "update_engine/common/terminator.h"
+#include "update_engine/common/error_code.h"
 #include "update_engine/common/utils.h"
-#include "update_engine/payload_consumer/bzip_extent_writer.h"
 #include "update_engine/payload_consumer/cached_file_descriptor.h"
-#include "update_engine/payload_consumer/extent_reader.h"
 #include "update_engine/payload_consumer/extent_writer.h"
 #include "update_engine/payload_consumer/file_descriptor_utils.h"
 #include "update_engine/payload_consumer/install_operation_executor.h"
 #include "update_engine/payload_consumer/install_plan.h"
 #include "update_engine/payload_consumer/mount_history.h"
-#include "update_engine/payload_consumer/payload_constants.h"
-#include "update_engine/payload_consumer/xz_extent_writer.h"
 #include "update_engine/payload_generator/extent_utils.h"
 
 namespace chromeos_update_engine {
@@ -232,21 +228,22 @@ bool PartitionWriter::PerformSourceCopyOperation(
   // decide it the operation should be skipped.
   const PartitionUpdate& partition = partition_update_;
 
-  InstallOperation buf;
-  const bool should_optimize = dynamic_control_->OptimizeOperation(
-      partition.partition_name(), operation, &buf);
-  const InstallOperation& optimized = should_optimize ? buf : operation;
-
   // Invoke ChooseSourceFD with original operation, so that it can properly
   // verify source hashes. Optimized operation might contain a smaller set of
   // extents, or completely empty.
   auto source_fd = ChooseSourceFD(operation, error);
-  if (source_fd == nullptr) {
-    LOG(ERROR) << "Unrecoverable source hash mismatch found on partition "
-               << partition.partition_name()
-               << " extents: " << ExtentsToString(operation.src_extents());
+  if (*error != ErrorCode::kSuccess || source_fd == nullptr) {
+    LOG(WARNING) << "Source hash mismatch detected for extents "
+                 << operation.src_extents() << " on partition "
+                 << partition.partition_name() << " @ " << source_path_;
+
     return false;
   }
+
+  InstallOperation buf;
+  const bool should_optimize = dynamic_control_->OptimizeOperation(
+      partition.partition_name(), operation, &buf);
+  const InstallOperation& optimized = should_optimize ? buf : operation;
 
   auto writer = CreateBaseExtentWriter();
   return install_op_executor_.ExecuteSourceCopyOperation(
@@ -340,8 +337,9 @@ bool PartitionWriter::ValidateSourceHash(const brillo::Blob& calculated_hash,
 
     // Log remount history if this device is an ext4 partition.
     LogMountHistory(source_fd);
-
-    *error = ErrorCode::kDownloadStateInitializationError;
+    if (error) {
+      *error = ErrorCode::kDownloadStateInitializationError;
+    }
     return false;
   }
   return true;

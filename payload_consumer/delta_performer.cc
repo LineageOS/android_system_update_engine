@@ -443,6 +443,9 @@ bool DeltaPerformer::CheckSPLDowngrade() {
 // were written, or false on any error, regardless of progress
 // and stores an action exit code in |error|.
 bool DeltaPerformer::Write(const void* bytes, size_t count, ErrorCode* error) {
+  if (!error) {
+    return false;
+  }
   *error = ErrorCode::kSuccess;
   const char* c_bytes = reinterpret_cast<const char*>(bytes);
 
@@ -485,7 +488,7 @@ bool DeltaPerformer::Write(const void* bytes, size_t count, ErrorCode* error) {
 
     block_size_ = manifest_.block_size();
 
-    if (!CheckSPLDowngrade()) {
+    if (!install_plan_->spl_downgrade && !CheckSPLDowngrade()) {
       *error = ErrorCode::kPayloadTimestampError;
       return false;
     }
@@ -530,7 +533,7 @@ bool DeltaPerformer::Write(const void* bytes, size_t count, ErrorCode* error) {
     if (install_plan_->enable_threading) {
       manifest_.mutable_dynamic_partition_metadata()
           ->mutable_vabc_feature_set()
-          ->set_threaded(true);
+          ->set_threaded(install_plan_->enable_threading.value());
       LOG(INFO) << "Attempting to enable multi-threaded compression for VABC";
     }
     if (install_plan_->batched_writes) {
@@ -733,8 +736,10 @@ bool DeltaPerformer::ParseManifestPartitions(ErrorCode* error) {
   // slot suffix of the partitions in the metadata.
   if (install_plan_->target_slot != BootControlInterface::kInvalidSlot) {
     uint64_t required_size = 0;
-    if (!PreparePartitionsForUpdate(&required_size)) {
-      if (required_size > 0) {
+    if (!PreparePartitionsForUpdate(&required_size, error)) {
+      if (*error == ErrorCode::kOverlayfsenabledError) {
+        return false;
+      } else if (required_size > 0) {
         *error = ErrorCode::kNotEnoughSpace;
       } else {
         *error = ErrorCode::kInstallDeviceOpenError;
@@ -756,12 +761,17 @@ bool DeltaPerformer::ParseManifestPartitions(ErrorCode* error) {
     auto generator = partition_update_generator::Create(boot_control_,
                                                         manifest_.block_size());
     std::vector<PartitionUpdate> untouched_static_partitions;
-    TEST_AND_RETURN_FALSE(
-        generator->GenerateOperationsForPartitionsNotInPayload(
+    if (!generator->GenerateOperationsForPartitionsNotInPayload(
             install_plan_->source_slot,
             install_plan_->target_slot,
             touched_partitions,
-            &untouched_static_partitions));
+            &untouched_static_partitions)) {
+      LOG(ERROR)
+          << "Failed to generate operations for partitions not in payload "
+          << android::base::Join(touched_partitions, ", ");
+      *error = ErrorCode::kDownloadStateInitializationError;
+      return false;
+    }
     partitions_.insert(partitions_.end(),
                        untouched_static_partitions.begin(),
                        untouched_static_partitions.end());
@@ -800,7 +810,8 @@ bool DeltaPerformer::ParseManifestPartitions(ErrorCode* error) {
   return true;
 }
 
-bool DeltaPerformer::PreparePartitionsForUpdate(uint64_t* required_size) {
+bool DeltaPerformer::PreparePartitionsForUpdate(uint64_t* required_size,
+                                                ErrorCode* error) {
   // Call static PreparePartitionsForUpdate with hash from
   // kPrefsUpdateCheckResponseHash to ensure hash of payload that space is
   // preallocated for is the same as the hash of payload being applied.
@@ -812,7 +823,8 @@ bool DeltaPerformer::PreparePartitionsForUpdate(uint64_t* required_size) {
                                     install_plan_->target_slot,
                                     manifest_,
                                     update_check_response_hash,
-                                    required_size);
+                                    required_size,
+                                    error);
 }
 
 bool DeltaPerformer::PreparePartitionsForUpdate(
@@ -821,7 +833,8 @@ bool DeltaPerformer::PreparePartitionsForUpdate(
     BootControlInterface::Slot target_slot,
     const DeltaArchiveManifest& manifest,
     const std::string& update_check_response_hash,
-    uint64_t* required_size) {
+    uint64_t* required_size,
+    ErrorCode* error) {
   string last_hash;
   ignore_result(
       prefs->GetString(kPrefsDynamicPartitionMetadataUpdated, &last_hash));
@@ -843,9 +856,11 @@ bool DeltaPerformer::PreparePartitionsForUpdate(
           target_slot,
           manifest,
           !is_resume /* should update */,
-          required_size)) {
+          required_size,
+          error)) {
     LOG(ERROR) << "Unable to initialize partition metadata for slot "
-               << BootControlInterface::SlotName(target_slot);
+               << BootControlInterface::SlotName(target_slot) << " "
+               << utils::ErrorCodeToString(*error);
     return false;
   }
 
@@ -1374,7 +1389,10 @@ bool DeltaPerformer::CanResumeUpdate(PrefsInterface* prefs,
   return true;
 }
 
-bool DeltaPerformer::ResetUpdateProgress(PrefsInterface* prefs, bool quick) {
+bool DeltaPerformer::ResetUpdateProgress(
+    PrefsInterface* prefs,
+    bool quick,
+    bool skip_dynamic_partititon_metadata_updated) {
   TEST_AND_RETURN_FALSE(prefs->SetInt64(kPrefsUpdateStateNextOperation,
                                         kUpdateStateOperationInvalid));
   if (!quick) {
@@ -1388,9 +1406,10 @@ bool DeltaPerformer::ResetUpdateProgress(PrefsInterface* prefs, bool quick) {
     prefs->SetInt64(kPrefsResumedUpdateFailures, 0);
     prefs->Delete(kPrefsPostInstallSucceeded);
     prefs->Delete(kPrefsVerityWritten);
-
-    LOG(INFO) << "Resetting recorded hash for prepared partitions.";
-    prefs->Delete(kPrefsDynamicPartitionMetadataUpdated);
+    if (!skip_dynamic_partititon_metadata_updated) {
+      LOG(INFO) << "Resetting recorded hash for prepared partitions.";
+      prefs->Delete(kPrefsDynamicPartitionMetadataUpdated);
+    }
   }
   return true;
 }
@@ -1409,9 +1428,12 @@ bool DeltaPerformer::CheckpointUpdateProgress(bool force) {
     return false;
   }
   Terminator::set_exit_blocked(true);
+  LOG_IF(WARNING, !prefs_->StartTransaction())
+      << "unable to start transaction in checkpointing";
+  DEFER {
+    prefs_->CancelTransaction();
+  };
   if (last_updated_operation_num_ != next_operation_num_ || force) {
-    // Resets the progress in case we die in the middle of the state update.
-    ResetUpdateProgress(prefs_, true);
     if (!signatures_message_data_.empty()) {
       // Save the signature blob because if the update is interrupted after the
       // download phase we don't go through this path anymore. Some alternatives
@@ -1463,6 +1485,9 @@ bool DeltaPerformer::CheckpointUpdateProgress(bool force) {
   }
   TEST_AND_RETURN_FALSE(
       prefs_->SetInt64(kPrefsUpdateStateNextOperation, next_operation_num_));
+  if (!prefs_->SubmitTransaction()) {
+    LOG(ERROR) << "Failed to submit transaction in checkpointing";
+  }
   return true;
 }
 

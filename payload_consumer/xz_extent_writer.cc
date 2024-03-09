@@ -14,6 +14,7 @@
 // limitations under the License.
 //
 
+#include "update_engine/common/utils.h"
 #include "update_engine/payload_consumer/xz_extent_writer.h"
 
 using google::protobuf::RepeatedPtrField;
@@ -75,7 +76,7 @@ bool XzExtentWriter::Write(const void* bytes, size_t count) {
     count = input_buffer_.size();
   }
 
-  xz_buf request;
+  xz_buf request{};
   request.in = input;
   request.in_pos = 0;
   request.in_size = count;

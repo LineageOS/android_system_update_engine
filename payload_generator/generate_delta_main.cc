@@ -445,6 +445,11 @@ DEFINE_bool(enable_lz4diff,
             false,
             "Whether to enable LZ4diff feature when processing EROFS images.");
 
+DEFINE_bool(enable_puffdiff,
+            true,
+            "Whether to enable puffdiff feature. Enabling puffdiff will take "
+            "longer but generated OTA will be smaller.");
+
 DEFINE_bool(
     enable_zucchini,
     true,
@@ -465,7 +470,7 @@ void RoundDownPartitions(const ImageConfig& config) {
     if (part.path.empty()) {
       continue;
     }
-    const auto size = utils::FileSize(part.path);
+    const auto size = std::max<size_t>(utils::FileSize(part.path), kBlockSize);
     if (size % kBlockSize != 0) {
       const auto err =
           truncate(part.path.c_str(), size / kBlockSize * kBlockSize);
@@ -612,6 +617,7 @@ int Main(int argc, char** argv) {
   payload_config.enable_vabc_xor = FLAGS_enable_vabc_xor;
   payload_config.enable_lz4diff = FLAGS_enable_lz4diff;
   payload_config.enable_zucchini = FLAGS_enable_zucchini;
+  payload_config.enable_puffdiff = FLAGS_enable_puffdiff;
 
   payload_config.ParseCompressorTypes(FLAGS_compressor_types);
 
@@ -730,24 +736,13 @@ int Main(int argc, char** argv) {
   if (FLAGS_minor_version == -1) {
     // Autodetect minor_version by looking at the update_engine.conf in the old
     // image.
-    if (payload_config.is_delta) {
-      brillo::KeyValueStore store;
-      uint32_t minor_version{};
-      bool minor_version_found = false;
-      for (const PartitionConfig& part : payload_config.source.partitions) {
-        if (part.fs_interface && part.fs_interface->LoadSettings(&store) &&
-            utils::GetMinorVersion(store, &minor_version)) {
-          payload_config.version.minor = minor_version;
-          minor_version_found = true;
-          LOG(INFO) << "Auto-detected minor_version="
-                    << payload_config.version.minor;
-          break;
-        }
-      }
-      if (!minor_version_found) {
-        LOG(FATAL) << "Failed to detect the minor version.";
-        return 1;
-      }
+    if (FLAGS_is_partial_update) {
+      payload_config.version.minor = kPartialUpdateMinorPayloadVersion;
+      LOG(INFO) << "Using minor_version=" << payload_config.version.minor
+                << " for partial updates";
+    } else if (payload_config.is_delta) {
+      LOG(FATAL) << "Minor version is required for complete delta update!";
+      return 1;
     } else {
       payload_config.version.minor = kFullPayloadMinorVersion;
       LOG(INFO) << "Using non-delta minor_version="

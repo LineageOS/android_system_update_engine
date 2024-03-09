@@ -56,10 +56,19 @@ class XORExtentWriter : public BlockExtentWriter {
                            const Extent& extent,
                            const void* bytes,
                            size_t size);
+  bool WriteXorExtent(const uint8_t* bytes,
+                      const size_t size,
+                      const Extent& xor_ext,
+                      const CowMergeOperation* merge_op);
+  bool WriteXorCowOp(const uint8_t* bytes,
+                     const size_t size,
+                     const Extent& xor_ext,
+                     size_t src_offset);
   const google::protobuf::RepeatedPtrField<Extent>& src_extents_;
   const FileDescriptorPtr source_fd_;
   const ExtentMap<const CowMergeOperation*>& xor_map_;
   android::snapshot::ICowWriter* cow_writer_;
+  std::vector<uint8_t> xor_block_data;
   const size_t partition_size_;
 };
 

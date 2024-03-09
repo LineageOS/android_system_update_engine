@@ -21,8 +21,6 @@
 #include <algorithm>
 #include <string>
 
-#include "update_engine/common/utils.h"
-
 namespace chromeos_update_engine {
 
 // Begins the transfer to the specified URL.

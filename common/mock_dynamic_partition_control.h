@@ -22,6 +22,7 @@
 #include <vector>
 
 #include <gmock/gmock.h>
+#include <libsnapshot/cow_writer.h>
 
 #include "update_engine/common/dynamic_partition_control_interface.h"
 #include "update_engine/payload_consumer/file_descriptor.h"
@@ -58,16 +59,22 @@ class MockDynamicPartitionControl : public DynamicPartitionControlInterface {
               (const std::string&, const InstallOperation&, InstallOperation*),
               (override));
 
-  MOCK_METHOD(std::unique_ptr<android::snapshot::ISnapshotWriter>,
+  MOCK_METHOD(std::unique_ptr<android::snapshot::ICowWriter>,
               OpenCowWriter,
-              (const std::string&, const std::optional<std::string>&, bool),
+              (const std::string&,
+               const std::optional<std::string>&,
+               std::optional<uint64_t> label),
               (override));
 
-  MOCK_METHOD(
-      bool,
-      PreparePartitionsForUpdate,
-      (uint32_t, uint32_t, const DeltaArchiveManifest&, bool, uint64_t*),
-      (override));
+  MOCK_METHOD(bool,
+              PreparePartitionsForUpdate,
+              (uint32_t,
+               uint32_t,
+               const DeltaArchiveManifest&,
+               bool,
+               uint64_t*,
+               ErrorCode*),
+              (override));
 
   MOCK_METHOD(bool, ResetUpdate, (PrefsInterface*), (override));
   MOCK_METHOD(std::unique_ptr<AbstractAction>,

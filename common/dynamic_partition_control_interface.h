@@ -32,7 +32,7 @@
 
 // Forware declare for libsnapshot/snapshot_writer.h
 namespace android::snapshot {
-class ISnapshotWriter;
+class ICowWriter;
 }
 
 namespace chromeos_update_engine {
@@ -106,7 +106,8 @@ class DynamicPartitionControlInterface {
                                           uint32_t target_slot,
                                           const DeltaArchiveManifest& manifest,
                                           bool update,
-                                          uint64_t* required_size) = 0;
+                                          uint64_t* required_size,
+                                          ErrorCode* error = nullptr) = 0;
 
   // After writing to new partitions, before rebooting into the new slot, call
   // this function to indicate writes to new partitions are done.
@@ -166,10 +167,10 @@ class DynamicPartitionControlInterface {
   // If `is_append` is false, then existing COW data will be overwritten.
   // Otherwise the cow writer will be opened on APPEND mode, existing COW data
   // is preserved.
-  virtual std::unique_ptr<android::snapshot::ISnapshotWriter> OpenCowWriter(
+  virtual std::unique_ptr<android::snapshot::ICowWriter> OpenCowWriter(
       const std::string& unsuffixed_partition_name,
       const std::optional<std::string>&,
-      bool is_append = false) = 0;
+      std::optional<uint64_t> label) = 0;
   // Open a general purpose FD capable to reading and writing to COW. Note that
   // writes must be block aligned.
   virtual std::unique_ptr<FileDescriptor> OpenCowFd(

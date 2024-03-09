@@ -17,16 +17,16 @@
 #ifndef UPDATE_ENGINE_AOSP_DYNAMIC_PARTITION_CONTROL_ANDROID_H_
 #define UPDATE_ENGINE_AOSP_DYNAMIC_PARTITION_CONTROL_ANDROID_H_
 
+#include <array>
 #include <memory>
 #include <set>
 #include <string>
 #include <string_view>
-#include <array>
+#include <vector>
 
 #include <base/files/file_util.h>
 #include <libsnapshot/auto_device.h>
 #include <libsnapshot/snapshot.h>
-#include <libsnapshot/snapshot_writer.h>
 
 #include "update_engine/common/dynamic_partition_control_interface.h"
 
@@ -55,7 +55,8 @@ class DynamicPartitionControlAndroid : public DynamicPartitionControlInterface {
                                   uint32_t target_slot,
                                   const DeltaArchiveManifest& manifest,
                                   bool update,
-                                  uint64_t* required_size) override;
+                                  uint64_t* required_size,
+                                  ErrorCode* error = nullptr) override;
   bool FinishUpdate(bool powerwash_required) override;
   std::unique_ptr<AbstractAction> GetCleanupPreviousUpdateAction(
       BootControlInterface* boot_control,
@@ -101,15 +102,15 @@ class DynamicPartitionControlAndroid : public DynamicPartitionControlInterface {
                           std::string* device);
 
   // Partition name is expected to be unsuffixed. e.g. system, vendor
-  // Return an interface to write to a snapshoted partition.
-  std::unique_ptr<android::snapshot::ISnapshotWriter> OpenCowWriter(
+  // Return an interface to write to a snapshotted partition.
+  std::unique_ptr<android::snapshot::ICowWriter> OpenCowWriter(
       const std::string& unsuffixed_partition_name,
       const std::optional<std::string>& source_path,
-      bool is_append) override;
+      std::optional<uint64_t> label) override;
   std::unique_ptr<FileDescriptor> OpenCowFd(
       const std::string& unsuffixed_partition_name,
       const std::optional<std::string>&,
-      bool is_append = false) override;
+      bool is_append) override;
 
   bool MapAllPartitions() override;
   bool UnmapAllPartitions() override;

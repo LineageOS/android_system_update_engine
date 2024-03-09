@@ -73,6 +73,7 @@ metrics::AttemptResult GetAttemptResult(ErrorCode code) {
     case ErrorCode::kVerityCalculationError:
     case ErrorCode::kNotEnoughSpace:
     case ErrorCode::kDeviceCorrupted:
+    case ErrorCode::kOverlayfsenabledError:
       return metrics::AttemptResult::kOperationExecutionError;
 
     case ErrorCode::kDownloadMetadataSignatureMismatch:
@@ -137,6 +138,8 @@ metrics::AttemptResult GetAttemptResult(ErrorCode code) {
     case ErrorCode::kTestImageFlag:
     case ErrorCode::kTestOmahaUrlFlag:
     case ErrorCode::kSpecialFlags:
+    case ErrorCode::kUpdateProcessing:
+    case ErrorCode::kUpdateAlreadyInstalled:
       break;
   }
 
@@ -190,6 +193,7 @@ metrics::DownloadErrorCode GetDownloadErrorCode(ErrorCode code) {
     case ErrorCode::kFilesystemCopierError:
     case ErrorCode::kPostinstallRunnerError:
     case ErrorCode::kPostInstallMountError:
+    case ErrorCode::kOverlayfsenabledError:
     case ErrorCode::kPayloadMismatchedType:
     case ErrorCode::kInstallDeviceOpenError:
     case ErrorCode::kKernelDeviceOpenError:
@@ -243,6 +247,8 @@ metrics::DownloadErrorCode GetDownloadErrorCode(ErrorCode code) {
     case ErrorCode::kNotEnoughSpace:
     case ErrorCode::kDeviceCorrupted:
     case ErrorCode::kPackageExcludedFromUpdate:
+    case ErrorCode::kUpdateProcessing:
+    case ErrorCode::kUpdateAlreadyInstalled:
       break;
 
     // Special flags. These can't happen (we mask them out above) but
@@ -367,8 +373,8 @@ bool LoadAndReportTimeToReboot(MetricsReporterInterface* metrics_reporter,
   TimeDelta time_to_reboot = current_time - system_updated_at;
   if (time_to_reboot.ToInternalValue() < 0) {
     LOG(WARNING) << "time_to_reboot is negative - system_updated_at: "
-                 << utils::ToString(system_updated_at) << " current time: "
-                 << utils::ToString(current_time);
+                 << utils::ToString(system_updated_at)
+                 << " current time: " << utils::ToString(current_time);
     return false;
   }
   metrics_reporter->ReportTimeToReboot(time_to_reboot.InMinutes());

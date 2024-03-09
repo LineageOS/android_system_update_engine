@@ -31,6 +31,8 @@
 #include <vector>
 
 #include <android-base/strings.h>
+#include <android-base/mapped_file.h>
+#include <android-base/scopeguard.h>
 #include <base/files/file_path.h>
 #include <base/posix/eintr_wrapper.h>
 #include <base/strings/string_number_conversions.h>
@@ -38,9 +40,6 @@
 #include <brillo/key_value_store.h>
 #include <brillo/secure_blob.h>
 
-#include "android-base/mapped_file.h"
-#include "android-base/scopeguard.h"
-#include "google/protobuf/repeated_field.h"
 #include "update_engine/common/action.h"
 #include "update_engine/common/action_processor.h"
 #include "update_engine/common/constants.h"
@@ -163,6 +162,7 @@ off_t FileSize(int fd);
 bool SendFile(int out_fd, int in_fd, size_t count);
 
 bool FsyncDirectory(const char* dirname);
+bool DeleteDirectory(const char* dirname);
 bool WriteStringToFileAtomic(const std::string& path, std::string_view content);
 
 // Returns true if the file exists for sure. Returns false if it doesn't exist,
@@ -643,9 +643,10 @@ constexpr struct {
   }
 } deferrer;
 
-#define TOKENPASTE(x, y) x##y
-#define DEFER                                                    \
-  auto TOKENPASTE(_deferred_lambda_call, __COUNTER__) = deferrer \
-                                                        << [&]() mutable
+#define TOKENPASTE1(x, y) x##y
+#define TOKENPASTE2(x, y) TOKENPASTE1(x, y)
+#define DEFER                                                     \
+  auto TOKENPASTE2(_deferred_lambda_call, __COUNTER__) = deferrer \
+                                                         << [&]() mutable
 
 #endif  // UPDATE_ENGINE_COMMON_UTILS_H_

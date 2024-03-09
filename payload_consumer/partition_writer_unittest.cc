@@ -210,8 +210,7 @@ TEST_F(PartitionWriterTest, ChooseSourceFDTest) {
   op.set_src_sha256_hash(src_hash.data(), src_hash.size());
 
   ErrorCode error = ErrorCode::kSuccess;
-  ASSERT_EQ(writer_.verified_source_fd_.source_ecc_fd_,
-            writer_.ChooseSourceFD(op, &error));
+  ASSERT_NE(writer_.ChooseSourceFD(op, &error), nullptr);
   ASSERT_EQ(ErrorCode::kSuccess, error);
   // Verify that the fake_fec was actually used.
   ASSERT_EQ(1U, fake_fec->GetReadOps().size());

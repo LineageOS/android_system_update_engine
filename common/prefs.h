@@ -60,6 +60,17 @@ class PrefsBase : public PrefsInterface {
     // key was deleted.
     virtual bool DeleteKey(std::string_view key) = 0;
 
+    // Makes a copy of prefs directory called prefs_tmp, which is modified
+    // during update_engine checkpointing
+    virtual bool CreateTemporaryPrefs() { return false; }
+
+    // Deletes prefs_tmp directory
+    virtual bool DeleteTemporaryPrefs() { return false; }
+
+    // Replaces prefs with prefs_tmp to make update_engine checkpointing more
+    // atomic
+    virtual bool SwapPrefs() { return false; }
+
    private:
     DISALLOW_COPY_AND_ASSIGN(StorageInterface);
   };
@@ -73,6 +84,9 @@ class PrefsBase : public PrefsInterface {
   bool SetInt64(std::string_view key, const int64_t value) override;
   bool GetBoolean(std::string_view key, bool* value) const override;
   bool SetBoolean(std::string_view key, const bool value) override;
+  bool StartTransaction() override;
+  bool CancelTransaction() override;
+  bool SubmitTransaction() override;
 
   bool Exists(std::string_view key) const override;
   bool Delete(std::string_view key) override;
@@ -128,6 +142,9 @@ class Prefs : public PrefsBase {
     bool SetKey(std::string_view key, std::string_view value) override;
     bool KeyExists(std::string_view key) const override;
     bool DeleteKey(std::string_view key) override;
+    bool CreateTemporaryPrefs() override;
+    bool DeleteTemporaryPrefs() override;
+    bool SwapPrefs() override;
 
    private:
     FRIEND_TEST(PrefsTest, GetFileNameForKey);
@@ -138,6 +155,9 @@ class Prefs : public PrefsBase {
     // associated with |key|. Returns true on success, false otherwise.
     bool GetFileNameForKey(std::string_view key,
                            base::FilePath* filename) const;
+
+    // Returns path of prefs_tmp used during update_engine checkpointing
+    std::string GetTemporaryDir() const;
 
     // Preference store directory.
     base::FilePath prefs_dir_;

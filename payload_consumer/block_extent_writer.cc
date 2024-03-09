@@ -16,9 +16,13 @@
 
 #include "update_engine/payload_consumer/block_extent_writer.h"
 
-#include <algorithm>
-#include <cstdint>
+#include <stdint.h>
 
+#include <algorithm>
+
+#include "update_engine/common/utils.h"
+#include "update_engine/payload_generator/delta_diff_generator.h"
+#include "update_engine/payload_generator/extent_ranges.h"
 #include "update_engine/update_metadata.pb.h"
 
 namespace chromeos_update_engine {
@@ -35,56 +39,65 @@ bool BlockExtentWriter::Init(
   return true;
 }
 
-size_t BlockExtentWriter::ConsumeWithBuffer(const uint8_t* data, size_t count) {
-  CHECK_LT(cur_extent_idx_, static_cast<size_t>(extents_.size()));
+bool BlockExtentWriter::WriteExtent(const void* bytes, const size_t count) {
   const auto& cur_extent = extents_[cur_extent_idx_];
-  const auto cur_extent_size = cur_extent.num_blocks() * block_size_;
+  const auto write_extent =
+      ExtentForRange(cur_extent.start_block() + offset_in_extent_ / block_size_,
+                     count / kBlockSize);
+  offset_in_extent_ += count;
+  if (offset_in_extent_ == cur_extent.num_blocks() * block_size_) {
+    NextExtent();
+  }
+  return WriteExtent(bytes, write_extent, block_size_);
+}
 
-  if (buffer_.empty() && count >= cur_extent_size) {
-    if (!WriteExtent(data, cur_extent, block_size_)) {
+size_t BlockExtentWriter::ConsumeWithBuffer(const uint8_t* const data,
+                                            const size_t count) {
+  if (cur_extent_idx_ >= static_cast<size_t>(extents_.size())) {
+    if (count > 0) {
+      LOG(ERROR) << "Exhausted all blocks, but still have " << count
+                 << " bytes pending for write";
+    }
+    return 0;
+  }
+  const auto& cur_extent = extents_[cur_extent_idx_];
+  const auto cur_extent_size =
+      static_cast<size_t>(cur_extent.num_blocks() * block_size_);
+
+  const auto write_size =
+      std::min(cur_extent_size - offset_in_extent_, BUFFER_SIZE);
+  if (buffer_.empty() && count >= write_size) {
+    if (!WriteExtent(data, write_size)) {
       LOG(ERROR) << "WriteExtent(" << cur_extent.start_block() << ", "
-                 << static_cast<const void*>(data) << ", " << cur_extent_size
+                 << static_cast<const void*>(data) << ", " << write_size
                  << ") failed.";
       // return value is expected to be greater than 0. Return 0 to signal error
       // condition
       return 0;
     }
-    if (!NextExtent()) {
-      if (count != cur_extent_size) {
-        LOG(ERROR) << "Exhausted all blocks, but still have "
-                   << count - cur_extent_size << " bytes left";
-        return 0;
-      }
-    }
-    return cur_extent_size;
+    return write_size;
   }
-  if (buffer_.size() >= cur_extent_size) {
+  if (buffer_.size() >= write_size) {
     LOG(ERROR)
-        << "Data left in buffer should never be >= cur_extent_size, otherwise "
+        << "Data left in buffer should never be >= write_size, otherwise "
            "we should have send that data to CowWriter. Buffer size: "
-        << buffer_.size() << " current extent size: " << cur_extent_size;
+        << buffer_.size() << " write_size: " << write_size;
   }
   const size_t bytes_to_copy =
-      std::min<size_t>(count, cur_extent_size - buffer_.size());
+      std::min<size_t>(count, write_size - buffer_.size());
   TEST_GT(bytes_to_copy, 0U);
 
   buffer_.insert(buffer_.end(), data, data + bytes_to_copy);
-  TEST_LE(buffer_.size(), cur_extent_size);
+  TEST_LE(buffer_.size(), write_size);
 
-  if (buffer_.size() == cur_extent_size) {
-    if (!WriteExtent(buffer_.data(), cur_extent, block_size_)) {
+  if (buffer_.size() == write_size) {
+    if (!WriteExtent(buffer_.data(), write_size)) {
       LOG(ERROR) << "WriteExtent(" << buffer_.data() << ", "
                  << cur_extent.start_block() << ", " << cur_extent.num_blocks()
                  << ") failed.";
       return 0;
     }
     buffer_.clear();
-    if (!NextExtent()) {
-      if (count != bytes_to_copy) {
-        LOG(ERROR) << "Exhausted all blocks, but still have "
-                   << count - bytes_to_copy << " bytes left";
-      }
-    }
   }
   return bytes_to_copy;
 }
@@ -111,6 +124,7 @@ bool BlockExtentWriter::Write(const void* bytes, size_t count) {
 
 bool BlockExtentWriter::NextExtent() {
   cur_extent_idx_++;
+  offset_in_extent_ = 0;
   return cur_extent_idx_ < static_cast<size_t>(extents_.size());
 }
 }  // namespace chromeos_update_engine

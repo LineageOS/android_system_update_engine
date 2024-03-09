@@ -72,21 +72,21 @@ bool CertificateParserAndroid::ReadPublicKeysFromCertificates(
         out_public_keys) {
   out_public_keys->clear();
 
-  ZipArchiveHandle handle;
-  if (int32_t open_status = OpenArchive(path.c_str(), &handle);
-      open_status != 0) {
+  ZipArchiveHandle raw_handle;
+  int32_t open_status = OpenArchive(path.c_str(), &raw_handle);
+  std::unique_ptr<ZipArchive, decltype(&CloseArchive)> handle(raw_handle, CloseArchive);
+  if (open_status != 0) {
     LOG(ERROR) << "Failed to open " << path << ": "
                << ErrorCodeString(open_status);
     return false;
   }
 
   std::vector<std::vector<uint8_t>> pem_certs;
-  if (!IterateZipEntriesAndSearchForKeys(handle, &pem_certs)) {
-    CloseArchive(handle);
+  if (!IterateZipEntriesAndSearchForKeys(handle.get(), &pem_certs)) {
     return false;
   }
-  CloseArchive(handle);
-
+  handle.reset();
+  raw_handle = nullptr;
   // Convert the certificates into public keys. Stop and return false if we
   // encounter an error.
   std::vector<std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)>> result;

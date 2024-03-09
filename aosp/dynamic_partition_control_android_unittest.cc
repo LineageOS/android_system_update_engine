@@ -164,6 +164,7 @@ class DynamicPartitionControlAndroidTest : public ::testing::Test {
         target(),
         PartitionSizesToManifest(partition_sizes),
         true,
+        nullptr,
         nullptr);
   }
   void SetSlots(const TestParam& slots) { slots_ = slots; }
@@ -363,7 +364,7 @@ TEST_P(DynamicPartitionControlAndroidTestP,
   // DynamicPartitionControlAndroidTest::PreparePartitionsForUpdate(), since we
   // don't want any default group in the PartitionMetadata.
   EXPECT_TRUE(dynamicControl().PreparePartitionsForUpdate(
-      source(), target(), {}, true, nullptr));
+      source(), target(), {}, true, nullptr, nullptr));
 
   // Should use dynamic source partitions.
   EXPECT_CALL(dynamicControl(), GetState(S("system")))
@@ -504,6 +505,7 @@ TEST_P(DynamicPartitionControlAndroidTestP,
       target(),
       PartitionSizesToManifest({{"system", 2_GiB}, {"vendor", 1_GiB}}),
       false,
+      nullptr,
       nullptr));
 
   // Dynamic partition "system".
@@ -759,6 +761,7 @@ TEST_P(DynamicPartitionControlAndroidTestP, OptimizeOperationTest) {
       target(),
       PartitionSizesToManifest({{"foo", 4_MiB}}),
       false,
+      nullptr,
       nullptr));
   dynamicControl().set_fake_mapped_devices({T("foo")});
 
@@ -1041,8 +1044,12 @@ class SnapshotPartitionTestP : public DynamicPartitionControlAndroidTestP {
         }));
   }
   bool PreparePartitionsForUpdate(uint64_t* required_size) {
-    return dynamicControl().PreparePartitionsForUpdate(
-        source(), target(), manifest_, true /* update */, required_size);
+    return dynamicControl().PreparePartitionsForUpdate(source(),
+                                                       target(),
+                                                       manifest_,
+                                                       true /* update */,
+                                                       required_size,
+                                                       nullptr);
   }
   MockSnapshotManager* snapshot_ = nullptr;
   DeltaArchiveManifest manifest_;

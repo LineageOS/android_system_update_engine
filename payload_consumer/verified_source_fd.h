@@ -39,6 +39,9 @@ class VerifiedSourceFd {
   [[nodiscard]] bool Open();
 
  private:
+  bool WriteBackCorrectedSourceBlocks(
+      const std::vector<unsigned char>& source_data,
+      const google::protobuf::RepeatedPtrField<Extent>& extents);
   bool OpenCurrentECCPartition();
   const size_t block_size_;
   const std::string source_path_;

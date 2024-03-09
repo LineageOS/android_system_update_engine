@@ -31,11 +31,9 @@
 #include <string>
 #include <vector>
 
-#include <brillo/key_value_store.h>
 #include <puffin/utils.h>
 
 #include "update_engine/lz4diff/lz4diff_format.h"
-#include "update_engine/lz4diff/lz4diff.h"
 #include "update_engine/update_metadata.pb.h"
 
 namespace chromeos_update_engine {
@@ -92,10 +90,6 @@ class FilesystemInterface {
   // happens for example with hard-linked files, but not limited to those cases.
   // Returns whether the function succeeded.
   virtual bool GetFiles(std::vector<File>* files) const = 0;
-
-  // Load the image settings stored in the filesystem in the
-  // /etc/update_engine.conf file. Returns whether the settings were found.
-  virtual bool LoadSettings(brillo::KeyValueStore* store) const = 0;
 
  protected:
   FilesystemInterface() = default;

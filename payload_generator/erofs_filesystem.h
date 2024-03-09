@@ -20,6 +20,8 @@
 #include "update_engine/payload_generator/filesystem_interface.h"
 #include "update_engine/payload_generator/delta_diff_generator.h"
 
+struct erofs_sb_info;
+
 namespace chromeos_update_engine {
 
 class ErofsFilesystem final : public FilesystemInterface {
@@ -50,16 +52,12 @@ class ErofsFilesystem final : public FilesystemInterface {
   //    space.
   //  <metadata>: With the rest of ext2 metadata blocks, such as superblocks
   //    and bitmap tables.
-  static bool GetFiles(const std::string& filename,
+  static bool GetFiles(struct erofs_sb_info* sbi,
+                       const std::string& filename,
                        std::vector<File>* files,
                        const CompressionAlgorithm& algo);
 
   bool GetFiles(std::vector<File>* files) const override;
-
-  bool LoadSettings(
-      [[maybe_unused]] brillo::KeyValueStore* store) const override {
-    return true;
-  }
 
  private:
   ErofsFilesystem(std::string filename, size_t fs_size, std::vector<File> files)
