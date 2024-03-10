@@ -255,7 +255,7 @@ Status BinderUpdateEngineAndroidService::cleanupSuccessfulUpdate(
 }
 
 Status BinderUpdateEngineAndroidService::setPerformanceMode(bool enable) {
-  brillo::ErrorPtr error;
+  Error error;
   if (!service_delegate_->SetPerformanceMode(enable, &error))
     return ErrorPtrToStatus(error);
   return Status::ok();

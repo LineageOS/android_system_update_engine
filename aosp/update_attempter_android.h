@@ -100,7 +100,7 @@ class UpdateAttempterAndroid
                                    Error* error) override;
   bool resetShouldSwitchSlotOnReboot(Error* error) override;
 
-  bool SetPerformanceMode(bool enable, brillo::ErrorPtr* error) override;
+  bool SetPerformanceMode(bool enable, Error* error) override;
 
   // ActionProcessorDelegate methods:
   void ProcessingDone(const ActionProcessor* processor,
