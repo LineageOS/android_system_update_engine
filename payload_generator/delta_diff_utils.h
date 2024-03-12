@@ -185,12 +185,14 @@ class BestDiffGenerator {
     // Find all deflate positions inside the given extents and then put all
     // deflates together because we have already read all the extents into
     // one buffer.
+    Dedup(&old_deflates_);
+    Dedup(&new_deflates_);
     vector<puffin::BitExtent> src_deflates;
-    TEST_AND_RETURN(deflate_utils::FindAndCompactDeflates(
+    CHECK(deflate_utils::FindAndCompactDeflates(
         src_extents_, old_deflates_, &src_deflates));
 
     vector<puffin::BitExtent> dst_deflates;
-    TEST_AND_RETURN(deflate_utils::FindAndCompactDeflates(
+    CHECK(deflate_utils::FindAndCompactDeflates(
         dst_extents_, new_deflates_, &dst_deflates));
     puffin::RemoveEqualBitExtents(
         old_data_, new_data_, &src_deflates, &dst_deflates);
