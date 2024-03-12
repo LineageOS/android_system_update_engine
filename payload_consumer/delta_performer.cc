@@ -503,7 +503,9 @@ bool DeltaPerformer::Write(const void* bytes, size_t count, ErrorCode* error) {
     if (!CanPerformInstallOperation(op))
       return true;
     if (!ProcessOperation(&op, error)) {
-      LOG(ERROR) << "unable to process operation: " << *error;
+      LOG(ERROR) << "unable to process operation: "
+                 << InstallOperationTypeName(op.type())
+                 << " Error: " << utils::ErrorCodeToString(*error);
       return false;
     }
 
