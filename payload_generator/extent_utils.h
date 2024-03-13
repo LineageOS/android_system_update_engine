@@ -174,6 +174,13 @@ constexpr bool ExtentContains(const Extent& big, const Extent& small) {
              big.start_block() + big.num_blocks();
 }
 
+template <typename T>
+constexpr void Dedup(T* container) {
+  std::sort(container->begin(), container->end());
+  container->erase(std::unique(container->begin(), container->end()),
+                   container->end());
+}
+
 }  // namespace chromeos_update_engine
 
 #endif  // UPDATE_ENGINE_PAYLOAD_GENERATOR_EXTENT_UTILS_H_

@@ -26,8 +26,10 @@
 #include <base/strings/stringprintf.h>
 #include <bsdiff/patch_writer.h>
 #include <gtest/gtest.h>
+#include <puffin/common.h>
 
-#include "payload_generator/filesystem_interface.h"
+#include "update_engine/payload_generator/deflate_utils.h"
+#include "update_engine/payload_generator/filesystem_interface.h"
 #include "update_engine/common/test_utils.h"
 #include "update_engine/common/utils.h"
 #include "update_engine/payload_generator/delta_diff_generator.h"
@@ -843,6 +845,21 @@ TEST_F(DeltaDiffUtilsTest, XorOpsStrided) {
 
   ASSERT_EQ(aop.xor_ops[3].dst_extent().num_blocks(), 5UL);
   ASSERT_EQ(aop.xor_ops[3].dst_extent().start_block(), 702UL);
+}
+
+TEST_F(DeltaDiffUtilsTest, FindAndCompactDeflates) {
+  std::vector<puffin::BitExtent> bit_extents{{114122 * 8 * kBlockSize, 1024},
+                                             {114122 * 8 * kBlockSize, 1024}};
+
+  std::vector<Extent> extents = {ExtentForRange(114122, 295),
+                                 ExtentForRange(114418, 16654),
+                                 ExtentForRange(131102, 1),
+                                 ExtentForRange(131104, 307),
+                                 ExtentForRange(131414, 4143),
+                                 ExtentForRange(135559, 8528)};
+  std::vector<puffin::BitExtent> out_deflates;
+  ASSERT_TRUE(deflate_utils::FindAndCompactDeflates(
+      extents, bit_extents, &out_deflates));
 }
 
 }  // namespace chromeos_update_engine
