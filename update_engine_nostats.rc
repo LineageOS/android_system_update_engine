@@ -1,5 +1,5 @@
 # LINT.IfChange
-service update_engine /system/bin/update_engine --logtostderr --logtofile --foreground
+service update_engine /system/bin/update_engine_nostats --logtostderr --logtofile --foreground
     class late_start
     user root
     group root system wakelock inet cache media_rw
@@ -8,4 +8,4 @@ service update_engine /system/bin/update_engine --logtostderr --logtofile --fore
 
 on property:ro.boot.slot_suffix=*
     enable update_engine
-# LINT.ThenChange(update_engine_nostats.rc)
+# LINT.ThenChange(update_engine.rc)
