@@ -26,7 +26,7 @@
 #include <base/bind.h>
 #include <libsnapshot/snapshot.h>
 
-#ifndef __ANDROID_RECOVERY__
+#if !defined(__ANDROID_RECOVERY__) && !defined(UE_DISABLE_STATS)
 #include <statslog_ue.h>
 #endif
 
@@ -502,6 +502,8 @@ void CleanupPreviousUpdateAction::ReportMergeStats() {
 
 #ifdef __ANDROID_RECOVERY__
   LOG(INFO) << "Skip reporting merge stats in recovery.";
+#elif defined(UE_DISABLE_STATS)
+  LOG(INFO) << "Skip reporting merge stats because metrics are disabled.";
 #else
   const auto& report = result->report();
 
