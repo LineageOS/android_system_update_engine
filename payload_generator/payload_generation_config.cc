@@ -228,7 +228,16 @@ bool ImageConfig::LoadDynamicPartitionMetadata(
       compression_factor = "4096";
     }
     size_t compression_factor_value{};
-    android::base::ParseUint(compression_factor, &compression_factor_value);
+    if (!android::base::ParseUint(compression_factor,
+                                  &compression_factor_value)) {
+      LOG(ERROR) << "failed to parse compression factor value: "
+                 << compression_factor;
+      return false;
+    }
+    CHECK_EQ(static_cast<int>(compression_factor_value % kBlockSize), 0);
+    CHECK_EQ(static_cast<int>(compression_factor_value &
+                              (compression_factor_value - 1)),
+             0);
     metadata->set_compression_factor(compression_factor_value);
   }
   dynamic_partition_metadata = std::move(metadata);
