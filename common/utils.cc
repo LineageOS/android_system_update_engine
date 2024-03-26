@@ -86,6 +86,7 @@ const int kGetFileFormatMaxHeaderSize = 32;
 // The path to the kernel's boot_id.
 const char kBootIdPath[] = "/proc/sys/kernel/random/boot_id";
 
+}  // namespace
 // If |path| is absolute, or explicit relative to the current working directory,
 // leaves it as is. Otherwise, uses the system's temp directory, as defined by
 // base::GetTempDir() and prepends it to |path|. On success stores the full
@@ -109,8 +110,6 @@ bool GetTempName(const string& path, base::FilePath* template_path) {
   *template_path = temp_dir.Append(path);
   return true;
 }
-
-}  // namespace
 
 namespace utils {
 
