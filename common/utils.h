@@ -559,6 +559,8 @@ constexpr std::string_view ToStringView(
 [[nodiscard]] std::string_view ToStringView(const void* data,
                                             size_t size) noexcept;
 
+bool GetTempName(const std::string& path, base::FilePath* template_path);
+
 }  // namespace chromeos_update_engine
 
 #define TEST_AND_RETURN_FALSE_ERRNO(_x)                             \

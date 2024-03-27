@@ -17,7 +17,6 @@
 #include "update_engine/payload_generator/cow_size_estimator.h"
 
 #include <algorithm>
-#include <functional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -26,6 +25,9 @@
 #include <libsnapshot/cow_writer.h>
 #include <libsnapshot/cow_format.h>
 
+#include "update_engine/payload_consumer/block_extent_writer.h"
+#include "update_engine/payload_consumer/snapshot_extent_writer.h"
+#include "update_engine/payload_consumer/xor_extent_writer.h"
 #include "update_engine/common/utils.h"
 #include "update_engine/payload_consumer/vabc_partition_writer.h"
 #include "update_engine/payload_generator/extent_ranges.h"
@@ -35,6 +37,17 @@
 namespace chromeos_update_engine {
 using android::snapshot::CreateCowEstimator;
 using android::snapshot::ICowWriter;
+// Compute XOR map, a map from dst extent to corresponding merge operation
+static ExtentMap<const CowMergeOperation*, ExtentLess> ComputeXorMap(
+    const google::protobuf::RepeatedPtrField<CowMergeOperation>& merge_ops) {
+  ExtentMap<const CowMergeOperation*, ExtentLess> xor_map;
+  for (const auto& merge_op : merge_ops) {
+    if (merge_op.type() == CowMergeOperation::COW_XOR) {
+      xor_map.AddExtent(merge_op.dst_extent(), &merge_op);
+    }
+  }
+  return xor_map;
+}
 
 bool CowDryRun(
     FileDescriptorPtr source_fd,
@@ -50,71 +63,96 @@ bool CowDryRun(
   CHECK(target_fd->IsOpen());
   VABCPartitionWriter::WriteMergeSequence(merge_operations, cow_writer);
   ExtentRanges visited;
-  for (const auto& op : merge_operations) {
-    if (op.type() == CowMergeOperation::COW_COPY) {
-      visited.AddExtent(op.dst_extent());
-      cow_writer->AddCopy(op.dst_extent().start_block(),
-                          op.src_extent().start_block(),
-                          op.dst_extent().num_blocks());
-    } else if (op.type() == CowMergeOperation::COW_XOR && xor_enabled) {
-      CHECK_NE(source_fd, nullptr) << "Source fd is required to enable XOR ops";
-      CHECK(source_fd->IsOpen());
-      visited.AddExtent(op.dst_extent());
-      // dst block count is used, because
-      // src block count is probably(if src_offset > 0) 1 block
-      // larger than dst extent. Using it might lead to intreseting out of bound
-      // disk reads.
-      std::vector<unsigned char> old_data(op.dst_extent().num_blocks() *
-                                          block_size);
-      ssize_t bytes_read = 0;
-      if (!utils::PReadAll(
-              source_fd,
-              old_data.data(),
-              old_data.size(),
-              op.src_extent().start_block() * block_size + op.src_offset(),
-              &bytes_read)) {
-        PLOG(ERROR) << "Failed to read source data at " << op.src_extent();
-        return false;
-      }
-      std::vector<unsigned char> new_data(op.dst_extent().num_blocks() *
-                                          block_size);
-      if (!utils::PReadAll(target_fd,
-                           new_data.data(),
-                           new_data.size(),
-                           op.dst_extent().start_block() * block_size,
-                           &bytes_read)) {
-        PLOG(ERROR) << "Failed to read target data at " << op.dst_extent();
-        return false;
-      }
-      CHECK_GT(old_data.size(), 0UL);
-      CHECK_GT(new_data.size(), 0UL);
-      std::transform(new_data.begin(),
-                     new_data.end(),
-                     old_data.begin(),
-                     new_data.begin(),
-                     std::bit_xor<unsigned char>{});
-      CHECK(cow_writer->AddXorBlocks(op.dst_extent().start_block(),
-                                     new_data.data(),
-                                     new_data.size(),
-                                     op.src_extent().start_block(),
-                                     op.src_offset()));
+  SnapshotExtentWriter extent_writer(cow_writer);
+  ExtentMap<const CowMergeOperation*, ExtentLess> xor_map =
+      ComputeXorMap(merge_operations);
+  ExtentRanges copy_blocks;
+  for (const auto& cow_op : merge_operations) {
+    if (cow_op.type() != CowMergeOperation::COW_COPY) {
+      continue;
     }
-    // The value of label doesn't really matter, we just want to write some
-    // labels to simulate bahvior of update_engine. As update_engine writes
-    // labels every once a while when installing OTA, it's important that we do
-    // the same to get accurate size estimation.
-    cow_writer->AddLabel(0);
+    copy_blocks.AddExtent(cow_op.dst_extent());
   }
   for (const auto& op : operations) {
-    cow_writer->AddLabel(0);
-    if (op.type() == InstallOperation::ZERO) {
-      for (const auto& ext : op.dst_extents()) {
-        visited.AddExtent(ext);
-        cow_writer->AddZeroBlocks(ext.start_block(), ext.num_blocks());
+    switch (op.type()) {
+      case InstallOperation::SOURCE_BSDIFF:
+      case InstallOperation::BROTLI_BSDIFF:
+      case InstallOperation::PUFFDIFF:
+      case InstallOperation::ZUCCHINI:
+      case InstallOperation::LZ4DIFF_PUFFDIFF:
+      case InstallOperation::LZ4DIFF_BSDIFF: {
+        if (xor_enabled) {
+          std::unique_ptr<XORExtentWriter> writer =
+              std::make_unique<XORExtentWriter>(
+                  op, source_fd, cow_writer, xor_map, partition_size);
+          TEST_AND_RETURN_FALSE(writer->Init(op.dst_extents(), block_size));
+          for (const auto& ext : op.dst_extents()) {
+            visited.AddExtent(ext);
+            ssize_t bytes_read = 0;
+            std::vector<unsigned char> new_data(ext.num_blocks() * block_size);
+            if (!utils::PReadAll(target_fd,
+                                 new_data.data(),
+                                 new_data.size(),
+                                 ext.start_block() * block_size,
+                                 &bytes_read)) {
+              PLOG(ERROR) << "Failed to read target data at " << ext;
+              return false;
+            }
+            writer->Write(new_data.data(), ext.num_blocks() * block_size);
+          }
+          cow_writer->AddLabel(0);
+          break;
+        }
+        [[fallthrough]];
       }
+      case InstallOperation::REPLACE:
+      case InstallOperation::REPLACE_BZ:
+      case InstallOperation::REPLACE_XZ: {
+        TEST_AND_RETURN_FALSE(extent_writer.Init(op.dst_extents(), block_size));
+        for (const auto& ext : op.dst_extents()) {
+          visited.AddExtent(ext);
+          std::vector<unsigned char> data(ext.num_blocks() * block_size);
+          ssize_t bytes_read = 0;
+          if (!utils::PReadAll(target_fd,
+                               data.data(),
+                               data.size(),
+                               ext.start_block() * block_size,
+                               &bytes_read)) {
+            PLOG(ERROR) << "Failed to read new block data at " << ext;
+            return false;
+          }
+          extent_writer.Write(data.data(), data.size());
+        }
+        cow_writer->AddLabel(0);
+        break;
+      }
+      case InstallOperation::ZERO:
+      case InstallOperation::DISCARD: {
+        for (const auto& ext : op.dst_extents()) {
+          visited.AddExtent(ext);
+          cow_writer->AddZeroBlocks(ext.start_block(), ext.num_blocks());
+        }
+        cow_writer->AddLabel(0);
+        break;
+      }
+      case InstallOperation::SOURCE_COPY: {
+        for (const auto& ext : op.dst_extents()) {
+          visited.AddExtent(ext);
+        }
+        if (!VABCPartitionWriter::ProcessSourceCopyOperation(
+                op, block_size, copy_blocks, source_fd, cow_writer, true)) {
+          LOG(ERROR) << "Failed to process source copy operation: " << op.type()
+                     << "\nsource extents: " << op.src_extents()
+                     << "\ndestination extents: " << op.dst_extents();
+          return false;
+        }
+        break;
+      }
+      default:
+        LOG(ERROR) << "unknown op: " << op.type();
     }
   }
-  cow_writer->AddLabel(0);
+
   const size_t last_block = partition_size / block_size;
   const auto unvisited_extents =
       FilterExtentRanges({ExtentForRange(0, last_block)}, visited);
@@ -129,11 +167,23 @@ bool CowDryRun(
       PLOG(ERROR) << "Failed to read new block data at " << ext;
       return false;
     }
-    cow_writer->AddRawBlocks(ext.start_block(), data.data(), data.size());
+    auto to_write = data.size();
+    // FEC data written on device is chunked to 1mb. We want to mirror that here
+    while (to_write) {
+      auto curr_write = std::min(block_size, to_write);
+      cow_writer->AddRawBlocks(
+          ext.start_block() + ((data.size() - to_write) / block_size),
+          data.data() + (data.size() - to_write),
+          curr_write);
+      to_write -= curr_write;
+    }
+    CHECK_EQ(to_write, 0ULL);
     cow_writer->AddLabel(0);
   }
 
-  return cow_writer->Finalize();
+  TEST_AND_RETURN_FALSE(cow_writer->Finalize());
+
+  return true;
 }
 
 android::snapshot::CowSizeInfo EstimateCowSizeInfo(
@@ -153,9 +203,6 @@ android::snapshot::CowSizeInfo EstimateCowSizeInfo(
       .compression = std::move(compression),
       .max_blocks = (partition_size / block_size),
       .compression_factor = compression_factor};
-  // b/322279333 use 4096 as estimation until we have an updated estimation
-  // algorithm
-  options.compression_factor = block_size;
   auto cow_writer = CreateCowEstimator(cow_version, options);
   CHECK_NE(cow_writer, nullptr) << "Could not create cow estimator";
   CHECK(CowDryRun(source_fd,
