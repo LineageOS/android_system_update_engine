@@ -214,7 +214,7 @@ bool ImageConfig::LoadDynamicPartitionMetadata(
     metadata->set_vabc_compression_param(compression_method);
     std::string cow_version;
     if (!store.GetString("virtual_ab_cow_version", &cow_version)) {
-      metadata->set_cow_version(android::snapshot::kCowVersionManifest);
+      metadata->set_cow_version(2);
     } else {
       uint32_t cow_version_num{};
       android::base::ParseUint(cow_version, &cow_version_num);
