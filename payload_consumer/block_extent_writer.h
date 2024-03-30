@@ -49,7 +49,7 @@ class BlockExtentWriter : public chromeos_update_engine::ExtentWriter {
   bool NextExtent();
   [[nodiscard]] size_t ConsumeWithBuffer(const uint8_t* const bytes,
                                          const size_t count);
-  // It's a non-owning pointer, because PartitionWriter owns the CowWruter. This
+  // It's a non-owning pointer, because PartitionWriter owns the CowWriter. This
   // allows us to use a single instance of CowWriter for all operations applied
   // to the same partition.
   google::protobuf::RepeatedPtrField<Extent> extents_;
