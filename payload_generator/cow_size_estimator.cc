@@ -99,7 +99,12 @@ bool CowDryRun(
               PLOG(ERROR) << "Failed to read target data at " << ext;
               return false;
             }
-            writer->Write(new_data.data(), ext.num_blocks() * block_size);
+            if (!writer->Write(new_data.data(),
+                               ext.num_blocks() * block_size)) {
+              LOG(ERROR) << "Failed to write XOR operation for extent: "
+                         << ext.start_block();
+              return false;
+            }
           }
           cow_writer->AddLabel(0);
           break;
@@ -122,7 +127,11 @@ bool CowDryRun(
             PLOG(ERROR) << "Failed to read new block data at " << ext;
             return false;
           }
-          extent_writer.Write(data.data(), data.size());
+          if (!extent_writer.Write(data.data(), data.size())) {
+            LOG(ERROR) << "Failed to write REPLACE op for extent: "
+                       << ext.start_block();
+            return false;
+          }
         }
         cow_writer->AddLabel(0);
         break;
