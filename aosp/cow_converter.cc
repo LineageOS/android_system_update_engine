@@ -95,6 +95,7 @@ bool ProcessPartition(
                                   manifest.block_size(),
                                   cow_writer.get(),
                                   partition.new_partition_info().size(),
+                                  partition.old_partition_info().size(),
                                   false));
   TEST_AND_RETURN_FALSE(cow_writer->Finalize());
   return true;
