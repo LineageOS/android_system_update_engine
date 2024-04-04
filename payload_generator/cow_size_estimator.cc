@@ -57,7 +57,8 @@ bool CowDryRun(
         merge_operations,
     const size_t block_size,
     android::snapshot::ICowWriter* cow_writer,
-    const size_t partition_size,
+    const size_t new_partition_size,
+    const size_t old_partition_size,
     const bool xor_enabled) {
   CHECK_NE(target_fd, nullptr);
   CHECK(target_fd->IsOpen());
@@ -84,7 +85,7 @@ bool CowDryRun(
         if (xor_enabled) {
           std::unique_ptr<XORExtentWriter> writer =
               std::make_unique<XORExtentWriter>(
-                  op, source_fd, cow_writer, xor_map, partition_size);
+                  op, source_fd, cow_writer, xor_map, old_partition_size);
           TEST_AND_RETURN_FALSE(writer->Init(op.dst_extents(), block_size));
           for (const auto& ext : op.dst_extents()) {
             visited.AddExtent(ext);
@@ -153,7 +154,7 @@ bool CowDryRun(
     }
   }
 
-  const size_t last_block = partition_size / block_size;
+  const size_t last_block = new_partition_size / block_size;
   const auto unvisited_extents =
       FilterExtentRanges({ExtentForRange(0, last_block)}, visited);
   for (const auto& ext : unvisited_extents) {
@@ -194,14 +195,15 @@ android::snapshot::CowSizeInfo EstimateCowSizeInfo(
         merge_operations,
     const size_t block_size,
     std::string compression,
-    const size_t partition_size,
+    const size_t new_partition_size,
+    const size_t old_partition_size,
     const bool xor_enabled,
     uint32_t cow_version,
     uint64_t compression_factor) {
   android::snapshot::CowOptions options{
       .block_size = static_cast<uint32_t>(block_size),
       .compression = std::move(compression),
-      .max_blocks = (partition_size / block_size),
+      .max_blocks = (new_partition_size / block_size),
       .compression_factor = compression_factor};
   auto cow_writer = CreateCowEstimator(cow_version, options);
   CHECK_NE(cow_writer, nullptr) << "Could not create cow estimator";
@@ -211,7 +213,8 @@ android::snapshot::CowSizeInfo EstimateCowSizeInfo(
                   merge_operations,
                   block_size,
                   cow_writer.get(),
-                  partition_size,
+                  new_partition_size,
+                  old_partition_size,
                   xor_enabled));
   return cow_writer->GetCowSizeInfo();
 }
