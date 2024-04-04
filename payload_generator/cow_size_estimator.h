@@ -36,7 +36,8 @@ android::snapshot::CowSizeInfo EstimateCowSizeInfo(
         merge_operations,
     const size_t block_size,
     std::string compression,
-    const size_t partition_size,
+    const size_t new_partition_size,
+    const size_t old_partition_size,
     bool xor_enabled,
     uint32_t cow_version,
     uint64_t compression_factor);
@@ -50,7 +51,8 @@ bool CowDryRun(
         merge_operations,
     size_t block_size,
     android::snapshot::ICowWriter* cow_writer,
-    size_t partition_size,
+    const size_t new_partition_size,
+    const size_t old_partition_size,
     bool xor_enabled);
 
 }  // namespace chromeos_update_engine

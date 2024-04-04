@@ -139,6 +139,7 @@ class PartitionProcessor : public base::DelegateSimpleThread::Delegate {
         config_.block_size,
         config_.target.dynamic_partition_metadata->vabc_compression_param(),
         new_part_.size,
+        old_part_.size,
         config_.enable_vabc_xor,
         config_.target.dynamic_partition_metadata->cow_version(),
         config_.target.dynamic_partition_metadata->compression_factor());
