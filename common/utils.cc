@@ -412,6 +412,9 @@ bool SendFile(int out_fd, int in_fd, size_t count) {
 }
 
 bool DeleteDirectory(const char* dirname) {
+  if (!std::filesystem::exists(dirname)) {
+    return true;
+  }
   const std::string tmpdir = std::string(dirname) + "_deleted";
   std::filesystem::remove_all(tmpdir);
   if (rename(dirname, tmpdir.c_str()) != 0) {
@@ -620,7 +623,8 @@ bool SetBlockDeviceReadOnly(const string& device, bool read_only) {
    */
   rc = ioctl(fd, BLKROGET, &read_only_flag);
   if (rc != 0) {
-    PLOG(ERROR) << "Failed to read back block device read-only value:" << device;
+    PLOG(ERROR) << "Failed to read back block device read-only value:"
+                << device;
     return false;
   }
   if (read_only_flag == expected_flag) {
@@ -628,20 +632,20 @@ bool SetBlockDeviceReadOnly(const string& device, bool read_only) {
   }
 
   std::array<char, PATH_MAX> device_name;
-  char *pdevice = realpath(device.c_str(), device_name.data());
+  char* pdevice = realpath(device.c_str(), device_name.data());
   TEST_AND_RETURN_FALSE_ERRNO(pdevice);
 
   std::string real_path(pdevice);
   std::size_t offset = real_path.find_last_of('/');
-  if (offset == std::string::npos){
+  if (offset == std::string::npos) {
     LOG(ERROR) << "Could not find partition name from " << real_path;
     return false;
   }
   const std::string partition_name = real_path.substr(offset + 1);
 
   std::string force_ro_file = "/sys/block/" + partition_name + "/force_ro";
-  android::base::unique_fd fd_force_ro {
-    HANDLE_EINTR(open(force_ro_file.c_str(), O_WRONLY | O_CLOEXEC))};
+  android::base::unique_fd fd_force_ro{
+      HANDLE_EINTR(open(force_ro_file.c_str(), O_WRONLY | O_CLOEXEC))};
   TEST_AND_RETURN_FALSE_ERRNO(fd_force_ro >= 0);
 
   rc = write(fd_force_ro, expected_flag ? "1" : "0", 1);
@@ -650,12 +654,13 @@ bool SetBlockDeviceReadOnly(const string& device, bool read_only) {
   // Read back again
   rc = ioctl(fd, BLKROGET, &read_only_flag);
   if (rc != 0) {
-    PLOG(ERROR) << "Failed to read back block device read-only value:" << device;
+    PLOG(ERROR) << "Failed to read back block device read-only value:"
+                << device;
     return false;
   }
   if (read_only_flag != expected_flag) {
     LOG(ERROR) << "After modifying force_ro, marking block device " << device
-                << " as read_only=" << expected_flag;
+               << " as read_only=" << expected_flag;
     return false;
   }
   return true;
