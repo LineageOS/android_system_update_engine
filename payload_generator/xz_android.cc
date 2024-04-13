@@ -16,6 +16,9 @@
 
 #include "update_engine/payload_generator/xz.h"
 
+#include <elf.h>
+#include <endian.h>
+
 #include <algorithm>
 
 #include <7zCrc.h>
@@ -65,6 +68,37 @@ struct BlobWriterStream : public ISeqOutStream {
   brillo::Blob* data_;
 };
 
+// Returns the filter id to be used to compress |data|.
+// Only BCJ filter for x86 and ARM ELF file are supported, returns 0 otherwise.
+int GetFilterID(const brillo::Blob& data) {
+  if (data.size() < sizeof(Elf32_Ehdr) ||
+      memcmp(data.data(), ELFMAG, SELFMAG) != 0)
+    return 0;
+
+  const Elf32_Ehdr* header = reinterpret_cast<const Elf32_Ehdr*>(data.data());
+
+  // Only little-endian is supported.
+  if (header->e_ident[EI_DATA] != ELFDATA2LSB)
+    return 0;
+
+  switch (le16toh(header->e_machine)) {
+    case EM_386:
+    case EM_X86_64:
+      return XZ_ID_X86;
+    case EM_ARM:
+      // Both ARM and ARM Thumb instructions could be found in the same ARM ELF
+      // file. We choose to use the ARM Thumb filter here because testing shows
+      // that it usually works better than the ARM filter.
+      return XZ_ID_ARMT;
+#ifdef EM_AARCH64
+    case EM_AARCH64:
+      // Neither the ARM nor the ARM Thumb filter works well with AArch64.
+      return 0;
+#endif
+  }
+  return 0;
+}
+
 }  // namespace
 
 namespace chromeos_update_engine {
@@ -105,8 +139,7 @@ bool XzCompress(const brillo::Blob& in, brillo::Blob* out) {
   Lzma2EncProps_Normalize(&lzma2Props);
   props.lzma2Props = lzma2Props;
 
-  // We do not use xz's BCJ filters (http://b/329112384).
-  props.filterProps.id = 0;
+  props.filterProps.id = GetFilterID(in);
 
   BlobWriterStream out_writer(out);
   BlobReaderStream in_reader(in);
