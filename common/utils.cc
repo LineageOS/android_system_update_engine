@@ -370,7 +370,7 @@ off_t BlockDevSize(int fd) {
 }
 
 off_t FileSize(int fd) {
-  struct stat stbuf {};
+  struct stat stbuf{};
   int rc = fstat(fd, &stbuf);
   CHECK_EQ(rc, 0);
   if (rc < 0) {
@@ -425,7 +425,41 @@ bool DeleteDirectory(const char* dirname) {
   return true;
 }
 
+bool FsyncDirectoryContents(const char* dirname) {
+  std::filesystem::path dir_path(dirname);
+
+  std::error_code ec;
+  if (!std::filesystem::exists(dir_path, ec) ||
+      !std::filesystem::is_directory(dir_path, ec)) {
+    LOG(ERROR) << "Error: Invalid directory path: " << dirname << std::endl;
+    return false;
+  }
+
+  for (const auto& entry : std::filesystem::directory_iterator(dirname, ec)) {
+    if (entry.is_regular_file()) {
+      int fd = open(entry.path().c_str(), O_RDONLY | O_CLOEXEC);
+      if (fd == -1) {
+        LOG(ERROR) << "open failed: " << entry.path();
+        return false;
+      }
+
+      if (fsync(fd) == -1) {
+        LOG(ERROR) << "fsync failed";
+        return false;
+      }
+
+      close(fd);
+    }
+  }
+
+  return true;
+}
+
 bool FsyncDirectory(const char* dirname) {
+  if (!FsyncDirectoryContents(dirname)) {
+    LOG(ERROR) << "failed to fsync directory contents";
+    return false;
+  }
   android::base::unique_fd fd(
       TEMP_FAILURE_RETRY(open(dirname, O_RDONLY | O_CLOEXEC)));
   if (fd == -1) {
@@ -553,17 +587,17 @@ string MakePartitionName(const string& disk_name, int partition_num) {
 }
 
 bool FileExists(const char* path) {
-  struct stat stbuf {};
+  struct stat stbuf{};
   return 0 == lstat(path, &stbuf);
 }
 
 bool IsSymlink(const char* path) {
-  struct stat stbuf {};
+  struct stat stbuf{};
   return lstat(path, &stbuf) == 0 && S_ISLNK(stbuf.st_mode) != 0;
 }
 
 bool IsRegFile(const char* path) {
-  struct stat stbuf {};
+  struct stat stbuf{};
   return lstat(path, &stbuf) == 0 && S_ISREG(stbuf.st_mode) != 0;
 }
 
@@ -718,8 +752,7 @@ bool UnmountFilesystem(const string& mountpoint) {
 }
 
 bool IsMountpoint(const std::string& mountpoint) {
-  struct stat stdir {
-  }, stparent{};
+  struct stat stdir{}, stparent{};
 
   // Check whether the passed mountpoint is a directory and the /.. is in the
   // same device or not. If mountpoint/.. is in a different device it means that
@@ -1163,7 +1196,7 @@ string GetFilePath(int fd) {
 }
 
 string GetTimeAsString(time_t utime) {
-  struct tm tm {};
+  struct tm tm{};
   CHECK_EQ(localtime_r(&utime, &tm), &tm);
   char str[16];
   CHECK_EQ(strftime(str, sizeof(str), "%Y%m%d-%H%M%S", &tm), 15u);
