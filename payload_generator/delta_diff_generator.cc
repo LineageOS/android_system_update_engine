@@ -146,7 +146,9 @@ class PartitionProcessor : public base::DelegateSimpleThread::Delegate {
 
     // add a 1% overhead to our estimation
     cow_info_->cow_size = cow_info_->cow_size * 1.01;
-    cow_info_->op_count_max = std::max(int(cow_info_->op_count_max), 25);
+    if (config_.target.dynamic_partition_metadata->cow_version() >= 3) {
+      cow_info_->op_count_max = std::max(int(cow_info_->op_count_max), 25);
+    }
     // ops buffer size == 0 for v2 version of cow format
     LOG(INFO) << "Estimated COW size for partition: " << new_part_.name << " "
               << cow_info_->cow_size
