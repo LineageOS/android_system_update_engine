@@ -189,7 +189,6 @@ cc_defaults {
         "libbz",
         "libbspatch",
         "libbrotli",
-        "libc++fs",
         "libfec_rs",
         "libpuffpatch",
         "libverity_tree",
