@@ -18,7 +18,6 @@
 
 #include <algorithm>
 #include <charconv>
-#include <map>
 #include <utility>
 
 #include <android-base/parseint.h>
@@ -138,7 +137,7 @@ bool ImageConfig::LoadImageSize() {
 bool ImageConfig::LoadPostInstallConfig(const brillo::KeyValueStore& store) {
   bool found_postinstall = false;
   for (PartitionConfig& part : partitions) {
-    bool run_postinstall;
+    bool run_postinstall{};
     if (!store.GetBoolean("RUN_POSTINSTALL_" + part.name, &run_postinstall) ||
         !run_postinstall)
       continue;
@@ -176,7 +175,7 @@ bool ImageConfig::LoadDynamicPartitionMetadata(
       return false;
     }
 
-    uint64_t max_size;
+    uint64_t max_size{};
     if (!base::StringToUint64(buf, &max_size)) {
       LOG(ERROR) << "Group size for " << group_name << " = " << buf
                  << " is not an integer.";
@@ -221,6 +220,16 @@ bool ImageConfig::LoadDynamicPartitionMetadata(
       android::base::ParseUint(cow_version, &cow_version_num);
       metadata->set_cow_version(cow_version_num);
     }
+    std::string compression_factor;
+    if (store.GetString("virtual_ab_compression_factor", &compression_factor)) {
+      LOG(INFO) << "Using VABC compression factor " << compression_factor;
+    } else {
+      LOG(INFO) << "No compression factor specified. Defaulting to 4k";
+      compression_factor = "4096";
+    }
+    size_t compression_factor_value{};
+    android::base::ParseUint(compression_factor, &compression_factor_value);
+    metadata->set_compression_factor(compression_factor_value);
   }
   dynamic_partition_metadata = std::move(metadata);
   return true;

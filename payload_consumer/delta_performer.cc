@@ -16,12 +16,11 @@
 
 #include "update_engine/payload_consumer/delta_performer.h"
 
-#include <errno.h>
 #include <linux/fs.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cstring>
-#include <map>
 #include <memory>
 #include <set>
 #include <string>
@@ -323,8 +322,8 @@ MetadataParseResult DeltaPerformer::ParsePayloadMetadata(
     if (metadata_size_ + metadata_signature_size_ > payload_->size) {
       LOG(ERROR) << "The size of the metadata_size(" << metadata_size_ << ")"
                  << " or metadata signature(" << metadata_signature_size_ << ")"
-                 << " is greater than the size of the payload"
-                 << "(" << payload_->size << ")";
+                 << " is greater than the size of the payload" << "("
+                 << payload_->size << ")";
       *error = ErrorCode::kDownloadInvalidMetadataSize;
       return MetadataParseResult::kError;
     }
@@ -444,6 +443,7 @@ bool DeltaPerformer::CheckSPLDowngrade() {
 // and stores an action exit code in |error|.
 bool DeltaPerformer::Write(const void* bytes, size_t count, ErrorCode* error) {
   if (!error) {
+    LOG(INFO) << "Error Code is not initialized";
     return false;
   }
   *error = ErrorCode::kSuccess;
@@ -454,136 +454,14 @@ bool DeltaPerformer::Write(const void* bytes, size_t count, ErrorCode* error) {
   UpdateOverallProgress(false, "Completed ");
 
   while (!manifest_valid_) {
-    // Read data up to the needed limit; this is either maximium payload header
-    // size, or the full metadata size (once it becomes known).
-    const bool do_read_header = !IsHeaderParsed();
-    CopyDataToBuffer(
-        &c_bytes,
-        &count,
-        (do_read_header ? kMaxPayloadHeaderSize
-                        : metadata_size_ + metadata_signature_size_));
-
-    MetadataParseResult result = ParsePayloadMetadata(buffer_, error);
-    if (result == MetadataParseResult::kError)
+    bool insufficient_bytes = false;
+    if (!ParseManifest(&c_bytes, &count, error, &insufficient_bytes)) {
+      LOG(ERROR) << "Failed to parse manifest";
       return false;
-    if (result == MetadataParseResult::kInsufficientData) {
-      // If we just processed the header, make an attempt on the manifest.
-      if (do_read_header && IsHeaderParsed())
-        continue;
-
+    }
+    if (insufficient_bytes) {
       return true;
     }
-
-    // Checks the integrity of the payload manifest.
-    if ((*error = ValidateManifest()) != ErrorCode::kSuccess)
-      return false;
-    manifest_valid_ = true;
-    if (!install_plan_->is_resume) {
-      auto begin = reinterpret_cast<const char*>(buffer_.data());
-      prefs_->SetString(kPrefsManifestBytes, {begin, buffer_.size()});
-    }
-
-    // Clear the download buffer.
-    DiscardBuffer(false, metadata_size_);
-
-    block_size_ = manifest_.block_size();
-
-    if (!install_plan_->spl_downgrade && !CheckSPLDowngrade()) {
-      *error = ErrorCode::kPayloadTimestampError;
-      return false;
-    }
-
-    // update estimate_cow_size if VABC is disabled
-    // new_cow_size per partition = partition_size - (#blocks in Copy
-    // operations part of the partition)
-    if (install_plan_->vabc_none) {
-      LOG(INFO) << "Setting Virtual AB Compression algorithm to none";
-      manifest_.mutable_dynamic_partition_metadata()
-          ->set_vabc_compression_param("none");
-      for (auto& partition : *manifest_.mutable_partitions()) {
-        auto new_cow_size = partition.new_partition_info().size();
-        for (const auto& operation : partition.merge_operations()) {
-          if (operation.type() == CowMergeOperation::COW_COPY) {
-            new_cow_size -=
-                operation.dst_extent().num_blocks() * manifest_.block_size();
-          }
-        }
-        // Every block written to COW device will come with a header which
-        // stores src/dst block info along with other data.
-        const auto cow_metadata_size = partition.new_partition_info().size() /
-                                       manifest_.block_size() *
-                                       sizeof(android::snapshot::CowOperation);
-        // update_engine will emit a label op every op or every two seconds,
-        // whichever one is longer. In the worst case, we add 1 label per
-        // InstallOp. So take size of label ops into account.
-        const auto label_ops_size = partition.operations_size() *
-                                    sizeof(android::snapshot::CowOperation);
-        // Adding extra 2MB headroom just for any unexpected space usage.
-        // If we overrun reserved COW size, entire OTA will fail
-        // and no way for user to retry OTA
-        partition.set_estimate_cow_size(new_cow_size + (1024 * 1024 * 2) +
-                                        cow_metadata_size + label_ops_size);
-        LOG(INFO) << "New COW size for partition " << partition.partition_name()
-                  << " is " << partition.estimate_cow_size();
-      }
-    }
-    if (install_plan_->disable_vabc) {
-      manifest_.mutable_dynamic_partition_metadata()->set_vabc_enabled(false);
-    }
-    if (install_plan_->enable_threading) {
-      manifest_.mutable_dynamic_partition_metadata()
-          ->mutable_vabc_feature_set()
-          ->set_threaded(install_plan_->enable_threading.value());
-      LOG(INFO) << "Attempting to enable multi-threaded compression for VABC";
-    }
-    if (install_plan_->batched_writes) {
-      manifest_.mutable_dynamic_partition_metadata()
-          ->mutable_vabc_feature_set()
-          ->set_batch_writes(true);
-      LOG(INFO) << "Attempting to enable batched writes for VABC";
-    }
-
-    // This populates |partitions_| and the |install_plan.partitions| with the
-    // list of partitions from the manifest.
-    if (!ParseManifestPartitions(error))
-      return false;
-
-    // |install_plan.partitions| was filled in, nothing need to be done here if
-    // the payload was already applied, returns false to terminate http fetcher,
-    // but keep |error| as ErrorCode::kSuccess.
-    if (payload_->already_applied)
-      return false;
-
-    num_total_operations_ = 0;
-    for (const auto& partition : partitions_) {
-      num_total_operations_ += partition.operations_size();
-      acc_num_operations_.push_back(num_total_operations_);
-    }
-
-    LOG_IF(WARNING,
-           !prefs_->SetInt64(kPrefsManifestMetadataSize, metadata_size_))
-        << "Unable to save the manifest metadata size.";
-    LOG_IF(WARNING,
-           !prefs_->SetInt64(kPrefsManifestSignatureSize,
-                             metadata_signature_size_))
-        << "Unable to save the manifest signature size.";
-
-    if (!PrimeUpdateState()) {
-      *error = ErrorCode::kDownloadStateInitializationError;
-      LOG(ERROR) << "Unable to prime the update state.";
-      return false;
-    }
-
-    if (next_operation_num_ < acc_num_operations_[current_partition_]) {
-      if (!OpenCurrentPartition()) {
-        *error = ErrorCode::kInstallDeviceOpenError;
-        return false;
-      }
-    }
-
-    if (next_operation_num_ > 0)
-      UpdateOverallProgress(true, "Resuming after ");
-    LOG(INFO) << "Starting to apply update payload operations";
   }
 
   while (next_operation_num_ < num_total_operations_) {
@@ -602,7 +480,13 @@ bool DeltaPerformer::Write(const void* bytes, size_t count, ErrorCode* error) {
           return false;
         }
       }
-      CloseCurrentPartition();
+      const auto err = CloseCurrentPartition();
+      if (err < 0) {
+        LOG(ERROR) << "Failed to close partition "
+                   << partitions_[current_partition_].partition_name() << " "
+                   << strerror(-err);
+        return false;
+      }
       // Skip until there are operations for current_partition_.
       while (next_operation_num_ >= acc_num_operations_[current_partition_]) {
         current_partition_++;
@@ -621,65 +505,10 @@ bool DeltaPerformer::Write(const void* bytes, size_t count, ErrorCode* error) {
     // Check whether we received all of the next operation's data payload.
     if (!CanPerformInstallOperation(op))
       return true;
-
-    // Validate the operation unconditionally. This helps prevent the
-    // exploitation of vulnerabilities in the patching libraries, e.g. bspatch.
-    // The hash of the patch data for a given operation is embedded in the
-    // payload metadata; and thus has been verified against the public key on
-    // device.
-    // Note: Validate must be called only if CanPerformInstallOperation is
-    // called. Otherwise, we might be failing operations before even if there
-    // isn't sufficient data to compute the proper hash.
-    *error = ValidateOperationHash(op);
-    if (*error != ErrorCode::kSuccess) {
-      if (install_plan_->hash_checks_mandatory) {
-        LOG(ERROR) << "Mandatory operation hash check failed";
-        return false;
-      }
-
-      // For non-mandatory cases, just send a UMA stat.
-      LOG(WARNING) << "Ignoring operation validation errors";
-      *error = ErrorCode::kSuccess;
-    }
-
-    // Makes sure we unblock exit when this operation completes.
-    ScopedTerminatorExitUnblocker exit_unblocker =
-        ScopedTerminatorExitUnblocker();  // Avoids a compiler unused var bug.
-
-    base::TimeTicks op_start_time = base::TimeTicks::Now();
-
-    bool op_result{};
-    const string op_name = InstallOperationTypeName(op.type());
-    switch (op.type()) {
-      case InstallOperation::REPLACE:
-      case InstallOperation::REPLACE_BZ:
-      case InstallOperation::REPLACE_XZ:
-        op_result = PerformReplaceOperation(op);
-        OP_DURATION_HISTOGRAM("REPLACE", op_start_time);
-        break;
-      case InstallOperation::ZERO:
-      case InstallOperation::DISCARD:
-        op_result = PerformZeroOrDiscardOperation(op);
-        OP_DURATION_HISTOGRAM("ZERO_OR_DISCARD", op_start_time);
-        break;
-      case InstallOperation::SOURCE_COPY:
-        op_result = PerformSourceCopyOperation(op, error);
-        OP_DURATION_HISTOGRAM("SOURCE_COPY", op_start_time);
-        break;
-      case InstallOperation::SOURCE_BSDIFF:
-      case InstallOperation::BROTLI_BSDIFF:
-      case InstallOperation::PUFFDIFF:
-      case InstallOperation::ZUCCHINI:
-      case InstallOperation::LZ4DIFF_PUFFDIFF:
-      case InstallOperation::LZ4DIFF_BSDIFF:
-        op_result = PerformDiffOperation(op, error);
-        OP_DURATION_HISTOGRAM(op_name, op_start_time);
-        break;
-      default:
-        op_result = false;
-    }
-    if (!HandleOpResult(op_result, op_name.c_str(), error))
+    if (!ProcessOperation(&op, error)) {
+      LOG(ERROR) << "unable to process operation: " << *error;
       return false;
+    }
 
     next_operation_num_++;
     UpdateOverallProgress(false, "Completed ");
@@ -719,6 +548,227 @@ bool DeltaPerformer::Write(const void* bytes, size_t count, ErrorCode* error) {
     // saved.
     CheckpointUpdateProgress(true);
   }
+
+  return true;
+}
+
+bool DeltaPerformer::ParseManifest(const char** c_bytes,
+                                   size_t* count,
+                                   ErrorCode* error,
+                                   bool* should_return) {
+  // Read data up to the needed limit; this is either maximium payload header
+  // size, or the full metadata size (once it becomes known).
+  const bool do_read_header = !IsHeaderParsed();
+  CopyDataToBuffer(
+      c_bytes,
+      count,
+      (do_read_header ? kMaxPayloadHeaderSize
+                      : metadata_size_ + metadata_signature_size_));
+  MetadataParseResult result = ParsePayloadMetadata(buffer_, error);
+  if (result == MetadataParseResult::kError)
+    return false;
+  if (result == MetadataParseResult::kInsufficientData) {
+    // If we just processed the header, make an attempt on the manifest.
+    if (do_read_header && IsHeaderParsed()) {
+      return true;
+    }
+    *should_return = true;
+    return true;
+  }
+
+  // Checks the integrity of the payload manifest.
+  if ((*error = ValidateManifest()) != ErrorCode::kSuccess)
+    return false;
+  manifest_valid_ = true;
+  if (!install_plan_->is_resume) {
+    auto begin = reinterpret_cast<const char*>(buffer_.data());
+    prefs_->SetString(kPrefsManifestBytes, {begin, buffer_.size()});
+  }
+
+  // Clear the download buffer.
+  DiscardBuffer(false, metadata_size_);
+
+  block_size_ = manifest_.block_size();
+
+  if (!install_plan_->spl_downgrade && !CheckSPLDowngrade()) {
+    *error = ErrorCode::kPayloadTimestampError;
+    return false;
+  }
+
+  // update estimate_cow_size if VABC is disabled
+  // new_cow_size per partition = partition_size - (#blocks in Copy
+  // operations part of the partition)
+  if (install_plan_->vabc_none) {
+    LOG(INFO) << "Setting Virtual AB Compression algorithm to none. This "
+                 "would also disable VABC XOR as XOR only saves space if "
+                 "compression is enabled.";
+    manifest_.mutable_dynamic_partition_metadata()->set_vabc_compression_param(
+        "none");
+    for (auto& partition : *manifest_.mutable_partitions()) {
+      if (!partition.has_estimate_cow_size()) {
+        continue;
+      }
+      auto new_cow_size = partition.new_partition_info().size();
+      for (const auto& operation : partition.merge_operations()) {
+        if (operation.type() == CowMergeOperation::COW_COPY) {
+          new_cow_size -=
+              operation.dst_extent().num_blocks() * manifest_.block_size();
+        }
+      }
+      // Remove all COW_XOR merge ops, as XOR without compression is useless.
+      // It increases CPU usage but does not reduce space usage at all.
+      auto&& merge_ops = *partition.mutable_merge_operations();
+      merge_ops.erase(std::remove_if(merge_ops.begin(),
+                                     merge_ops.end(),
+                                     [](const auto& op) {
+                                       return op.type() ==
+                                              CowMergeOperation::COW_XOR;
+                                     }),
+                      merge_ops.end());
+
+      // Every block written to COW device will come with a header which
+      // stores src/dst block info along with other data.
+      const auto cow_metadata_size = partition.new_partition_info().size() /
+                                     manifest_.block_size() *
+                                     sizeof(android::snapshot::CowOperation);
+      // update_engine will emit a label op every op or every two seconds,
+      // whichever one is longer. In the worst case, we add 1 label per
+      // InstallOp. So take size of label ops into account.
+      const auto label_ops_size =
+          partition.operations_size() * sizeof(android::snapshot::CowOperation);
+      // Adding extra 2MB headroom just for any unexpected space usage.
+      // If we overrun reserved COW size, entire OTA will fail
+      // and no way for user to retry OTA
+      partition.set_estimate_cow_size(new_cow_size + (1024 * 1024 * 2) +
+                                      cow_metadata_size + label_ops_size);
+      // Setting op count max to 0 will defer to num_blocks as the op buffer
+      // size.
+      partition.set_estimate_op_count_max(0);
+      LOG(INFO) << "New COW size for partition " << partition.partition_name()
+                << " is " << partition.estimate_cow_size();
+    }
+  }
+  if (install_plan_->disable_vabc) {
+    manifest_.mutable_dynamic_partition_metadata()->set_vabc_enabled(false);
+  }
+  if (install_plan_->enable_threading) {
+    manifest_.mutable_dynamic_partition_metadata()
+        ->mutable_vabc_feature_set()
+        ->set_threaded(install_plan_->enable_threading.value());
+    LOG(INFO) << "Attempting to "
+              << (install_plan_->enable_threading.value() ? "enable"
+                                                          : "disable")
+              << " multi-threaded compression for VABC";
+  }
+  if (install_plan_->batched_writes) {
+    manifest_.mutable_dynamic_partition_metadata()
+        ->mutable_vabc_feature_set()
+        ->set_batch_writes(true);
+    LOG(INFO) << "Attempting to enable batched writes for VABC";
+  }
+
+  // This populates |partitions_| and the |install_plan.partitions| with the
+  // list of partitions from the manifest.
+  if (!ParseManifestPartitions(error))
+    return false;
+
+  // |install_plan.partitions| was filled in, nothing need to be done here if
+  // the payload was already applied, returns false to terminate http fetcher,
+  // but keep |error| as ErrorCode::kSuccess.
+  if (payload_->already_applied)
+    return false;
+
+  num_total_operations_ = 0;
+  for (const auto& partition : partitions_) {
+    num_total_operations_ += partition.operations_size();
+    acc_num_operations_.push_back(num_total_operations_);
+  }
+
+  LOG_IF(WARNING, !prefs_->SetInt64(kPrefsManifestMetadataSize, metadata_size_))
+      << "Unable to save the manifest metadata size.";
+  LOG_IF(
+      WARNING,
+      !prefs_->SetInt64(kPrefsManifestSignatureSize, metadata_signature_size_))
+      << "Unable to save the manifest signature size.";
+
+  if (!PrimeUpdateState()) {
+    *error = ErrorCode::kDownloadStateInitializationError;
+    LOG(ERROR) << "Unable to prime the update state.";
+    return false;
+  }
+
+  if (next_operation_num_ < acc_num_operations_[current_partition_]) {
+    if (!OpenCurrentPartition()) {
+      *error = ErrorCode::kInstallDeviceOpenError;
+      return false;
+    }
+  }
+
+  if (next_operation_num_ > 0)
+    UpdateOverallProgress(true, "Resuming after ");
+  LOG(INFO) << "Starting to apply update payload operations";
+  return true;
+}
+bool DeltaPerformer::ProcessOperation(const InstallOperation* op,
+                                      ErrorCode* error) {
+  // Validate the operation unconditionally. This helps prevent the
+  // exploitation of vulnerabilities in the patching libraries, e.g. bspatch.
+  // The hash of the patch data for a given operation is embedded in the
+  // payload metadata; and thus has been verified against the public key on
+  // device.
+  // Note: Validate must be called only if CanPerformInstallOperation is
+  // called. Otherwise, we might be failing operations before even if there
+  // isn't sufficient data to compute the proper hash.
+  *error = ValidateOperationHash(*op);
+  if (*error != ErrorCode::kSuccess) {
+    if (install_plan_->hash_checks_mandatory) {
+      LOG(ERROR) << "Mandatory operation hash check failed";
+      return false;
+    }
+
+    // For non-mandatory cases, just send a UMA stat.
+    LOG(WARNING) << "Ignoring operation validation errors";
+    *error = ErrorCode::kSuccess;
+  }
+
+  // Makes sure we unblock exit when this operation completes.
+  ScopedTerminatorExitUnblocker exit_unblocker =
+      ScopedTerminatorExitUnblocker();  // Avoids a compiler unused var bug.
+
+  base::TimeTicks op_start_time = base::TimeTicks::Now();
+
+  bool op_result{};
+  const string op_name = InstallOperationTypeName(op->type());
+  switch (op->type()) {
+    case InstallOperation::REPLACE:
+    case InstallOperation::REPLACE_BZ:
+    case InstallOperation::REPLACE_XZ:
+      op_result = PerformReplaceOperation(*op);
+      OP_DURATION_HISTOGRAM("REPLACE", op_start_time);
+      break;
+    case InstallOperation::ZERO:
+    case InstallOperation::DISCARD:
+      op_result = PerformZeroOrDiscardOperation(*op);
+      OP_DURATION_HISTOGRAM("ZERO_OR_DISCARD", op_start_time);
+      break;
+    case InstallOperation::SOURCE_COPY:
+      op_result = PerformSourceCopyOperation(*op, error);
+      OP_DURATION_HISTOGRAM("SOURCE_COPY", op_start_time);
+      break;
+    case InstallOperation::SOURCE_BSDIFF:
+    case InstallOperation::BROTLI_BSDIFF:
+    case InstallOperation::PUFFDIFF:
+    case InstallOperation::ZUCCHINI:
+    case InstallOperation::LZ4DIFF_PUFFDIFF:
+    case InstallOperation::LZ4DIFF_BSDIFF:
+      op_result = PerformDiffOperation(*op, error);
+      OP_DURATION_HISTOGRAM(op_name, op_start_time);
+      break;
+    default:
+      op_result = false;
+  }
+  if (!HandleOpResult(op_result, op_name.c_str(), error))
+    return false;
 
   return true;
 }
@@ -794,10 +844,17 @@ bool DeltaPerformer::ParseManifestPartitions(ErrorCode* error) {
     }
   }
 
+  const auto start = std::chrono::system_clock::now();
   if (!install_plan_->ParsePartitions(
           partitions_, boot_control_, block_size_, error)) {
     return false;
   }
+  const auto duration = std::chrono::system_clock::now() - start;
+  LOG(INFO)
+      << "ParsePartitions done. took "
+      << std::chrono::duration_cast<std::chrono::milliseconds>(duration).count()
+      << " ms";
+
   auto&& has_verity = [](const auto& part) {
     return part.fec_extent().num_blocks() > 0 ||
            part.hash_tree_extent().num_blocks() > 0;
@@ -851,6 +908,7 @@ bool DeltaPerformer::PreparePartitionsForUpdate(
     ResetUpdateProgress(prefs, false);
   }
 
+  const auto start = std::chrono::system_clock::now();
   if (!boot_control->GetDynamicPartitionControl()->PreparePartitionsForUpdate(
           boot_control->GetCurrentSlot(),
           target_slot,
@@ -863,10 +921,14 @@ bool DeltaPerformer::PreparePartitionsForUpdate(
                << utils::ErrorCodeToString(*error);
     return false;
   }
+  const auto duration = std::chrono::system_clock::now() - start;
 
   TEST_AND_RETURN_FALSE(prefs->SetString(kPrefsDynamicPartitionMetadataUpdated,
                                          update_check_response_hash));
-  LOG(INFO) << "PreparePartitionsForUpdate done.";
+  LOG(INFO)
+      << "PreparePartitionsForUpdate done. took "
+      << std::chrono::duration_cast<std::chrono::milliseconds>(duration).count()
+      << " ms";
 
   return true;
 }
@@ -1347,7 +1409,8 @@ bool DeltaPerformer::CanResumeUpdate(PrefsInterface* prefs,
   if (prefs->GetInt64(kPrefsResumedUpdateFailures, &resumed_update_failures) &&
       resumed_update_failures > kMaxResumedUpdateFailures) {
     LOG(WARNING) << "Failed to resume update " << kPrefsResumedUpdateFailures
-                 << " invalid: " << resumed_update_failures;
+                 << " has value " << resumed_update_failures
+                 << " is over the limit " << kMaxResumedUpdateFailures;
     return false;
   }
 

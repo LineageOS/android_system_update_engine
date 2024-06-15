@@ -19,16 +19,13 @@
 #include <inttypes.h>
 
 #include <string>
-#include <utility>
 #include <vector>
 
 #include <base/logging.h>
 #include <base/macros.h>
 #include <base/strings/stringprintf.h>
 
-#include "update_engine/common/utils.h"
 #include "update_engine/payload_consumer/payload_constants.h"
-#include "update_engine/payload_generator/annotated_operation.h"
 #include "update_engine/payload_generator/extent_ranges.h"
 
 using std::string;
@@ -171,8 +168,7 @@ bool operator!=(const Extent& a, const Extent& b) noexcept {
 }
 
 std::ostream& operator<<(std::ostream& out, const Extent& extent) {
-  out << "[" << extent.start_block() << " - "
-      << extent.start_block() + extent.num_blocks() - 1 << "]";
+  out << "(" << extent.start_block() << " - " << extent.num_blocks() << ")";
   return out;
 }
 
@@ -200,6 +196,21 @@ std::ostream& operator<<(
     std::ostream& out,
     const google::protobuf::RepeatedPtrField<Extent>& extents) {
   return PrintExtents(out, extents);
+}
+
+std::ostream& operator<<(std::ostream& out, const std::set<Extent>& extents) {
+  return PrintExtents(out, extents);
+}
+
+std::ostream& operator<<(std::ostream& out,
+                         const std::set<Extent, ExtentLess>& extents) {
+  return PrintExtents(out, extents);
+}
+
+std::ostream& operator<<(
+    std::ostream& out,
+    Range<std::set<Extent, ExtentLess>::const_iterator> range) {
+  return PrintExtents(out, range);
 }
 
 }  // namespace chromeos_update_engine

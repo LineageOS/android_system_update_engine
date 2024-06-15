@@ -40,7 +40,7 @@ aidl_interface {
             enabled: true,
         },
         java: {
-            enabled: false,
+            enabled: true,
         },
         ndk: {
             enabled: true,
@@ -49,7 +49,18 @@ aidl_interface {
             ],
         },
     },
-    versions: ["1"],
+    versions_with_info: [
+        {
+            version: "1",
+            imports: [],
+        },
+        {
+            version: "2",
+            imports: [],
+        },
+    ],
+    frozen: true,
+
 }
 
 // update_engine_stable_client (type: executable)
@@ -68,7 +79,7 @@ cc_binary {
     ],
     static_libs: [
         "libgflags",
-        "libupdate_engine_stable-V1-ndk",
+        "libupdate_engine_stable-V2-ndk",
     ],
     srcs: [
         "update_engine_stable_client.cc",

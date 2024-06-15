@@ -16,7 +16,7 @@
 #include "update_engine/aosp/cleanup_previous_update_action.h"
 
 #include <algorithm>
-#include <chrono>  // NOLINT(build/c++11) -- for merge times
+#include <chrono>
 #include <functional>
 #include <string>
 #include <type_traits>
@@ -24,6 +24,7 @@
 #include <android-base/chrono_utils.h>
 #include <android-base/properties.h>
 #include <base/bind.h>
+#include <libsnapshot/snapshot.h>
 
 #ifndef __ANDROID_RECOVERY__
 #include <statslog_ue.h>
@@ -205,6 +206,10 @@ void CleanupPreviousUpdateAction::ScheduleWaitMarkBootSuccessful() {
 }
 
 void CleanupPreviousUpdateAction::CheckForMergeDelay() {
+  if (!android::snapshot::SnapshotManager::IsSnapshotManagerNeeded()) {
+    StartMerge();
+    return;
+  }
   const auto merge_delay_seconds =
       std::clamp<int>(android::base::GetIntProperty(kMergeDelaySecondsProp, 0),
                       0,

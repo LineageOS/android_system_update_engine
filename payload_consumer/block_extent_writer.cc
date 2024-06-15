@@ -69,8 +69,7 @@ size_t BlockExtentWriter::ConsumeWithBuffer(const uint8_t* const data,
   if (buffer_.empty() && count >= write_size) {
     if (!WriteExtent(data, write_size)) {
       LOG(ERROR) << "WriteExtent(" << cur_extent.start_block() << ", "
-                 << static_cast<const void*>(data) << ", " << write_size
-                 << ") failed.";
+                 << write_size << ") failed.";
       // return value is expected to be greater than 0. Return 0 to signal error
       // condition
       return 0;
@@ -92,9 +91,8 @@ size_t BlockExtentWriter::ConsumeWithBuffer(const uint8_t* const data,
 
   if (buffer_.size() == write_size) {
     if (!WriteExtent(buffer_.data(), write_size)) {
-      LOG(ERROR) << "WriteExtent(" << buffer_.data() << ", "
-                 << cur_extent.start_block() << ", " << cur_extent.num_blocks()
-                 << ") failed.";
+      LOG(ERROR) << "WriteExtent(" << cur_extent.start_block() << ", "
+                 << cur_extent.num_blocks() << ") failed.";
       return 0;
     }
     buffer_.clear();

@@ -190,7 +190,7 @@ bool PartitionWriter::PerformReplaceOperation(const InstallOperation& operation,
   // Setup the ExtentWriter stack based on the operation type.
   std::unique_ptr<ExtentWriter> writer = CreateBaseExtentWriter();
   return install_op_executor_.ExecuteReplaceOperation(
-      operation, std::move(writer), data, count);
+      operation, std::move(writer), data);
 }
 
 bool PartitionWriter::PerformZeroOrDiscardOperation(

@@ -150,7 +150,7 @@ TEST_F(InstallOperationExecutorTest, ReplaceOpTest) {
   }
   auto writer = std::make_unique<DirectExtentWriter>(target_fd_);
   ASSERT_TRUE(executor_.ExecuteReplaceOperation(
-      op, std::move(writer), expected_data.data(), expected_data.size()));
+      op, std::move(writer), expected_data.data()));
 
   brillo::Blob actual_data;
   utils::ReadExtents(
@@ -237,8 +237,13 @@ TEST_F(InstallOperationExecutorTest, ZucchiniOpTest) {
       .version = PayloadVersion(kBrilloMajorPayloadVersion,
                                 kZucchiniMinorPayloadVersion)};
   const FilesystemInterface::File empty;
-  diff_utils::BestDiffGenerator best_diff_generator(
-      source_data_, target_data_, src_extents, dst_extents, empty, empty, config);
+  diff_utils::BestDiffGenerator best_diff_generator(source_data_,
+                                                    target_data_,
+                                                    src_extents,
+                                                    dst_extents,
+                                                    empty,
+                                                    empty,
+                                                    config);
   std::vector<uint8_t> patch_data = target_data_;  // Fake the full operation
   AnnotatedOperation aop;
   // Zucchini is enabled only on files with certain extensions

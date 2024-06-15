@@ -98,15 +98,15 @@ bool PayloadFile::AddPartition(const PartitionConfig& old_conf,
                                const PartitionConfig& new_conf,
                                vector<AnnotatedOperation> aops,
                                vector<CowMergeOperation> merge_sequence,
-                               size_t cow_size) {
+                               const android::snapshot::CowSizeInfo& cow_info) {
   Partition part;
-  part.cow_size = cow_size;
   part.name = new_conf.name;
   part.aops = std::move(aops);
   part.cow_merge_sequence = std::move(merge_sequence);
   part.postinstall = new_conf.postinstall;
   part.verity = new_conf.verity;
   part.version = new_conf.version;
+  part.cow_info = cow_info;
   // Initialize the PartitionInfo objects if present.
   if (!old_conf.path.empty())
     TEST_AND_RETURN_FALSE(
@@ -148,8 +148,11 @@ bool PayloadFile::WritePayload(const string& payload_file,
     if (!part.version.empty()) {
       partition->set_version(part.version);
     }
-    if (part.cow_size > 0) {
-      partition->set_estimate_cow_size(part.cow_size);
+    if (part.cow_info.cow_size > 0) {
+      partition->set_estimate_cow_size(part.cow_info.cow_size);
+    }
+    if (part.cow_info.op_count_max > 0) {
+      partition->set_estimate_op_count_max(part.cow_info.op_count_max);
     }
     if (part.postinstall.run) {
       partition->set_run_postinstall(true);
