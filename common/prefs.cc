@@ -240,6 +240,15 @@ bool Prefs::FileStorage::Init(const base::FilePath& prefs_dir) {
     }
   }
 
+  if (std::filesystem::exists(GetTemporaryDir())) {
+    LOG(INFO)
+        << "Deleting temporary prefs, checkpoint transaction was interrupted";
+    if (!utils::DeleteDirectory(GetTemporaryDir().c_str())) {
+      LOG(ERROR) << "Failed to delete temporary prefs";
+      return false;
+    }
+  }
+
   // Delete empty directories. Ignore errors when deleting empty directories.
   DeleteEmptyDirectories(prefs_dir_);
   return true;
