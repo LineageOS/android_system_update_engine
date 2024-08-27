@@ -16,9 +16,7 @@
 
 #include "update_engine/aosp/dynamic_partition_control_android.h"
 
-#include <algorithm>
 #include <set>
-#include <vector>
 
 #include <base/logging.h>
 #include <base/strings/string_util.h>
@@ -27,6 +25,7 @@
 #include <libavb/libavb.h>
 #include <libsnapshot/mock_snapshot.h>
 
+#include "update_engine/aosp/boot_control_android.h"
 #include "update_engine/aosp/dynamic_partition_test_utils.h"
 #include "update_engine/aosp/mock_dynamic_partition_control_android.h"
 #include "update_engine/common/mock_prefs.h"
@@ -213,7 +212,7 @@ class DynamicPartitionControlAndroidTest : public ::testing::Test {
   }
 
   std::unique_ptr<DynamicPartitionControlAndroid> module_;
-  TestParam slots_;
+  TestParam slots_{};
 };
 
 class DynamicPartitionControlAndroidTestP
@@ -241,7 +240,7 @@ TEST_P(DynamicPartitionControlAndroidTestP,
                                 {T("system"), 3_GiB},
                                 {T("vendor"), 1_GiB}};
   PartitionSizes update_metadata{{"system", 3_GiB}, {"vendor", 1_GiB}};
-  EXPECT_TRUE(
+  ASSERT_TRUE(
       UpdatePartitionMetadata(source_metadata, update_metadata, expected));
 }
 
@@ -258,7 +257,7 @@ TEST_P(DynamicPartitionControlAndroidTestP,
                                 {T("system"), 2_GiB},
                                 {T("vendor"), 150_MiB}};
   PartitionSizes update_metadata{{"system", 2_GiB}, {"vendor", 150_MiB}};
-  EXPECT_TRUE(
+  ASSERT_TRUE(
       UpdatePartitionMetadata(source_metadata, update_metadata, expected));
 }
 
@@ -267,7 +266,7 @@ TEST_P(DynamicPartitionControlAndroidTestP, AddPartitionToEmptyMetadata) {
   PartitionSuffixSizes source_metadata{};
   PartitionSuffixSizes expected{{T("system"), 2_GiB}, {T("vendor"), 1_GiB}};
   PartitionSizes update_metadata{{"system", 2_GiB}, {"vendor", 1_GiB}};
-  EXPECT_TRUE(
+  ASSERT_TRUE(
       UpdatePartitionMetadata(source_metadata, update_metadata, expected));
 }
 
@@ -278,7 +277,7 @@ TEST_P(DynamicPartitionControlAndroidTestP, AddAdditionalPartition) {
   PartitionSuffixSizes expected{
       {S("system"), 2_GiB}, {T("system"), 2_GiB}, {T("vendor"), 1_GiB}};
   PartitionSizes update_metadata{{"system", 2_GiB}, {"vendor", 1_GiB}};
-  EXPECT_TRUE(
+  ASSERT_TRUE(
       UpdatePartitionMetadata(source_metadata, update_metadata, expected));
 }
 
@@ -292,7 +291,7 @@ TEST_P(DynamicPartitionControlAndroidTestP, DeletePartition) {
   PartitionSuffixSizes expected{
       {S("system"), 2_GiB}, {S("vendor"), 1_GiB}, {T("system"), 2_GiB}};
   PartitionSizes update_metadata{{"system", 2_GiB}};
-  EXPECT_TRUE(
+  ASSERT_TRUE(
       UpdatePartitionMetadata(source_metadata, update_metadata, expected));
 }
 
@@ -304,7 +303,7 @@ TEST_P(DynamicPartitionControlAndroidTestP, DeleteAll) {
                                        {T("vendor"), 1_GiB}};
   PartitionSuffixSizes expected{{S("system"), 2_GiB}, {S("vendor"), 1_GiB}};
   PartitionSizes update_metadata{};
-  EXPECT_TRUE(
+  ASSERT_TRUE(
       UpdatePartitionMetadata(source_metadata, update_metadata, expected));
 }
 
@@ -315,7 +314,7 @@ TEST_P(DynamicPartitionControlAndroidTestP, CorruptedSourceMetadata) {
       .WillOnce(Invoke([](auto, auto, auto) { return nullptr; }));
   ExpectUnmap({T("system")});
 
-  EXPECT_FALSE(PreparePartitionsForUpdate({{"system", 1_GiB}}))
+  ASSERT_FALSE(PreparePartitionsForUpdate({{"system", 1_GiB}}))
       << "Should not be able to continue with corrupt source metadata";
 }
 
@@ -328,7 +327,7 @@ TEST_P(DynamicPartitionControlAndroidTestP, NotEnoughSpace) {
                                        {T("vendor"), 0}};
   PartitionSizes update_metadata{{"system", 3_GiB}, {"vendor", 3_GiB}};
 
-  EXPECT_FALSE(UpdatePartitionMetadata(source_metadata, update_metadata, {}))
+  ASSERT_FALSE(UpdatePartitionMetadata(source_metadata, update_metadata, {}))
       << "Should not be able to fit 11GiB data into 10GiB space";
 }
 
@@ -338,7 +337,7 @@ TEST_P(DynamicPartitionControlAndroidTestP, NotEnoughSpaceForSlot) {
                                        {T("system"), 0},
                                        {T("vendor"), 0}};
   PartitionSizes update_metadata{{"system", 3_GiB}, {"vendor", 3_GiB}};
-  EXPECT_FALSE(UpdatePartitionMetadata(source_metadata, update_metadata, {}))
+  ASSERT_FALSE(UpdatePartitionMetadata(source_metadata, update_metadata, {}))
       << "Should not be able to grow over size of super / 2";
 }
 
@@ -363,35 +362,35 @@ TEST_P(DynamicPartitionControlAndroidTestP,
   // Not calling through
   // DynamicPartitionControlAndroidTest::PreparePartitionsForUpdate(), since we
   // don't want any default group in the PartitionMetadata.
-  EXPECT_TRUE(dynamicControl().PreparePartitionsForUpdate(
+  ASSERT_TRUE(dynamicControl().PreparePartitionsForUpdate(
       source(), target(), {}, true, nullptr, nullptr));
 
   // Should use dynamic source partitions.
-  EXPECT_CALL(dynamicControl(), GetState(S("system")))
+  EXPECT_CALL(dynamicControl(), GetState(S("system") + "_ota"))
       .Times(1)
       .WillOnce(Return(DmDeviceState::ACTIVE));
   string system_device;
-  EXPECT_TRUE(dynamicControl().GetPartitionDevice(
+  ASSERT_TRUE(dynamicControl().GetPartitionDevice(
       "system", source(), source(), &system_device));
-  EXPECT_EQ(GetDmDevice(S("system")), system_device);
+  ASSERT_EQ(GetDmDevice(S("system") + "_ota"), system_device);
 
   // Should use static target partitions without querying dynamic control.
   EXPECT_CALL(dynamicControl(), GetState(T("system"))).Times(0);
-  EXPECT_TRUE(dynamicControl().GetPartitionDevice(
+  ASSERT_TRUE(dynamicControl().GetPartitionDevice(
       "system", target(), source(), &system_device));
-  EXPECT_EQ(GetDevice(T("system")), system_device);
+  ASSERT_EQ(GetDevice(T("system")), system_device);
 
   // Static partition "bar".
   EXPECT_CALL(dynamicControl(), GetState(S("bar"))).Times(0);
   std::string bar_device;
-  EXPECT_TRUE(dynamicControl().GetPartitionDevice(
+  ASSERT_TRUE(dynamicControl().GetPartitionDevice(
       "bar", source(), source(), &bar_device));
-  EXPECT_EQ(GetDevice(S("bar")), bar_device);
+  ASSERT_EQ(GetDevice(S("bar")), bar_device);
 
   EXPECT_CALL(dynamicControl(), GetState(T("bar"))).Times(0);
-  EXPECT_TRUE(dynamicControl().GetPartitionDevice(
+  ASSERT_TRUE(dynamicControl().GetPartitionDevice(
       "bar", target(), source(), &bar_device));
-  EXPECT_EQ(GetDevice(T("bar")), bar_device);
+  ASSERT_EQ(GetDevice(T("bar")), bar_device);
 }
 
 TEST_P(DynamicPartitionControlAndroidTestP, GetMountableDevicePath) {
@@ -412,9 +411,9 @@ TEST_P(DynamicPartitionControlAndroidTestP, GetMountableDevicePath) {
                                  GetDevice(S("system")),
                                  GetDevice(T("system")))))
       .WillRepeatedly(Return(true));
-  EXPECT_CALL(
-      dynamicControl(),
-      GetState(AnyOf(S("vendor"), T("vendor"), S("system"), T("system"))))
+  EXPECT_CALL(dynamicControl(),
+              GetState(AnyOf(
+                  S("vendor"), T("vendor"), S("system") + "_ota", T("system"))))
       .WillRepeatedly(Return(DmDeviceState::ACTIVE));
 
   SetMetadata(source(), {{S("system"), 2_GiB}, {S("vendor"), 1_GiB}});
@@ -422,7 +421,7 @@ TEST_P(DynamicPartitionControlAndroidTestP, GetMountableDevicePath) {
   std::string device;
   ASSERT_TRUE(dynamicControl().GetPartitionDevice(
       "system", source(), source(), &device));
-  ASSERT_EQ(GetDmDevice(S("system")), device);
+  ASSERT_EQ(GetDmDevice(S("system") + "_ota"), device);
 
   ASSERT_TRUE(dynamicControl().GetPartitionDevice(
       "system", target(), source(), &device));
@@ -454,9 +453,9 @@ TEST_P(DynamicPartitionControlAndroidTestP, GetMountableDevicePathVABC) {
                                  GetDevice(S("system")),
                                  GetDevice(T("system")))))
       .WillRepeatedly(Return(true));
-  EXPECT_CALL(
-      dynamicControl(),
-      GetState(AnyOf(S("vendor"), T("vendor"), S("system"), T("system"))))
+  EXPECT_CALL(dynamicControl(),
+              GetState(AnyOf(
+                  S("vendor"), T("vendor"), S("system") + "_ota", T("system"))))
       .WillRepeatedly(Return(DmDeviceState::ACTIVE));
 
   SetMetadata(source(), {{S("system"), 2_GiB}, {S("vendor"), 1_GiB}});
@@ -465,7 +464,7 @@ TEST_P(DynamicPartitionControlAndroidTestP, GetMountableDevicePathVABC) {
   std::string device;
   ASSERT_TRUE(dynamicControl().GetPartitionDevice(
       "system", source(), source(), &device));
-  ASSERT_EQ(GetDmDevice(S("system")), device);
+  ASSERT_EQ(GetDmDevice(S("system") + "_ota"), device);
 
   ASSERT_TRUE(dynamicControl().GetPartitionDevice(
       "system", target(), source(), &device));
@@ -500,7 +499,7 @@ TEST_P(DynamicPartitionControlAndroidTestP,
                {T("system"), 2_GiB},
                {T("vendor"), 1_GiB}});
 
-  EXPECT_TRUE(dynamicControl().PreparePartitionsForUpdate(
+  ASSERT_TRUE(dynamicControl().PreparePartitionsForUpdate(
       source(),
       target(),
       PartitionSizesToManifest({{"system", 2_GiB}, {"vendor", 1_GiB}}),
@@ -509,13 +508,13 @@ TEST_P(DynamicPartitionControlAndroidTestP,
       nullptr));
 
   // Dynamic partition "system".
-  EXPECT_CALL(dynamicControl(), GetState(S("system")))
+  EXPECT_CALL(dynamicControl(), GetState(S("system") + "_ota"))
       .Times(1)
       .WillOnce(Return(DmDeviceState::ACTIVE));
   string system_device;
-  EXPECT_TRUE(dynamicControl().GetPartitionDevice(
+  ASSERT_TRUE(dynamicControl().GetPartitionDevice(
       "system", source(), source(), &system_device));
-  EXPECT_EQ(GetDmDevice(S("system")), system_device);
+  ASSERT_EQ(GetDmDevice(S("system") + "_ota"), system_device);
 
   EXPECT_CALL(dynamicControl(), GetState(T("system")))
       .Times(AnyNumber())
@@ -529,21 +528,21 @@ TEST_P(DynamicPartitionControlAndroidTestP,
             *device = "/fake/remapped/" + name;
             return true;
           }));
-  EXPECT_TRUE(dynamicControl().GetPartitionDevice(
+  ASSERT_TRUE(dynamicControl().GetPartitionDevice(
       "system", target(), source(), &system_device));
-  EXPECT_EQ("/fake/remapped/" + T("system"), system_device);
+  ASSERT_EQ("/fake/remapped/" + T("system"), system_device);
 
   // Static partition "bar".
   EXPECT_CALL(dynamicControl(), GetState(S("bar"))).Times(0);
   std::string bar_device;
-  EXPECT_TRUE(dynamicControl().GetPartitionDevice(
+  ASSERT_TRUE(dynamicControl().GetPartitionDevice(
       "bar", source(), source(), &bar_device));
-  EXPECT_EQ(GetDevice(S("bar")), bar_device);
+  ASSERT_EQ(GetDevice(S("bar")), bar_device);
 
   EXPECT_CALL(dynamicControl(), GetState(T("bar"))).Times(0);
-  EXPECT_TRUE(dynamicControl().GetPartitionDevice(
+  ASSERT_TRUE(dynamicControl().GetPartitionDevice(
       "bar", target(), source(), &bar_device));
-  EXPECT_EQ(GetDevice(T("bar")), bar_device);
+  ASSERT_EQ(GetDevice(T("bar")), bar_device);
 }
 
 INSTANTIATE_TEST_CASE_P(DynamicPartitionControlAndroidTest,
@@ -583,7 +582,7 @@ TEST_P(DynamicPartitionControlAndroidGroupTestP, ResizeWithinGroup) {
   AddGroupAndPartition(&update_manifest, "android", 3_GiB, "system", 3_GiB);
   AddGroupAndPartition(&update_manifest, "oem", 2_GiB, "vendor", 2_GiB);
 
-  EXPECT_TRUE(
+  ASSERT_TRUE(
       UpdatePartitionMetadata(source_manifest, update_manifest, expected));
 }
 
@@ -591,7 +590,7 @@ TEST_P(DynamicPartitionControlAndroidGroupTestP, NotEnoughSpaceForGroup) {
   DeltaArchiveManifest update_manifest;
   AddGroupAndPartition(&update_manifest, "android", 3_GiB, "system", 1_GiB),
       AddGroupAndPartition(&update_manifest, "oem", 2_GiB, "vendor", 3_GiB);
-  EXPECT_FALSE(UpdatePartitionMetadata(source_manifest, update_manifest, {}))
+  ASSERT_FALSE(UpdatePartitionMetadata(source_manifest, update_manifest, {}))
       << "Should not be able to grow over maximum size of group";
 }
 
@@ -599,7 +598,7 @@ TEST_P(DynamicPartitionControlAndroidGroupTestP, GroupTooBig) {
   DeltaArchiveManifest update_manifest;
   AddGroup(&update_manifest, "android", 3_GiB);
   AddGroup(&update_manifest, "oem", 3_GiB);
-  EXPECT_FALSE(UpdatePartitionMetadata(source_manifest, update_manifest, {}))
+  ASSERT_FALSE(UpdatePartitionMetadata(source_manifest, update_manifest, {}))
       << "Should not be able to grow over size of super / 2";
 }
 
@@ -615,7 +614,7 @@ TEST_P(DynamicPartitionControlAndroidGroupTestP, AddPartitionToGroup) {
   AddPartition(&update_manifest, g, "system_ext", 1_GiB);
   AddGroupAndPartition(&update_manifest, "oem", 2_GiB, "vendor", 2_GiB);
 
-  EXPECT_TRUE(
+  ASSERT_TRUE(
       UpdatePartitionMetadata(source_manifest, update_manifest, expected));
 }
 
@@ -627,7 +626,7 @@ TEST_P(DynamicPartitionControlAndroidGroupTestP, RemovePartitionFromGroup) {
   AddGroup(&update_manifest, "android", 3_GiB);
   AddGroupAndPartition(&update_manifest, "oem", 2_GiB, "vendor", 2_GiB);
 
-  EXPECT_TRUE(
+  ASSERT_TRUE(
       UpdatePartitionMetadata(source_manifest, update_manifest, expected));
 }
 
@@ -641,7 +640,7 @@ TEST_P(DynamicPartitionControlAndroidGroupTestP, AddGroup) {
   AddGroupAndPartition(&update_manifest, "oem", 1_GiB, "vendor", 1_GiB);
   AddGroupAndPartition(
       &update_manifest, "new_group", 2_GiB, "new_partition", 2_GiB);
-  EXPECT_TRUE(
+  ASSERT_TRUE(
       UpdatePartitionMetadata(source_manifest, update_manifest, expected));
 }
 
@@ -649,7 +648,7 @@ TEST_P(DynamicPartitionControlAndroidGroupTestP, RemoveGroup) {
   DeltaArchiveManifest update_manifest;
   AddGroupAndPartition(&update_manifest, "android", 2_GiB, "system", 2_GiB);
 
-  EXPECT_TRUE(UpdatePartitionMetadata(
+  ASSERT_TRUE(UpdatePartitionMetadata(
       source_manifest, update_manifest, Not(HasGroup(T("oem")))));
 }
 
@@ -660,7 +659,7 @@ TEST_P(DynamicPartitionControlAndroidGroupTestP, ResizeGroup) {
   DeltaArchiveManifest update_manifest;
   AddGroupAndPartition(&update_manifest, "android", 2_GiB, "system", 2_GiB),
       AddGroupAndPartition(&update_manifest, "oem", 3_GiB, "vendor", 3_GiB);
-  EXPECT_TRUE(
+  ASSERT_TRUE(
       UpdatePartitionMetadata(source_manifest, update_manifest, expected));
 }
 
@@ -726,7 +725,7 @@ TEST_F(DynamicPartitionControlAndroidTest, SimulatedFirstUpdate) {
   ExpectStoreMetadata(update_sizes_1());
   ExpectUnmap({"grown_b", "shrunk_b", "same_b", "added_b"});
 
-  EXPECT_TRUE(PreparePartitionsForUpdate({{"grown", 3_GiB},
+  ASSERT_TRUE(PreparePartitionsForUpdate({{"grown", 3_GiB},
                                           {"shrunk", 150_MiB},
                                           {"same", 100_MiB},
                                           {"added", 150_MiB}}));
@@ -743,7 +742,7 @@ TEST_F(DynamicPartitionControlAndroidTest, SimulatedSecondUpdate) {
   ExpectStoreMetadata(update_sizes_2());
   ExpectUnmap({"grown_a", "shrunk_a", "same_a", "deleted_a"});
 
-  EXPECT_TRUE(PreparePartitionsForUpdate({{"grown", 4_GiB},
+  ASSERT_TRUE(PreparePartitionsForUpdate({{"grown", 4_GiB},
                                           {"shrunk", 100_MiB},
                                           {"same", 100_MiB},
                                           {"deleted", 64_MiB}}));
@@ -751,7 +750,7 @@ TEST_F(DynamicPartitionControlAndroidTest, SimulatedSecondUpdate) {
 
 TEST_F(DynamicPartitionControlAndroidTest, ApplyingToCurrentSlot) {
   SetSlots({1, 1});
-  EXPECT_FALSE(PreparePartitionsForUpdate({}))
+  ASSERT_FALSE(PreparePartitionsForUpdate({}))
       << "Should not be able to apply to current slot.";
 }
 
@@ -767,16 +766,16 @@ TEST_P(DynamicPartitionControlAndroidTestP, OptimizeOperationTest) {
 
   InstallOperation iop;
   InstallOperation optimized;
-  Extent *se, *de;
+  Extent *se{}, *de{};
 
   // Not a SOURCE_COPY operation, cannot skip.
   iop.set_type(InstallOperation::REPLACE);
-  EXPECT_FALSE(dynamicControl().OptimizeOperation("foo", iop, &optimized));
+  ASSERT_FALSE(dynamicControl().OptimizeOperation("foo", iop, &optimized));
 
   iop.set_type(InstallOperation::SOURCE_COPY);
 
   // By default GetVirtualAbFeatureFlag is disabled. Cannot skip operation.
-  EXPECT_FALSE(dynamicControl().OptimizeOperation("foo", iop, &optimized));
+  ASSERT_FALSE(dynamicControl().OptimizeOperation("foo", iop, &optimized));
 
   // Enable GetVirtualAbFeatureFlag in the mock interface.
   ON_CALL(dynamicControl(), GetVirtualAbFeatureFlag())
@@ -784,21 +783,21 @@ TEST_P(DynamicPartitionControlAndroidTestP, OptimizeOperationTest) {
 
   // By default target_supports_snapshot_ is set to false. Cannot skip
   // operation.
-  EXPECT_FALSE(dynamicControl().OptimizeOperation("foo", iop, &optimized));
+  ASSERT_FALSE(dynamicControl().OptimizeOperation("foo", iop, &optimized));
 
   SetSnapshotEnabled(true);
 
   // Empty source and destination. Skip.
-  EXPECT_TRUE(dynamicControl().OptimizeOperation("foo", iop, &optimized));
-  EXPECT_TRUE(optimized.src_extents().empty());
-  EXPECT_TRUE(optimized.dst_extents().empty());
+  ASSERT_TRUE(dynamicControl().OptimizeOperation("foo", iop, &optimized));
+  ASSERT_TRUE(optimized.src_extents().empty());
+  ASSERT_TRUE(optimized.dst_extents().empty());
 
   se = iop.add_src_extents();
   se->set_start_block(0);
   se->set_num_blocks(1);
 
   // There is something in sources, but destinations are empty. Cannot skip.
-  EXPECT_FALSE(dynamicControl().OptimizeOperation("foo", iop, &optimized));
+  ASSERT_FALSE(dynamicControl().OptimizeOperation("foo", iop, &optimized));
 
   InstallOperation iop2;
 
@@ -807,48 +806,48 @@ TEST_P(DynamicPartitionControlAndroidTestP, OptimizeOperationTest) {
   de->set_num_blocks(1);
 
   // There is something in destinations, but sources are empty. Cannot skip.
-  EXPECT_FALSE(dynamicControl().OptimizeOperation("foo", iop2, &optimized));
+  ASSERT_FALSE(dynamicControl().OptimizeOperation("foo", iop2, &optimized));
 
   de = iop.add_dst_extents();
   de->set_start_block(0);
   de->set_num_blocks(1);
 
   // Sources and destinations are identical. Skip.
-  EXPECT_TRUE(dynamicControl().OptimizeOperation("foo", iop, &optimized));
-  EXPECT_TRUE(optimized.src_extents().empty());
-  EXPECT_TRUE(optimized.dst_extents().empty());
+  ASSERT_TRUE(dynamicControl().OptimizeOperation("foo", iop, &optimized));
+  ASSERT_TRUE(optimized.src_extents().empty());
+  ASSERT_TRUE(optimized.dst_extents().empty());
 
   se = iop.add_src_extents();
   se->set_start_block(1);
   se->set_num_blocks(5);
 
   // There is something in source, but not in destination. Cannot skip.
-  EXPECT_FALSE(dynamicControl().OptimizeOperation("foo", iop, &optimized));
+  ASSERT_FALSE(dynamicControl().OptimizeOperation("foo", iop, &optimized));
 
   de = iop.add_dst_extents();
   de->set_start_block(1);
   de->set_num_blocks(5);
 
   // There is source and destination are equal. Skip.
-  EXPECT_TRUE(dynamicControl().OptimizeOperation("foo", iop, &optimized));
-  EXPECT_TRUE(optimized.src_extents().empty());
-  EXPECT_TRUE(optimized.dst_extents().empty());
+  ASSERT_TRUE(dynamicControl().OptimizeOperation("foo", iop, &optimized));
+  ASSERT_TRUE(optimized.src_extents().empty());
+  ASSERT_TRUE(optimized.dst_extents().empty());
 
   de = iop.add_dst_extents();
   de->set_start_block(6);
   de->set_num_blocks(5);
 
   // There is something extra in dest. Cannot skip.
-  EXPECT_FALSE(dynamicControl().OptimizeOperation("foo", iop, &optimized));
+  ASSERT_FALSE(dynamicControl().OptimizeOperation("foo", iop, &optimized));
 
   se = iop.add_src_extents();
   se->set_start_block(6);
   se->set_num_blocks(5);
 
   // Source and dest are identical again. Skip.
-  EXPECT_TRUE(dynamicControl().OptimizeOperation("foo", iop, &optimized));
-  EXPECT_TRUE(optimized.src_extents().empty());
-  EXPECT_TRUE(optimized.dst_extents().empty());
+  ASSERT_TRUE(dynamicControl().OptimizeOperation("foo", iop, &optimized));
+  ASSERT_TRUE(optimized.src_extents().empty());
+  ASSERT_TRUE(optimized.dst_extents().empty());
 
   iop.Clear();
   iop.set_type(InstallOperation::SOURCE_COPY);
@@ -866,20 +865,20 @@ TEST_P(DynamicPartitionControlAndroidTestP, OptimizeOperationTest) {
   de->set_num_blocks(5);
 
   // [1, 3, 4, 7, 8] -> [2, 3, 4, 5, 6] should return [1, 7, 8] -> [2, 5, 6]
-  EXPECT_TRUE(dynamicControl().OptimizeOperation("foo", iop, &optimized));
+  ASSERT_TRUE(dynamicControl().OptimizeOperation("foo", iop, &optimized));
   ASSERT_EQ(2, optimized.src_extents_size());
   ASSERT_EQ(2, optimized.dst_extents_size());
-  EXPECT_EQ(1u, optimized.src_extents(0).start_block());
-  EXPECT_EQ(1u, optimized.src_extents(0).num_blocks());
-  EXPECT_EQ(2u, optimized.dst_extents(0).start_block());
-  EXPECT_EQ(1u, optimized.dst_extents(0).num_blocks());
-  EXPECT_EQ(7u, optimized.src_extents(1).start_block());
-  EXPECT_EQ(2u, optimized.src_extents(1).num_blocks());
-  EXPECT_EQ(5u, optimized.dst_extents(1).start_block());
-  EXPECT_EQ(2u, optimized.dst_extents(1).num_blocks());
+  ASSERT_EQ(1u, optimized.src_extents(0).start_block());
+  ASSERT_EQ(1u, optimized.src_extents(0).num_blocks());
+  ASSERT_EQ(2u, optimized.dst_extents(0).start_block());
+  ASSERT_EQ(1u, optimized.dst_extents(0).num_blocks());
+  ASSERT_EQ(7u, optimized.src_extents(1).start_block());
+  ASSERT_EQ(2u, optimized.src_extents(1).num_blocks());
+  ASSERT_EQ(5u, optimized.dst_extents(1).start_block());
+  ASSERT_EQ(2u, optimized.dst_extents(1).num_blocks());
 
   // Don't skip for static partitions.
-  EXPECT_FALSE(dynamicControl().OptimizeOperation("bar", iop, &optimized));
+  ASSERT_FALSE(dynamicControl().OptimizeOperation("bar", iop, &optimized));
 }
 
 TEST_F(DynamicPartitionControlAndroidTest, ResetUpdate) {
@@ -921,7 +920,7 @@ TEST_P(DynamicPartitionControlAndroidTestP, AvbNotEnabledOnSystemOther) {
       }));
   ON_CALL(dynamicControl(), IsAvbEnabledOnSystemOther())
       .WillByDefault(Return(false));
-  EXPECT_TRUE(
+  ASSERT_TRUE(
       dynamicControl().RealEraseSystemOtherAvbFooter(source(), target()));
 }
 
@@ -930,7 +929,7 @@ TEST_P(DynamicPartitionControlAndroidTestP, NoSystemOtherToErase) {
   ON_CALL(dynamicControl(), IsAvbEnabledOnSystemOther())
       .WillByDefault(Return(true));
   std::string path;
-  bool should_unmap;
+  bool should_unmap{};
   ASSERT_TRUE(dynamicControl().RealGetSystemOtherPath(
       source(), target(), T("system"), &path, &should_unmap));
   ASSERT_TRUE(path.empty()) << path;
@@ -944,7 +943,7 @@ TEST_P(DynamicPartitionControlAndroidTestP, NoSystemOtherToErase) {
         return dynamicControl().RealGetSystemOtherPath(
             source_slot, target_slot, name, path, should_unmap);
       }));
-  EXPECT_TRUE(
+  ASSERT_TRUE(
       dynamicControl().RealEraseSystemOtherAvbFooter(source(), target()));
 }
 
@@ -954,7 +953,7 @@ TEST_P(DynamicPartitionControlAndroidTestP, SkipEraseUpdatedSystemOther) {
   ON_CALL(dynamicControl(), IsAvbEnabledOnSystemOther())
       .WillByDefault(Return(true));
   std::string path;
-  bool should_unmap;
+  bool should_unmap{};
   ASSERT_TRUE(dynamicControl().RealGetSystemOtherPath(
       source(), target(), T("system"), &path, &should_unmap));
   ASSERT_TRUE(path.empty()) << path;
@@ -968,7 +967,7 @@ TEST_P(DynamicPartitionControlAndroidTestP, SkipEraseUpdatedSystemOther) {
         return dynamicControl().RealGetSystemOtherPath(
             source_slot, target_slot, name, path, should_unmap);
       }));
-  EXPECT_TRUE(
+  ASSERT_TRUE(
       dynamicControl().RealEraseSystemOtherAvbFooter(source(), target()));
 }
 
@@ -1060,8 +1059,8 @@ TEST_P(SnapshotPartitionTestP, PreparePartitions) {
   ExpectCreateUpdateSnapshots(android::snapshot::Return::Ok());
   SetMetadata(source(), {});
   uint64_t required_size = 0;
-  EXPECT_TRUE(PreparePartitionsForUpdate(&required_size));
-  EXPECT_EQ(0u, required_size);
+  ASSERT_TRUE(PreparePartitionsForUpdate(&required_size));
+  ASSERT_EQ(0u, required_size);
 }
 
 // Test that if not enough space, required size returned by SnapshotManager is
@@ -1071,8 +1070,8 @@ TEST_P(SnapshotPartitionTestP, PreparePartitionsNoSpace) {
   uint64_t required_size = 0;
 
   SetMetadata(source(), {});
-  EXPECT_FALSE(PreparePartitionsForUpdate(&required_size));
-  EXPECT_EQ(1_GiB, required_size);
+  ASSERT_FALSE(PreparePartitionsForUpdate(&required_size));
+  ASSERT_EQ(1_GiB, required_size);
 }
 
 // Test that in recovery, use empty space in super partition for a snapshot
@@ -1089,8 +1088,8 @@ TEST_P(SnapshotPartitionTestP, RecoveryUseSuperEmpty) {
   EXPECT_CALL(dynamicControl(), PrepareDynamicPartitionsForUpdate(_, _, _, _))
       .Times(0);
   uint64_t required_size = 0;
-  EXPECT_TRUE(PreparePartitionsForUpdate(&required_size));
-  EXPECT_EQ(0u, required_size);
+  ASSERT_TRUE(PreparePartitionsForUpdate(&required_size));
+  ASSERT_EQ(0u, required_size);
 }
 
 // Test that in recovery, if CreateUpdateSnapshots throws an error, try
@@ -1125,12 +1124,32 @@ TEST_P(SnapshotPartitionTestP, RecoveryErrorShouldDeleteSource) {
   ExpectStoreMetadata({{T("system"), 3_GiB}, {T("vendor"), 1_GiB}});
 
   uint64_t required_size = 0;
-  EXPECT_TRUE(PreparePartitionsForUpdate(&required_size));
-  EXPECT_EQ(0u, required_size);
+  ASSERT_TRUE(PreparePartitionsForUpdate(&required_size));
+  ASSERT_EQ(0u, required_size);
 }
 
 INSTANTIATE_TEST_CASE_P(DynamicPartitionControlAndroidTest,
                         SnapshotPartitionTestP,
                         testing::Values(TestParam{0, 1}, TestParam{1, 0}));
+
+TEST(SourcePartitionTest, MapSourceWritable) {
+  BootControlAndroid boot_control;
+  ASSERT_TRUE(boot_control.Init());
+  auto source_slot = boot_control.GetCurrentSlot();
+  DynamicPartitionControlAndroid dynamic_control(source_slot);
+  std::string device;
+  ASSERT_TRUE(dynamic_control.GetPartitionDevice(
+      "system", source_slot, source_slot, &device));
+  android::base::unique_fd fd(open(device.c_str(), O_RDWR | O_CLOEXEC));
+  ASSERT_TRUE(utils::SetBlockDeviceReadOnly(device, false));
+  ASSERT_GE(fd, 0) << android::base::ErrnoNumberAsString(errno);
+  std::array<char, 512> block{};
+  ASSERT_EQ(pread(fd.get(), block.data(), block.size(), 0),
+            (ssize_t)block.size())
+      << android::base::ErrnoNumberAsString(errno);
+  ASSERT_EQ(pwrite(fd.get(), block.data(), block.size(), 0),
+            (ssize_t)block.size())
+      << android::base::ErrnoNumberAsString(errno);
+}
 
 }  // namespace chromeos_update_engine
