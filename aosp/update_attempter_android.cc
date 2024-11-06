@@ -508,6 +508,10 @@ bool UpdateAttempterAndroid::ResetStatus(Error* error) {
         "Status reset not allowed in this state, please "
         "cancel on going OTA first.");
   }
+  // last_error_ is used by setShouldSwitchSlot to determine if
+  // FilesystemVerification is done. Since we are discarding update
+  // state, discard this cache as well.
+  last_error_ = ErrorCode::kSuccess;
 
   if (apex_handler_android_ != nullptr) {
     LOG(INFO) << "Cleaning up reserved space for compressed APEX (if any)";
@@ -1358,6 +1362,9 @@ bool UpdateAttempterAndroid::setShouldSwitchSlotOnReboot(
   // Don't run postinstall, we just need PostinstallAction to switch the slots.
   install_plan_.run_post_install = false;
   install_plan_.is_resume = true;
+  // previous ApplyPayload() call may have requested powerwash, these
+  // settings would be saved in `this->install_plan_`. Inherit that setting.
+  install_plan_.powerwash_required = this->install_plan_.powerwash_required;
 
   CHECK_NE(install_plan_.source_slot, UINT32_MAX);
   CHECK_NE(install_plan_.target_slot, UINT32_MAX);
