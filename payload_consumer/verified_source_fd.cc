@@ -19,7 +19,6 @@
 #include <sys/stat.h>
 
 #include <memory>
-#include <utility>
 #include <vector>
 
 #include <base/strings/string_number_conversions.h>
@@ -91,6 +90,16 @@ FileDescriptorPtr VerifiedSourceFd::ChooseSourceFD(
     *error = ErrorCode::kSuccess;
   }
   if (!operation.has_src_sha256_hash()) {
+    if (operation.type() == InstallOperation::SOURCE_COPY) {
+      // delta_generator always adds SHA256 hash for source data. If hash is
+      // missing, the only possibility is we are doing a partial update, and
+      // currently processing a partition that's not in the payload. Data on
+      // this partition would be copied to the new slot as is. So, if the
+      // current partition boots fine(either no corruption, or with FEC), the
+      // new partition would boot fine as well. Hence, just return |source_fd_|
+      // to save time.
+      return source_fd_;
+    }
     // When the operation doesn't include a source hash, we attempt the error
     // corrected device first since we can't verify the block in the raw device
     // at this point, but we first need to make sure all extents are readable

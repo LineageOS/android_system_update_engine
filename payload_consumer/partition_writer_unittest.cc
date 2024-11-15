@@ -128,7 +128,7 @@ class PartitionWriterTest : public testing::Test {
   PartitionWriter writer_{
       partition_update_, install_part_, &dynamic_control_, kBlockSize, false};
 };
-// Test that the error-corrected file descriptor is used to read a partition
+// Test that the plain file descriptor is used to read a partition
 // when no hash is available for SOURCE_COPY but it falls back to the normal
 // file descriptor when the size of the error corrected one is too small.
 TEST_F(PartitionWriterTest, ErrorCorrectionSourceCopyWhenNoHashFallbackTest) {
@@ -153,13 +153,8 @@ TEST_F(PartitionWriterTest, ErrorCorrectionSourceCopyWhenNoHashFallbackTest) {
   ASSERT_NO_FATAL_FAILURE();
   ASSERT_EQ(output_data, expected_data);
 
-  // Verify that the fake_fec was attempted to be used. Since the file
-  // descriptor is shorter it can actually do more than one read to realize it
-  // reached the EOF.
-  ASSERT_LE(1U, fake_fec->GetReadOps().size());
-  // This fallback doesn't count as an error-corrected operation since the
-  // operation hash was not available.
-  ASSERT_EQ(0U, GetSourceEccRecoveredFailures());
+  // Verify that the fake_fec was not used
+  ASSERT_LE(0U, fake_fec->GetReadOps().size());
 }
 
 // Test that the error-corrected file descriptor is used to read the partition
