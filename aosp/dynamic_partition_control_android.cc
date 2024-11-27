@@ -299,7 +299,6 @@ bool DynamicPartitionControlAndroid::UnmapPartitionOnDeviceMapper(
       target_partition_name.ends_with("_b")) {
     auto slot = target_partition_name.ends_with("_a") ? 0 : 1;
     device_name = GetDeviceName(target_partition_name, slot);
-    return false;
   }
   if (DeviceMapper::Instance().GetState(device_name) !=
       DmDeviceState::INVALID) {
