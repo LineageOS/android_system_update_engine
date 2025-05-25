@@ -717,7 +717,7 @@ bool UpdateAttempterAndroid::SetPerformanceMode(bool enable,
     return true;
   bool ret;
   if (enable)
-    ret = SetTaskProfiles(GetThreadId(), {"ProcessCapacityMax", "HighIoPriority", "MaxPerformance"});
+    ret = SetTaskProfiles(GetThreadId(), {"CPUSET_SP_TOP_APP"});
   else
     ret = SetTaskProfiles(GetThreadId(), {"OtaProfiles"});
   if (!ret)
