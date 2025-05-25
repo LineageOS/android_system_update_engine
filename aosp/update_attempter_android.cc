@@ -177,7 +177,7 @@ UpdateAttempterAndroid::UpdateAttempterAndroid(
   metrics_reporter_ = metrics::CreateMetricsReporter(
       boot_control_->GetDynamicPartitionControl(), &install_plan_);
   network_selector_ = network::CreateNetworkSelector();
-  SetTaskProfiles(android::base::GetThreadId(), {"OtaProfiles"});
+  SetTaskProfiles(android::base::GetThreadId(), {"OtaProfiles"}, true);
 }
 
 UpdateAttempterAndroid::~UpdateAttempterAndroid() {
@@ -717,9 +717,9 @@ bool UpdateAttempterAndroid::SetPerformanceMode(bool enable,
     return true;
   bool ret;
   if (enable)
-    ret = SetTaskProfiles(android::base::GetThreadId(), {"CPUSET_SP_TOP_APP"});
+    ret = SetTaskProfiles(android::base::GetThreadId(), {"CPUSET_SP_TOP_APP"}, true);
   else
-    ret = SetTaskProfiles(android::base::GetThreadId(), {"OtaProfiles"});
+    ret = SetTaskProfiles(android::base::GetThreadId(), {"OtaProfiles"}, true);
   if (!ret)
     return LogAndSetGenericError(error, __LINE__, __FILE__, "Could not change profiles");
   performance_mode_ = enable;
