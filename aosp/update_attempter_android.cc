@@ -26,6 +26,7 @@
 #include <android-base/parsebool.h>
 #include <android-base/parseint.h>
 #include <android-base/properties.h>
+#include <android-base/threads.h>
 #include <android-base/unique_fd.h>
 #include <base/bind.h>
 #include <base/logging.h>
@@ -176,7 +177,7 @@ UpdateAttempterAndroid::UpdateAttempterAndroid(
   metrics_reporter_ = metrics::CreateMetricsReporter(
       boot_control_->GetDynamicPartitionControl(), &install_plan_);
   network_selector_ = network::CreateNetworkSelector();
-  SetTaskProfiles(0, {"OtaProfiles"});
+  SetTaskProfiles(GetThreadId(), {"OtaProfiles"});
 }
 
 UpdateAttempterAndroid::~UpdateAttempterAndroid() {
@@ -716,9 +717,9 @@ bool UpdateAttempterAndroid::SetPerformanceMode(bool enable,
     return true;
   bool ret;
   if (enable)
-    ret = SetTaskProfiles(0, {"ProcessCapacityMax", "HighIoPriority", "MaxPerformance"});
+    ret = SetTaskProfiles(GetThreadId(), {"ProcessCapacityMax", "HighIoPriority", "MaxPerformance"});
   else
-    ret = SetTaskProfiles(0, {"OtaProfiles"});
+    ret = SetTaskProfiles(GetThreadId(), {"OtaProfiles"});
   if (!ret)
     return LogAndSetGenericError(error, __LINE__, __FILE__, "Could not change profiles");
   performance_mode_ = enable;
