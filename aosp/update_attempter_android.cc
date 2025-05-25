@@ -715,15 +715,15 @@ bool UpdateAttempterAndroid::SetPerformanceMode(bool enable,
 
   if (performance_mode_ == enable)
     return true;
-  bool ret;
-  if (enable)
-    ret = SetTaskProfiles(android::base::GetThreadId(), {"CPUSET_SP_TOP_APP"}, true);
-  else
-    ret = SetTaskProfiles(android::base::GetThreadId(), {"OtaProfiles"}, true);
+
+  bool ret = SetTaskProfiles(android::base::GetThreadId(),
+                            {enable ? "CPUSET_SP_TOP_APP" : "OtaProfiles"},
+                            true);
   if (!ret)
     return LogAndSetGenericError(error, __LINE__, __FILE__, "Could not change profiles");
+
   performance_mode_ = enable;
-  return true;
+  return ret;
 }
 
 void UpdateAttempterAndroid::ProcessingDone(const ActionProcessor* processor,
