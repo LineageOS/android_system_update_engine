@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "69fda6e7_fed54de2",
+        "filename": "aosp/update_attempter_android.cc",
+        "patchSetId": 2
+      },
+      "lineNbr": 720,
+      "author": {
+        "id": 13028
+      },
+      "writtenOn": "2025-06-01T08:53:00Z",
+      "side": 1,
+      "message": "Line length",
+      "revId": "33f3dd89fc2a7ba8a104a954a4ee5a358f445158",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
