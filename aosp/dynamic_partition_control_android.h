@@ -176,7 +176,7 @@ class DynamicPartitionControlAndroid : public DynamicPartitionControlInterface {
 
   // Return the name of the super partition (which stores super partition
   // metadata) for a given slot.
-  virtual std::string GetSuperPartitionName();
+  virtual std::string GetSuperPartitionName(uint32_t slot);
 
   virtual void set_fake_mapped_devices(const std::set<std::string>& fake);
 

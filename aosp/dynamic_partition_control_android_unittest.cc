@@ -65,7 +65,7 @@ class DynamicPartitionControlAndroidTest : public ::testing::Test {
           return true;
         }));
 
-    ON_CALL(dynamicControl(), GetSuperPartitionName())
+    ON_CALL(dynamicControl(), GetSuperPartitionName(_))
         .WillByDefault(Return(kFakeSuper));
 
     ON_CALL(dynamicControl(), GetDmDevicePathByName(_, _))
@@ -94,8 +94,8 @@ class DynamicPartitionControlAndroidTest : public ::testing::Test {
     return static_cast<NiceMock<MockDynamicPartitionControlAndroid>&>(*module_);
   }
 
-  std::string GetSuperDevice() {
-    return GetDevice(dynamicControl().GetSuperPartitionName());
+  std::string GetSuperDevice(uint32_t slot) {
+    return GetDevice(dynamicControl().GetSuperPartitionName(slot));
   }
 
   uint32_t source() { return slots_.source; }
@@ -117,7 +117,8 @@ class DynamicPartitionControlAndroidTest : public ::testing::Test {
                    const PartitionSuffixSizes& sizes,
                    uint32_t partition_attr = 0,
                    uint64_t super_size = kDefaultSuperSize) {
-    EXPECT_CALL(dynamicControl(), LoadMetadataBuilder(GetSuperDevice(), slot))
+    EXPECT_CALL(dynamicControl(),
+                LoadMetadataBuilder(GetSuperDevice(slot), slot))
         .Times(AnyNumber())
         .WillRepeatedly(Invoke([=](auto, auto) {
           return NewFakeMetadata(PartitionSuffixSizesToManifest(sizes),
@@ -126,7 +127,7 @@ class DynamicPartitionControlAndroidTest : public ::testing::Test {
         }));
 
     EXPECT_CALL(dynamicControl(),
-                LoadMetadataBuilder(GetSuperDevice(), slot, _))
+                LoadMetadataBuilder(GetSuperDevice(slot), slot, _))
         .Times(AnyNumber())
         .WillRepeatedly(Invoke([=](auto, auto, auto) {
           return NewFakeMetadata(PartitionSuffixSizesToManifest(sizes),
@@ -136,10 +137,10 @@ class DynamicPartitionControlAndroidTest : public ::testing::Test {
   }
 
   void ExpectStoreMetadata(const PartitionSuffixSizes& partition_sizes) {
-    EXPECT_CALL(
-        dynamicControl(),
-        StoreMetadata(
-            GetSuperDevice(), MetadataMatches(partition_sizes), target()))
+    EXPECT_CALL(dynamicControl(),
+                StoreMetadata(GetSuperDevice(target()),
+                              MetadataMatches(partition_sizes),
+                              target()))
         .WillOnce(Return(true));
   }
 
@@ -308,7 +309,7 @@ TEST_P(DynamicPartitionControlAndroidTestP, DeleteAll) {
 // Test corrupt source metadata case.
 TEST_P(DynamicPartitionControlAndroidTestP, CorruptedSourceMetadata) {
   EXPECT_CALL(dynamicControl(),
-              LoadMetadataBuilder(GetSuperDevice(), source(), _))
+              LoadMetadataBuilder(GetSuperDevice(source()), source(), _))
       .WillOnce(Invoke([](auto, auto, auto) { return nullptr; }));
   ExpectUnmap({T("system")});
 
@@ -465,9 +466,9 @@ TEST_P(DynamicPartitionControlAndroidTestP,
   EXPECT_CALL(dynamicControl(), GetState(T("system")))
       .Times(AnyNumber())
       .WillOnce(Return(DmDeviceState::ACTIVE));
-  EXPECT_CALL(
-      dynamicControl(),
-      MapPartitionOnDeviceMapper(GetSuperDevice(), T("system"), target(), _, _))
+  EXPECT_CALL(dynamicControl(),
+              MapPartitionOnDeviceMapper(
+                  GetSuperDevice(target()), T("system"), target(), _, _))
       .Times(AnyNumber())
       .WillRepeatedly(
           Invoke([](const auto&, const auto& name, auto, auto, auto* device) {
