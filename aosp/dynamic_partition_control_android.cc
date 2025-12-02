@@ -80,6 +80,7 @@ constexpr char kUseDynamicPartitions[] = "ro.boot.dynamic_partitions";
 constexpr char kRetrfoitDynamicPartitions[] =
     "ro.boot.dynamic_partitions_retrofit";
 constexpr char kVirtualAbEnabled[] = "ro.virtual_ab.enabled";
+constexpr char kVirtualAbRetrofit[] = "ro.virtual_ab.retrofit";
 constexpr char kVirtualAbCompressionEnabled[] =
     "ro.virtual_ab.compression.enabled";
 constexpr auto&& kVirtualAbCompressionXorEnabled =
@@ -130,7 +131,7 @@ DynamicPartitionControlAndroid::DynamicPartitionControlAndroid(
     uint32_t source_slot)
     : dynamic_partitions_(
           GetFeatureFlag(kUseDynamicPartitions, kRetrfoitDynamicPartitions)),
-      virtual_ab_(GetFeatureFlag(kVirtualAbEnabled, nullptr)),
+      virtual_ab_(GetFeatureFlag(kVirtualAbEnabled, kVirtualAbRetrofit)),
       virtual_ab_compression_(GetFeatureFlag(kVirtualAbCompressionEnabled,
                                              kVirtualAbCompressionRetrofit)),
       virtual_ab_compression_xor_(

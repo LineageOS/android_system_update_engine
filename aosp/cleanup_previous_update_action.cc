@@ -483,6 +483,9 @@ void CleanupPreviousUpdateAction::ReportMergeStats() {
     return;
   }
 
+  bool vab_retrofit = boot_control_->GetDynamicPartitionControl()
+                          ->GetVirtualAbFeatureFlag()
+                          .IsRetrofit();
   bool vab_compression_enabled = boot_control_->GetDynamicPartitionControl()
                                      ->GetVirtualAbCompressionFeatureFlag()
                                      .IsEnabled();
@@ -523,7 +526,7 @@ void CleanupPreviousUpdateAction::ReportMergeStats() {
                       static_cast<int32_t>(report.state()),
                       static_cast<int64_t>(report.merge_total_time_ms()),
                       static_cast<int32_t>(report.resume_count()),
-                      false, /* vab retrofit */
+                      vab_retrofit,
                       static_cast<int64_t>(report.cow_file_size()),
                       vab_compression_enabled,
                       vab_compression_used,
