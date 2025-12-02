@@ -728,7 +728,8 @@ bool DynamicPartitionControlAndroid::GetSystemOtherPath(
     return true;
   }
 
-  auto source_super_device = device_dir.Append(GetSuperPartitionName()).value();
+  auto source_super_device =
+      device_dir.Append(GetSuperPartitionName(source_slot)).value();
 
   auto builder = LoadMetadataBuilder(source_super_device, source_slot);
   if (builder == nullptr) {
@@ -852,7 +853,8 @@ bool DynamicPartitionControlAndroid::PrepareDynamicPartitionsForUpdate(
   std::string device_dir_str;
   TEST_AND_RETURN_FALSE(GetDeviceDir(&device_dir_str));
   base::FilePath device_dir(device_dir_str);
-  auto source_device = device_dir.Append(GetSuperPartitionName()).value();
+  auto source_device =
+      device_dir.Append(GetSuperPartitionName(source_slot)).value();
 
   auto builder = LoadMetadataBuilder(source_device, source_slot, target_slot);
   if (builder == nullptr) {
@@ -869,7 +871,8 @@ bool DynamicPartitionControlAndroid::PrepareDynamicPartitionsForUpdate(
   TEST_AND_RETURN_FALSE(
       UpdatePartitionMetadata(builder.get(), target_slot, manifest));
 
-  auto target_device = device_dir.Append(GetSuperPartitionName()).value();
+  auto target_device =
+      device_dir.Append(GetSuperPartitionName(target_slot)).value();
 
   return StoreMetadata(target_device, builder.get(), target_slot);
 }
@@ -955,7 +958,8 @@ bool DynamicPartitionControlAndroid::PrepareSnapshotPartitionsForUpdate(
   std::string device_dir_str;
   TEST_AND_RETURN_FALSE(GetDeviceDir(&device_dir_str));
   base::FilePath device_dir(device_dir_str);
-  auto super_device = device_dir.Append(GetSuperPartitionName()).value();
+  auto super_device =
+      device_dir.Append(GetSuperPartitionName(source_slot)).value();
   auto builder = LoadMetadataBuilder(super_device, source_slot);
   if (builder == nullptr) {
     LOG(ERROR) << "No metadata at "
@@ -982,8 +986,9 @@ bool DynamicPartitionControlAndroid::PrepareSnapshotPartitionsForUpdate(
   return true;
 }
 
-std::string DynamicPartitionControlAndroid::GetSuperPartitionName() {
-  return fs_mgr_get_super_partition_name();
+std::string DynamicPartitionControlAndroid::GetSuperPartitionName(
+    uint32_t slot) {
+  return fs_mgr_get_super_partition_name(slot);
 }
 
 bool DynamicPartitionControlAndroid::UpdatePartitionMetadata(
@@ -1188,7 +1193,7 @@ bool DynamicPartitionControlAndroid::IsSuperBlockDevice(
     uint32_t current_slot,
     const std::string& partition_name_suffix) {
   std::string source_device =
-      device_dir.Append(GetSuperPartitionName()).value();
+      device_dir.Append(GetSuperPartitionName(current_slot)).value();
   auto source_metadata = LoadMetadataBuilder(source_device, current_slot);
   return source_metadata->HasBlockDevice(partition_name_suffix);
 }
@@ -1201,7 +1206,8 @@ DynamicPartitionControlAndroid::GetDynamicPartitionDevice(
     uint32_t current_slot,
     bool not_in_payload,
     std::string* device) {
-  std::string super_device = device_dir.Append(GetSuperPartitionName()).value();
+  std::string super_device =
+      device_dir.Append(GetSuperPartitionName(slot)).value();
   auto device_name = GetDeviceName(partition_name_suffix, slot);
 
   auto builder = LoadMetadataBuilder(super_device, slot);
@@ -1356,7 +1362,7 @@ bool DynamicPartitionControlAndroid::ListDynamicPartitionsForSlot(
   std::string device_dir_str;
   TEST_AND_RETURN_FALSE(GetDeviceDir(&device_dir_str));
   base::FilePath device_dir(device_dir_str);
-  auto super_device = device_dir.Append(GetSuperPartitionName()).value();
+  auto super_device = device_dir.Append(GetSuperPartitionName(slot)).value();
   auto builder = LoadMetadataBuilder(super_device, slot);
   TEST_AND_RETURN_FALSE(builder != nullptr);
 
@@ -1383,11 +1389,13 @@ bool DynamicPartitionControlAndroid::VerifyExtentsForUntouchedPartitions(
   TEST_AND_RETURN_FALSE(GetDeviceDir(&device_dir_str));
   base::FilePath device_dir(device_dir_str);
 
-  auto source_super_device = device_dir.Append(GetSuperPartitionName()).value();
+  auto source_super_device =
+      device_dir.Append(GetSuperPartitionName(source_slot)).value();
   auto source_builder = LoadMetadataBuilder(source_super_device, source_slot);
   TEST_AND_RETURN_FALSE(source_builder != nullptr);
 
-  auto target_super_device = device_dir.Append(GetSuperPartitionName()).value();
+  auto target_super_device =
+      device_dir.Append(GetSuperPartitionName(target_slot)).value();
   auto target_builder = LoadMetadataBuilder(target_super_device, target_slot);
   TEST_AND_RETURN_FALSE(target_builder != nullptr);
 
@@ -1470,7 +1478,7 @@ std::optional<base::FilePath> DynamicPartitionControlAndroid::GetSuperDevice() {
     return {};
   }
   base::FilePath device_dir(device_dir_str);
-  auto super_device = device_dir.Append(GetSuperPartitionName());
+  auto super_device = device_dir.Append(GetSuperPartitionName(target_slot_));
   return super_device;
 }
 
