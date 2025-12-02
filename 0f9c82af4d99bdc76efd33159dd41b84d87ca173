@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "09a4203d_f421a8f9",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 35551
+      },
+      "writtenOn": "2025-12-02T15:24:12Z",
+      "side": 1,
+      "message": "system/update_engine/aosp/dynamic_partition_control_android.cc:133:49: error: use of undeclared identifier \u0027kRetrfoitDynamicPartitions\u0027; did you mean \u0027kUseDynamicPartitions\u0027?",
+      "revId": "0f9c82af4d99bdc76efd33159dd41b84d87ca173",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
