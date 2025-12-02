@@ -135,7 +135,8 @@ class DynamicPartitionControlAndroid : public DynamicPartitionControlInterface {
 
   // Retrieves metadata from |super_device| at slot |source_slot|. And
   // modifies the metadata so that during updates, the metadata can be written
-  // to |target_slot|.
+  // to |target_slot|. In particular, on retrofit devices, the returned
+  // metadata automatically includes block devices at |target_slot|.
   virtual std::unique_ptr<android::fs_mgr::MetadataBuilder> LoadMetadataBuilder(
       const std::string& super_device,
       uint32_t source_slot,

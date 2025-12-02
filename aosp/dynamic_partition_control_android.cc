@@ -77,6 +77,8 @@ using android::snapshot::UpdateState;
 namespace chromeos_update_engine {
 
 constexpr char kUseDynamicPartitions[] = "ro.boot.dynamic_partitions";
+constexpr char kRetrfoitDynamicPartitions[] =
+    "ro.boot.dynamic_partitions_retrofit";
 constexpr char kVirtualAbEnabled[] = "ro.virtual_ab.enabled";
 constexpr char kVirtualAbCompressionEnabled[] =
     "ro.virtual_ab.compression.enabled";
@@ -126,7 +128,8 @@ static FeatureFlag GetFeatureFlag(const char* enable_prop,
 
 DynamicPartitionControlAndroid::DynamicPartitionControlAndroid(
     uint32_t source_slot)
-    : dynamic_partitions_(GetFeatureFlag(kUseDynamicPartitions, nullptr)),
+    : dynamic_partitions_(
+          GetFeatureFlag(kUseDynamicPartitions, kRetrfoitDynamicPartitions)),
       virtual_ab_(GetFeatureFlag(kVirtualAbEnabled, nullptr)),
       virtual_ab_compression_(GetFeatureFlag(kVirtualAbCompressionEnabled,
                                              kVirtualAbCompressionRetrofit)),
@@ -420,15 +423,24 @@ bool DynamicPartitionControlAndroid::StoreMetadata(
     return false;
   }
 
-  if (!UpdatePartitionTable(super_device, *metadata, target_slot)) {
-    LOG(ERROR) << "Cannot write metadata to slot "
-               << BootControlInterface::SlotName(target_slot) << " in "
-               << super_device;
-    return false;
+  if (GetDynamicPartitionsFeatureFlag().IsRetrofit()) {
+    if (!FlashPartitionTable(super_device, *metadata)) {
+      LOG(ERROR) << "Cannot write metadata to " << super_device;
+      return false;
+    }
+    LOG(INFO) << "Written metadata to " << super_device;
+  } else {
+    if (!UpdatePartitionTable(super_device, *metadata, target_slot)) {
+      LOG(ERROR) << "Cannot write metadata to slot "
+                 << BootControlInterface::SlotName(target_slot) << " in "
+                 << super_device;
+      return false;
+    }
+    LOG(INFO) << "Copied metadata to slot "
+              << BootControlInterface::SlotName(target_slot) << " in "
+              << super_device;
   }
-  LOG(INFO) << "Copied metadata to slot "
-            << BootControlInterface::SlotName(target_slot) << " in "
-            << super_device;
+
   return true;
 }
 
@@ -717,6 +729,19 @@ bool DynamicPartitionControlAndroid::GetSystemOtherPath(
     return true;
   }
 
+  if (!IsRecovery()) {
+    // Found unexpected avb_keys for system_other on devices retrofitting
+    // dynamic partitions. Previous crash in update_engine may leave logical
+    // partitions mapped on physical system_other partition. It is difficult to
+    // handle these cases. Just fail.
+    if (GetDynamicPartitionsFeatureFlag().IsRetrofit()) {
+      LOG(ERROR) << "Cannot erase AVB footer on system_other on devices with "
+                 << "retrofit dynamic partitions. They should not have AVB "
+                 << "enabled on system_other.";
+      return false;
+    }
+  }
+
   std::string device_dir_str;
   TEST_AND_RETURN_FALSE(GetDeviceDir(&device_dir_str));
   base::FilePath device_dir(device_dir_str);
@@ -879,6 +904,13 @@ bool DynamicPartitionControlAndroid::PrepareDynamicPartitionsForUpdate(
 
 DynamicPartitionControlAndroid::SpaceLimit
 DynamicPartitionControlAndroid::GetSpaceLimit(bool use_snapshot) {
+  // On device retrofitting dynamic partitions, allocatable_space = "super",
+  // where "super" is the sum of all block devices for that slot. Since block
+  // devices are dedicated for the corresponding slot, there's no need to halve
+  // the allocatable space.
+  if (GetDynamicPartitionsFeatureFlag().IsRetrofit())
+    return SpaceLimit::ERROR_IF_EXCEEDED_SUPER;
+
   // On device launching dynamic partitions w/o VAB, regardless of recovery
   // sideload, super partition must be big enough to hold both A and B slots of
   // groups. Hence,
@@ -886,7 +918,33 @@ DynamicPartitionControlAndroid::GetSpaceLimit(bool use_snapshot) {
   if (!GetVirtualAbFeatureFlag().IsEnabled())
     return SpaceLimit::ERROR_IF_EXCEEDED_HALF_OF_SUPER;
 
-  return SpaceLimit::ERROR_IF_EXCEEDED_SUPER;
+  // Source build supports VAB. Super partition must be big enough to hold
+  // one slot of groups (ERROR_IF_EXCEEDED_SUPER). However, there are cases
+  // where additional warning messages needs to be written.
+
+  // If using snapshot updates, implying that target build also uses VAB,
+  // allocatable_space = super
+  if (use_snapshot)
+    return SpaceLimit::ERROR_IF_EXCEEDED_SUPER;
+
+  // Source build supports VAB but not using snapshot updates. There are
+  // several cases, as listed below.
+  // Sideloading: allocatable_space = super.
+  if (IsRecovery())
+    return SpaceLimit::ERROR_IF_EXCEEDED_SUPER;
+
+  // On launch VAB device, this implies secondary payload.
+  // Technically, we don't have to check anything, but sum(groups) < super
+  // still applies.
+  if (!GetVirtualAbFeatureFlag().IsRetrofit())
+    return SpaceLimit::ERROR_IF_EXCEEDED_SUPER;
+
+  // On retrofit VAB device, either of the following:
+  // - downgrading: allocatable_space = super / 2
+  // - secondary payload: don't check anything
+  // These two cases are indistinguishable,
+  // hence emit warning if sum(groups) > super / 2
+  return SpaceLimit::WARN_IF_EXCEEDED_HALF_OF_SUPER;
 }
 
 bool DynamicPartitionControlAndroid::CheckSuperPartitionAllocatableSpace(
