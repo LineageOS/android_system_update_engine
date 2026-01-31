@@ -123,6 +123,7 @@ class UpdateAttempterAndroid final
 
   // PostinstallRunnerAction::DelegateInterface
   void ProgressUpdate(double progress) override;
+  void ProgressUpdate(const std::string &message) override;
 
   // CleanupPreviousUpdateActionDelegateInterface
   void OnCleanupProgressUpdate(double progress) override;

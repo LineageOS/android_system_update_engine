@@ -431,6 +431,12 @@ bool PostinstallRunnerAction::ProcessProgressLine(const string& line) {
     return true;
   }
 
+  if (android::base::StartsWith(line, "ui_print ")) {
+    if (delegate_)
+      delegate_->ProgressUpdate(line);
+    return true;
+  }
+
   return false;
 }
 

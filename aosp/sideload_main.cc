@@ -83,6 +83,10 @@ class SideloadDaemonState : public DaemonStateInterface,
     status_ = status;
   }
 
+  void SendStatusUpdate(const std::string &message) override {
+    ReportStatus(message);
+  }
+
   void SendPayloadApplicationComplete(ErrorCode error_code) override {
     if (error_code != ErrorCode::kSuccess) {
       ReportStatus(android::base::StringPrintf(
