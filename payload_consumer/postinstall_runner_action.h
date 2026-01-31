@@ -56,6 +56,7 @@ class PostinstallRunnerAction : public InstallPlanAction {
     // Called whenever there is an overall progress update from the postinstall
     // programs.
     virtual void ProgressUpdate(double progress) = 0;
+    virtual void ProgressUpdate(const std::string &message) = 0;
   };
 
   void set_delegate(DelegateInterface* delegate) { delegate_ = delegate; }
