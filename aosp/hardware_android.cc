@@ -266,7 +266,7 @@ int64_t HardwareAndroid::GetBuildTimestamp() const {
 // downgrade.
 bool HardwareAndroid::AllowDowngrade() const {
   return GetBoolProperty("ro.ota.allow_downgrade", false) &&
-         GetBoolProperty("ro.debuggable", false);
+         GetProperty("ro.build.type", "") != "user";
 }
 
 bool HardwareAndroid::GetFirstActiveOmahaPingSent() const {
