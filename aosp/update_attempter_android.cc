@@ -876,6 +876,12 @@ void UpdateAttempterAndroid::ProgressUpdate(double progress) {
   }
 }
 
+void UpdateAttempterAndroid::ProgressUpdate(const std::string &message) {
+  for (auto observer : daemon_state_->service_observers()) {
+    observer->SendStatusUpdate(message);
+  }
+}
+
 void UpdateAttempterAndroid::OnVerifyProgressUpdate(double progress) {
   assert(status_ == UpdateStatus::VERIFYING);
   ProgressUpdate(progress);
