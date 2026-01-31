@@ -33,6 +33,7 @@ class ServiceObserverInterface {
   // value changes, this method will be called only if it changes significantly.
   virtual void SendStatusUpdate(
       const update_engine::UpdateEngineStatus& update_engine_status) = 0;
+  virtual void SendStatusUpdate(const std::string &message) {}
 
   // Called whenever an update attempt is completed.
   virtual void SendPayloadApplicationComplete(ErrorCode error_code) = 0;
