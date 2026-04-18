@@ -1075,6 +1075,25 @@ bool DynamicPartitionControlAndroid::UpdatePartitionMetadata(
   const std::string target_suffix = SlotSuffixForSlotNumber(target_slot);
   DeleteGroupsWithSuffix(builder, target_suffix);
 
+  // Remove orphaned target-slot partitions that survive group deletion.
+  // Stock OEM super layouts may place target-slot partitions (e.g. system_b)
+  // in non-suffixed groups (e.g. "default" or "main"), so
+  // DeleteGroupsWithSuffix alone does not clean them up.
+  {
+    std::vector<std::string> stale;
+    for (const auto& group_name : builder->ListGroups()) {
+      for (const auto* p : builder->ListPartitionsInGroup(group_name)) {
+        if (android::base::EndsWith(p->name(), target_suffix)) {
+          stale.push_back(p->name());
+        }
+      }
+    }
+    for (const auto& name : stale) {
+      LOG(INFO) << "Removing orphaned partition " << name;
+      builder->RemovePartition(name);
+    }
+  }
+
   TEST_AND_RETURN_FALSE(
       CheckSuperPartitionAllocatableSpace(builder, manifest, false));
 
