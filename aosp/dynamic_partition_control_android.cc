@@ -83,7 +83,11 @@ constexpr char kVirtualAbCompressionEnabled[] =
 constexpr auto&& kVirtualAbCompressionXorEnabled =
     "ro.virtual_ab.compression.xor.enabled";
 
-
+// Currently, android doesn't have a retrofit prop for VAB Compression. However,
+// struct FeatureFlag forces us to determine if a feature is 'retrofit'. So this
+// is here just to simplify code. Replace it with real retrofit prop name once
+// there is one.
+constexpr char kVirtualAbCompressionRetrofit[] = "";
 constexpr char kPostinstallFstabPrefix[] = "ro.postinstall.fstab.prefix";
 // Map timeout for dynamic partitions.
 constexpr std::chrono::milliseconds kMapTimeout{1000};
@@ -100,8 +104,20 @@ DynamicPartitionControlAndroid::~DynamicPartitionControlAndroid() {
   metadata_device_.reset();
 }
 
-static FeatureFlag GetFeatureFlag(const char* enable_prop) {
+static FeatureFlag GetFeatureFlag(const char* enable_prop,
+                                  const char* retrofit_prop) {
+  // Default retrofit to false if retrofit_prop is empty.
+  bool retrofit = retrofit_prop && retrofit_prop[0] != '\0' &&
+                  GetBoolProperty(retrofit_prop, false);
   bool enabled = GetBoolProperty(enable_prop, false);
+  if (retrofit && !enabled) {
+    LOG(ERROR) << retrofit_prop << " is true but " << enable_prop
+               << " is not. These sysprops are inconsistent. Assume that "
+               << enable_prop << " is true from now on.";
+  }
+  if (retrofit) {
+    return FeatureFlag(FeatureFlag::Value::RETROFIT);
+  }
   if (enabled) {
     return FeatureFlag(FeatureFlag::Value::LAUNCH);
   }
@@ -110,11 +126,12 @@ static FeatureFlag GetFeatureFlag(const char* enable_prop) {
 
 DynamicPartitionControlAndroid::DynamicPartitionControlAndroid(
     uint32_t source_slot)
-    : dynamic_partitions_(GetFeatureFlag(kUseDynamicPartitions)),
-      virtual_ab_(GetFeatureFlag(kVirtualAbEnabled)),
-      virtual_ab_compression_(GetFeatureFlag(kVirtualAbCompressionEnabled)),
+    : dynamic_partitions_(GetFeatureFlag(kUseDynamicPartitions, nullptr)),
+      virtual_ab_(GetFeatureFlag(kVirtualAbEnabled, nullptr)),
+      virtual_ab_compression_(GetFeatureFlag(kVirtualAbCompressionEnabled,
+                                             kVirtualAbCompressionRetrofit)),
       virtual_ab_compression_xor_(
-          GetFeatureFlag(kVirtualAbCompressionXorEnabled)),
+          GetFeatureFlag(kVirtualAbCompressionXorEnabled, "")),
       source_slot_(source_slot) {
   if (GetVirtualAbFeatureFlag().IsEnabled()) {
     snapshot_ = SnapshotManager::New();
