@@ -333,7 +333,9 @@ bool VerityWriterAndroid::EncodeFEC(FileDescriptor* read_fd,
                                     uint64_t fec_size,
                                     uint32_t fec_roots,
                                     uint32_t block_size,
-                                    bool verify_mode) {
+                                    bool verify_mode,
+                                    uint64_t round_begin,
+                                    uint64_t round_end) {
   TEST_AND_RETURN_FALSE(data_size % block_size == 0);
   TEST_AND_RETURN_FALSE(fec_roots >= 0 && fec_roots < FEC_RSM);
   // This is the N in RS(M, N), which is the number of bytes for each rs
@@ -341,6 +343,11 @@ bool VerityWriterAndroid::EncodeFEC(FileDescriptor* read_fd,
   size_t rs_n = FEC_RSM - fec_roots;
   uint64_t rounds = utils::DivRoundUp(data_size / block_size, rs_n);
   TEST_AND_RETURN_FALSE(rounds * fec_roots * block_size == fec_size);
+  // Encode every round by default, otherwise the requested slice of them.
+  if (round_end == 0) {
+    round_end = rounds;
+  }
+  TEST_AND_RETURN_FALSE(round_begin <= round_end && round_end <= rounds);
 
   std::unique_ptr<void, decltype(&free_rs_char)> rs_char(
       init_rs_char(FEC_PARAMS(fec_roots)), &free_rs_char);
@@ -351,7 +358,9 @@ bool VerityWriterAndroid::EncodeFEC(FileDescriptor* read_fd,
   UnownedCachedFileDescriptor cache_fd(write_fd, 1 * (1 << 20));
   write_fd = &cache_fd;
 
-  for (size_t i = 0; i < rounds; i++) {
+  // Every round writes |fec_roots| parity bytes per block to its own slot.
+  fec_offset += round_begin * fec_roots * block_size;
+  for (size_t i = round_begin; i < round_end; i++) {
     // Encodes |block_size| number of rs blocks each round so that we can read
     // one block each time instead of 1 byte to increase random read
     // performance. This uses about 1 MiB memory for 4K block size.
@@ -413,7 +422,9 @@ bool VerityWriterAndroid::EncodeFEC(const std::string& path,
                                     uint64_t fec_size,
                                     uint32_t fec_roots,
                                     uint32_t block_size,
-                                    bool verify_mode) {
+                                    bool verify_mode,
+                                    uint64_t round_begin,
+                                    uint64_t round_end) {
   EintrSafeFileDescriptor fd;
   TEST_AND_RETURN_FALSE(fd.Open(path.c_str(), verify_mode ? O_RDONLY : O_RDWR));
   return EncodeFEC(&fd,
@@ -424,6 +435,8 @@ bool VerityWriterAndroid::EncodeFEC(const std::string& path,
                    fec_size,
                    fec_roots,
                    block_size,
-                   verify_mode);
+                   verify_mode,
+                   round_begin,
+                   round_end);
 }
 }  // namespace chromeos_update_engine

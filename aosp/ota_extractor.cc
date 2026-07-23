@@ -32,6 +32,7 @@
 
 #include <android-base/strings.h>
 #include <base/files/file_path.h>
+#include <fec/ecc.h>
 #include <gflags/gflags.h>
 #include <unistd.h>
 #include <xz.h>
@@ -64,6 +65,10 @@ DEFINE_int32(operation_threads,
              0,
              "Number of threads applying the operations of a single "
              "partition, 0 to pick a default");
+DEFINE_int32(verity_threads,
+             0,
+             "Number of threads encoding the verity FEC data of a single "
+             "partition, 0 to pick a default");
 
 using chromeos_update_engine::DeltaArchiveManifest;
 using chromeos_update_engine::PayloadMetadata;
@@ -75,6 +80,9 @@ namespace chromeos_update_engine {
 // grows with the number of threads applying its operations. Several partitions
 // are extracted at the same time, keep this well below the core count.
 static constexpr int kDefaultOperationThreads = 16;
+// A FEC round only needs about a mebibyte of scratch, and encoding one is pure
+// computation, so this can afford to go wider than the operations.
+static constexpr int kDefaultVerityThreads = 16;
 
 // Number of threads to spread |units| pieces of work of a single partition
 // over, |fallback| when the flag leaves the count up to us.
@@ -90,9 +98,52 @@ int WorkerThreads(const int requested, const int fallback, const int units) {
   return std::max(1, std::min(threads, units));
 }
 
+// Encodes the verity FEC data of a partition across several threads. The rounds
+// are independent and all cost the same, so they are split into one contiguous
+// slice per worker. Each worker opens its own descriptor inside
+// VerityWriterAndroid::EncodeFEC.
+bool EncodeFEC(const std::string& path,
+               const InstallPlan::Partition& partition) {
+  const uint64_t rs_n = FEC_RSM - partition.fec_roots;
+  const uint64_t rounds = utils::DivRoundUp(
+      partition.fec_data_size / partition.block_size, rs_n);
+
+  const int threads =
+      WorkerThreads(FLAGS_verity_threads, kDefaultVerityThreads, rounds);
+  LOG(INFO) << "Encoding " << rounds << " verity FEC rounds of " << path
+            << " on " << threads << " threads";
+
+  std::vector<std::future<bool>> futures;
+  for (int i = 0; i < threads; i++) {
+    const uint64_t round_begin = rounds * i / threads;
+    const uint64_t round_end = rounds * (i + 1) / threads;
+    futures.push_back(std::async(std::launch::async, [&, round_begin,
+                                                      round_end] {
+      return VerityWriterAndroid::EncodeFEC(path,
+                                            partition.fec_data_offset,
+                                            partition.fec_data_size,
+                                            partition.fec_offset,
+                                            partition.fec_size,
+                                            partition.fec_roots,
+                                            partition.block_size,
+                                            false /* verify_mode */,
+                                            round_begin,
+                                            round_end);
+    }));
+  }
+  bool ret = true;
+  for (auto& future : futures) {
+    if (!future.get()) {
+      ret = false;
+    }
+  }
+  return ret;
+}
+
 void WriteVerity(const PartitionUpdate& partition,
                  FileDescriptorPtr fd,
-                 const size_t block_size) {
+                 const size_t block_size,
+                 const std::string& path) {
   // 512KB buffer, arbitrary value. Larger buffers may improve performance.
   static constexpr size_t BUFFER_SIZE = 1024 * 512;
   if (partition.hash_tree_extent().num_blocks() == 0 &&
@@ -102,8 +153,14 @@ void WriteVerity(const PartitionUpdate& partition,
   InstallPlan::Partition install_part;
   install_part.block_size = block_size;
   CHECK(install_part.ParseVerityConfig(partition));
+  // The FEC data is encoded below instead, in parallel. Hide it from the writer
+  // so that it only builds the hash tree, which has to be on disk first because
+  // the FEC data covers it.
+  InstallPlan::Partition hash_tree_part = install_part;
+  hash_tree_part.fec_data_size = 0;
+  hash_tree_part.fec_size = 0;
   VerityWriterAndroid writer;
-  CHECK(writer.Init(install_part));
+  CHECK(writer.Init(hash_tree_part));
   std::array<uint8_t, BUFFER_SIZE> buffer;
   const auto data_size =
       install_part.hash_tree_data_offset + install_part.hash_tree_data_size;
@@ -121,6 +178,10 @@ void WriteVerity(const PartitionUpdate& partition,
     offset += bytes_read;
   }
   CHECK(writer.Finalize(fd.get(), fd.get()));
+  CHECK(fd->Flush());
+  if (install_part.fec_size != 0) {
+    CHECK(EncodeFEC(path, install_part));
+  }
   return;
 }
 
@@ -300,7 +361,7 @@ bool ExtractImageFromPartition(const DeltaArchiveManifest& manifest,
     TEST_AND_RETURN_FALSE(ret);
   }
 
-  WriteVerity(partition, out_fd, manifest.block_size());
+  WriteVerity(partition, out_fd, manifest.block_size(), output_path);
   int err =
       truncate64(output_path.c_str(), partition.new_partition_info().size());
   if (err) {

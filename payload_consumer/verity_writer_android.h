@@ -97,6 +97,9 @@ class VerityWriterAndroid : public VerityWriterInterface {
   // in each Update() like hash tree, because for every rs block, its data are
   // spreaded across entire |data_size|, unless we can cache all data in
   // memory, we have to re-read them from disk.
+  // The rounds are independent, so [|round_begin|, |round_end|) selects a slice
+  // of them to encode, letting several callers on their own descriptors share
+  // the work. |round_end| == 0 means encode every round.
   static bool EncodeFEC(FileDescriptor* read_fd,
                         FileDescriptor* write_fd,
                         uint64_t data_offset,
@@ -105,7 +108,9 @@ class VerityWriterAndroid : public VerityWriterInterface {
                         uint64_t fec_size,
                         uint32_t fec_roots,
                         uint32_t block_size,
-                        bool verify_mode);
+                        bool verify_mode,
+                        uint64_t round_begin = 0,
+                        uint64_t round_end = 0);
   static bool EncodeFEC(const std::string& path,
                         uint64_t data_offset,
                         uint64_t data_size,
@@ -113,7 +118,9 @@ class VerityWriterAndroid : public VerityWriterInterface {
                         uint64_t fec_size,
                         uint32_t fec_roots,
                         uint32_t block_size,
-                        bool verify_mode);
+                        bool verify_mode,
+                        uint64_t round_begin = 0,
+                        uint64_t round_end = 0);
 
  private:
   // stores the state of EncodeFEC
