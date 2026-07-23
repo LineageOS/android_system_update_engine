@@ -31,10 +31,16 @@
 #include <sys/stat.h>
 
 #include <android-base/strings.h>
+#include <android-base/unique_fd.h>
 #include <base/files/file_path.h>
+#include <fec/ecc.h>
 #include <gflags/gflags.h>
 #include <unistd.h>
 #include <xz.h>
+
+extern "C" {
+#include <fec.h>
+}
 
 #include "update_engine/common/utils.h"
 #include "update_engine/common/hash_calculator.h"
@@ -64,6 +70,10 @@ DEFINE_int32(operation_threads,
              0,
              "Number of threads applying the operations of a single "
              "partition, 0 to pick a default");
+DEFINE_int32(verity_threads,
+             0,
+             "Number of threads encoding the verity FEC data of a single "
+             "partition, 0 to pick a default");
 
 using chromeos_update_engine::DeltaArchiveManifest;
 using chromeos_update_engine::PayloadMetadata;
@@ -75,6 +85,9 @@ namespace chromeos_update_engine {
 // grows with the number of threads applying its operations. Several partitions
 // are extracted at the same time, keep this well below the core count.
 static constexpr int kDefaultOperationThreads = 16;
+// A FEC round only needs about a mebibyte of scratch, and encoding one is pure
+// computation, so this can afford to go wider than the operations.
+static constexpr int kDefaultVerityThreads = 16;
 
 // Number of threads to spread |units| pieces of work of a single partition
 // over, |fallback| when the flag leaves the count up to us.
@@ -90,9 +103,111 @@ int WorkerThreads(const int requested, const int fallback, const int units) {
   return std::max(1, std::min(threads, units));
 }
 
+// Encodes the Reed-Solomon rounds of a partition pulled from |next_round| until
+// they run out. Every round interleaves its own |rs_n| blocks out of the data
+// area and writes its parity bytes to its own slot of the FEC area, so rounds
+// are independent of each other. The areas are disjoint, and every worker reads
+// and writes positionally through its own descriptor.
+bool EncodeFECRounds(const std::string& path,
+                     const uint64_t data_offset,
+                     const uint64_t data_size,
+                     const uint64_t fec_offset,
+                     const uint32_t fec_roots,
+                     const uint32_t block_size,
+                     const uint64_t rounds,
+                     std::atomic<uint64_t>* next_round) {
+  const uint64_t rs_n = FEC_RSM - fec_roots;
+  std::unique_ptr<void, decltype(&free_rs_char)> rs_char(
+      init_rs_char(FEC_PARAMS(fec_roots)), &free_rs_char);
+  TEST_AND_RETURN_FALSE(rs_char != nullptr);
+
+  android::base::unique_fd fd(open(path.c_str(), O_RDWR | O_CLOEXEC));
+  TEST_AND_RETURN_FALSE_ERRNO(fd >= 0);
+
+  brillo::Blob rs_blocks(block_size * rs_n);
+  brillo::Blob buffer(block_size);
+  brillo::Blob fec(block_size * fec_roots);
+
+  uint64_t round;
+  while ((round = next_round->fetch_add(1)) < rounds) {
+    // Encodes |block_size| number of rs blocks each round so that we can read
+    // one block each time instead of 1 byte to increase random read
+    // performance. This uses about 1 MiB memory for 4K block size.
+    for (uint64_t j = 0; j < rs_n; j++) {
+      const uint64_t offset =
+          fec_ecc_interleave(round * rs_n * block_size + j, rs_n, rounds);
+      // Don't read past |data_size|, treat them as 0.
+      if (offset >= data_size) {
+        std::fill(buffer.begin(), buffer.end(), 0);
+      } else {
+        ssize_t bytes_read = 0;
+        TEST_AND_RETURN_FALSE(utils::PReadAll(fd.get(),
+                                              buffer.data(),
+                                              buffer.size(),
+                                              data_offset + offset,
+                                              &bytes_read));
+        TEST_AND_RETURN_FALSE(static_cast<size_t>(bytes_read) ==
+                              buffer.size());
+      }
+      for (uint64_t k = 0; k < buffer.size(); k++) {
+        rs_blocks[k * rs_n + j] = buffer[k];
+      }
+    }
+    for (uint64_t j = 0; j < block_size; j++) {
+      // Encode [j * rs_n : (j + 1) * rs_n) in |rs_blocks| and write
+      // |fec_roots| number of parity bytes to |j * fec_roots| in |fec|.
+      encode_rs_char(rs_char.get(),
+                     rs_blocks.data() + j * rs_n,
+                     fec.data() + j * fec_roots);
+    }
+    TEST_AND_RETURN_FALSE_ERRNO(utils::PWriteAll(
+        fd.get(), fec.data(), fec.size(), fec_offset + round * fec.size()));
+  }
+  return true;
+}
+
+bool EncodeFEC(const std::string& path,
+               const InstallPlan::Partition& partition) {
+  const uint64_t rs_n = FEC_RSM - partition.fec_roots;
+  TEST_AND_RETURN_FALSE(partition.fec_data_size % partition.block_size == 0);
+  TEST_AND_RETURN_FALSE(partition.fec_roots < FEC_RSM);
+  const uint64_t rounds = utils::DivRoundUp(
+      partition.fec_data_size / partition.block_size, rs_n);
+  TEST_AND_RETURN_FALSE(rounds * partition.fec_roots * partition.block_size ==
+                        partition.fec_size);
+
+  const int threads =
+      WorkerThreads(FLAGS_verity_threads, kDefaultVerityThreads, rounds);
+  LOG(INFO) << "Encoding " << rounds << " verity FEC rounds of " << path
+            << " on " << threads << " threads";
+
+  std::atomic<uint64_t> next_round(0);
+  std::vector<std::future<bool>> futures;
+  for (int i = 0; i < threads; i++) {
+    futures.push_back(std::async(std::launch::async,
+                                 EncodeFECRounds,
+                                 std::cref(path),
+                                 partition.fec_data_offset,
+                                 partition.fec_data_size,
+                                 partition.fec_offset,
+                                 partition.fec_roots,
+                                 partition.block_size,
+                                 rounds,
+                                 &next_round));
+  }
+  bool ret = true;
+  for (auto& future : futures) {
+    if (!future.get()) {
+      ret = false;
+    }
+  }
+  return ret;
+}
+
 void WriteVerity(const PartitionUpdate& partition,
                  FileDescriptorPtr fd,
-                 const size_t block_size) {
+                 const size_t block_size,
+                 const std::string& path) {
   // 512KB buffer, arbitrary value. Larger buffers may improve performance.
   static constexpr size_t BUFFER_SIZE = 1024 * 512;
   if (partition.hash_tree_extent().num_blocks() == 0 &&
@@ -102,8 +217,14 @@ void WriteVerity(const PartitionUpdate& partition,
   InstallPlan::Partition install_part;
   install_part.block_size = block_size;
   CHECK(install_part.ParseVerityConfig(partition));
+  // The FEC data is encoded below instead, in parallel. Hide it from the writer
+  // so that it only builds the hash tree, which has to be on disk first because
+  // the FEC data covers it.
+  InstallPlan::Partition hash_tree_part = install_part;
+  hash_tree_part.fec_data_size = 0;
+  hash_tree_part.fec_size = 0;
   VerityWriterAndroid writer;
-  CHECK(writer.Init(install_part));
+  CHECK(writer.Init(hash_tree_part));
   std::array<uint8_t, BUFFER_SIZE> buffer;
   const auto data_size =
       install_part.hash_tree_data_offset + install_part.hash_tree_data_size;
@@ -121,6 +242,10 @@ void WriteVerity(const PartitionUpdate& partition,
     offset += bytes_read;
   }
   CHECK(writer.Finalize(fd.get(), fd.get()));
+  CHECK(fd->Flush());
+  if (install_part.fec_size != 0) {
+    CHECK(EncodeFEC(path, install_part));
+  }
   return;
 }
 
@@ -300,7 +425,7 @@ bool ExtractImageFromPartition(const DeltaArchiveManifest& manifest,
     TEST_AND_RETURN_FALSE(ret);
   }
 
-  WriteVerity(partition, out_fd, manifest.block_size());
+  WriteVerity(partition, out_fd, manifest.block_size(), output_path);
   int err =
       truncate64(output_path.c_str(), partition.new_partition_info().size());
   if (err) {
