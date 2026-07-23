@@ -14,12 +14,17 @@
 // limitations under the License.
 //
 
+#include <algorithm>
 #include <array>
+#include <atomic>
 #include <cstdint>
 #include <cstdio>
 #include <future>
 #include <iterator>
 #include <memory>
+#include <string>
+#include <thread>
+#include <vector>
 
 #include <fcntl.h>
 #include <sys/mman.h>
@@ -55,11 +60,35 @@ DEFINE_string(partitions,
               "Comma separated list of partitions to extract, leave empty for "
               "extracting all partitions");
 DEFINE_bool(single_thread, false, "Limit extraction to a single thread");
+DEFINE_int32(operation_threads,
+             0,
+             "Number of threads applying the operations of a single "
+             "partition, 0 to pick a default");
 
 using chromeos_update_engine::DeltaArchiveManifest;
 using chromeos_update_engine::PayloadMetadata;
 
 namespace chromeos_update_engine {
+
+// An operation holds its data blob and, for the lz4diff and zucchini ones, its
+// whole source and destination in memory, so the peak footprint of a partition
+// grows with the number of threads applying its operations. Several partitions
+// are extracted at the same time, keep this well below the core count.
+static constexpr int kDefaultOperationThreads = 16;
+
+// Number of threads to spread |units| pieces of work of a single partition
+// over, |fallback| when the flag leaves the count up to us.
+int WorkerThreads(const int requested, const int fallback, const int units) {
+  if (FLAGS_single_thread) {
+    return 1;
+  }
+  const int threads =
+      requested > 0
+          ? requested
+          : std::min(fallback,
+                     static_cast<int>(std::thread::hardware_concurrency()));
+  return std::max(1, std::min(threads, units));
+}
 
 void WriteVerity(const PartitionUpdate& partition,
                  FileDescriptorPtr fd,
@@ -95,40 +124,68 @@ void WriteVerity(const PartitionUpdate& partition,
   return;
 }
 
-bool ExtractImageFromPartition(const DeltaArchiveManifest& manifest,
-                               const PartitionUpdate& partition,
-                               const size_t data_begin,
-                               int payload_fd,
-                               std::string_view input_dir,
-                               std::string_view output_dir) {
+// These operations read from the source partition and write to disjoint
+// destination extents, so they can be applied in any order. The deprecated
+// MOVE and BSDIFF operations read back from the partition being written
+// instead, and are deliberately left out, together with any operation added
+// after this was written.
+bool CanApplyOperationInParallel(const InstallOperation& op) {
+  switch (op.type()) {
+    case InstallOperation::REPLACE:
+    case InstallOperation::REPLACE_BZ:
+    case InstallOperation::REPLACE_XZ:
+    case InstallOperation::ZERO:
+    case InstallOperation::DISCARD:
+    case InstallOperation::SOURCE_COPY:
+    case InstallOperation::SOURCE_BSDIFF:
+    case InstallOperation::BROTLI_BSDIFF:
+    case InstallOperation::PUFFDIFF:
+    case InstallOperation::ZUCCHINI:
+    case InstallOperation::LZ4DIFF_BSDIFF:
+    case InstallOperation::LZ4DIFF_PUFFDIFF:
+      return true;
+    default:
+      return false;
+  }
+}
+
+bool CanApplyOperationsInParallel(const PartitionUpdate& partition) {
+  for (const auto& op : partition.operations()) {
+    if (!CanApplyOperationInParallel(op)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// Applies the operations of |partition| pulled from |next_op| until they run
+// out. Every worker opens its own descriptors, reading and writing seeks them,
+// and keeps its own scratch buffer. The payload is read positionally, so its
+// descriptor is shared.
+bool ApplyOperations(const DeltaArchiveManifest& manifest,
+                     const PartitionUpdate& partition,
+                     const size_t data_begin,
+                     int payload_fd,
+                     const std::string& input_path,
+                     const std::string& output_path,
+                     std::atomic<int>* next_op) {
   InstallOperationExecutor executor(manifest.block_size());
-  const base::FilePath output_dir_path(
-      base::StringPiece(output_dir.data(), output_dir.size()));
-  const base::FilePath input_dir_path(
-      base::StringPiece(input_dir.data(), input_dir.size()));
   std::vector<unsigned char> blob;
 
-  LOG(INFO) << "Extracting partition " << partition.partition_name()
-            << " size: " << partition.new_partition_info().size();
-  const auto output_path =
-      output_dir_path.Append(partition.partition_name() + ".img").value();
   auto out_fd =
       std::make_shared<chromeos_update_engine::EintrSafeFileDescriptor>();
   TEST_AND_RETURN_FALSE_ERRNO(
       out_fd->Open(output_path.c_str(), O_RDWR | O_CREAT, 0644));
   auto in_fd =
       std::make_shared<chromeos_update_engine::EintrSafeFileDescriptor>();
-  if (partition.has_old_partition_info()) {
-    const auto input_path =
-        input_dir_path.Append(partition.partition_name() + ".img").value();
-    LOG(INFO) << "Incremental OTA detected for partition "
-              << partition.partition_name() << " opening source image "
-              << input_path;
+  if (!input_path.empty()) {
     CHECK(in_fd->Open(input_path.c_str(), O_RDONLY))
         << " failed to open " << input_path;
   }
 
-  for (const auto& op : partition.operations()) {
+  int index;
+  while ((index = next_op->fetch_add(1)) < partition.operations_size()) {
+    const auto& op = partition.operations(index);
     if (op.has_src_sha256_hash()) {
       brillo::Blob actual_hash;
       TEST_AND_RETURN_FALSE(fd_utils::ReadAndHashExtents(
@@ -171,6 +228,78 @@ bool ExtractImageFromPartition(const DeltaArchiveManifest& manifest,
           op, std::move(direct_writer), in_fd, blob.data(), blob.size()));
     }
   }
+  return true;
+}
+
+bool ExtractImageFromPartition(const DeltaArchiveManifest& manifest,
+                               const PartitionUpdate& partition,
+                               const size_t data_begin,
+                               int payload_fd,
+                               std::string_view input_dir,
+                               std::string_view output_dir) {
+  const base::FilePath output_dir_path(
+      base::StringPiece(output_dir.data(), output_dir.size()));
+  const base::FilePath input_dir_path(
+      base::StringPiece(input_dir.data(), input_dir.size()));
+
+  LOG(INFO) << "Extracting partition " << partition.partition_name()
+            << " size: " << partition.new_partition_info().size();
+  const auto output_path =
+      output_dir_path.Append(partition.partition_name() + ".img").value();
+  std::string input_path;
+  if (partition.has_old_partition_info()) {
+    input_path = input_dir_path.Append(partition.partition_name() + ".img")
+                     .value();
+    LOG(INFO) << "Incremental OTA detected for partition "
+              << partition.partition_name() << " opening source image "
+              << input_path;
+  }
+
+  auto out_fd =
+      std::make_shared<chromeos_update_engine::EintrSafeFileDescriptor>();
+  TEST_AND_RETURN_FALSE_ERRNO(
+      out_fd->Open(output_path.c_str(), O_RDWR | O_CREAT, 0644));
+
+  const int threads = CanApplyOperationsInParallel(partition)
+                          ? WorkerThreads(FLAGS_operation_threads,
+                                          kDefaultOperationThreads,
+                                          partition.operations_size())
+                          : 1;
+
+  std::atomic<int> next_op(0);
+  if (threads == 1) {
+    TEST_AND_RETURN_FALSE(ApplyOperations(manifest,
+                                          partition,
+                                          data_begin,
+                                          payload_fd,
+                                          input_path,
+                                          output_path,
+                                          &next_op));
+  } else {
+    LOG(INFO) << "Applying " << partition.operations_size()
+              << " operations of " << partition.partition_name() << " on "
+              << threads << " threads";
+    std::vector<std::future<bool>> futures;
+    for (int i = 0; i < threads; i++) {
+      futures.push_back(std::async(std::launch::async,
+                                   ApplyOperations,
+                                   std::cref(manifest),
+                                   std::cref(partition),
+                                   data_begin,
+                                   payload_fd,
+                                   std::cref(input_path),
+                                   std::cref(output_path),
+                                   &next_op));
+    }
+    bool ret = true;
+    for (auto& future : futures) {
+      if (!future.get()) {
+        ret = false;
+      }
+    }
+    TEST_AND_RETURN_FALSE(ret);
+  }
+
   WriteVerity(partition, out_fd, manifest.block_size());
   int err =
       truncate64(output_path.c_str(), partition.new_partition_info().size());
