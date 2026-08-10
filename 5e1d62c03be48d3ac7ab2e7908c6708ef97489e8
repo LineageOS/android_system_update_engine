@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "690ae3ff_d8f5e4e5",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 29715
+      },
+      "writtenOn": "2026-08-10T05:30:36Z",
+      "side": 1,
+      "message": "On venus (sm8350), picking this gives me a kPostInstallMountError on step 2/2 when sideloading",
+      "revId": "5e1d62c03be48d3ac7ab2e7908c6708ef97489e8",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
