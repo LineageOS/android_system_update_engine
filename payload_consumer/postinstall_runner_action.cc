@@ -209,7 +209,7 @@ bool PostinstallRunnerAction::MountPartition(
 
   uint16_t mount_count = 0;
 
-  if (!source_path.empty()) {
+  if (!source_path.empty() && partition.filesystem_type == "ext4") {
     brillo::Blob chunk;
 
     utils::ReadFileChunk(source_path, 0x400 + 0x34, sizeof(uint16_t), &chunk);
