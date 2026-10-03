@@ -406,6 +406,16 @@ DynamicPartitionControlAndroid::LoadMetadataBuilder(
                  << super_device;
     return nullptr;
   }
+  // The super table already on the device can record a smaller size than
+  // the real partition, for example when an earlier install was made for a
+  // different super size. The payload then does not fit in the recorded size
+  // even though the device has room for it.
+  // So in recovery, grow the recorded size to match the real device size.
+  // It never shrinks.
+  if (IsRecovery() && builder->GrowBlockDevicesToLiveSize(PartitionOpener())) {
+    LOG(INFO) << "Raised recorded super size to the live device size in "
+              << super_device;
+  }
   LOG(INFO) << "Created metadata for new update from slot "
             << BootControlInterface::SlotName(source_slot) << " in "
             << super_device;
