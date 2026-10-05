@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "7b098464_1e235d04",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 16185
+      },
+      "writtenOn": "2026-10-05T16:11:15Z",
+      "side": 1,
+      "message": "pending expensive testing on my flight of devices once I build monthlies.\n\nNeed your V+/CR+1 as well @khargosxh18@gmail.com",
+      "revId": "dcbd8ad8b71344fbbac1240439b4d2035b2929ff",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
